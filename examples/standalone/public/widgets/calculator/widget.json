@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "calculator",
+  "title": "Calculator",
+  "entrypoint": "index.html",
+  "bindings": [],
+  "capabilities": [],
+  "preferredSize": { "w": 3, "h": 4 }
+}

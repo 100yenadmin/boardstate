@@ -27,6 +27,54 @@ import {
   DEMO_WIDGET_TITLE,
   DEMO_WIDGET_VALUE,
 } from "./demo-widget-content.js";
+// Locale tables ported from the source project (partial — core chrome; unlisted
+// keys fall back to English). The demo eagerly imports all of them; a real app
+// would import just its own.
+import { ar } from "@boardstate/lit/locales/ar";
+import { de } from "@boardstate/lit/locales/de";
+import { es } from "@boardstate/lit/locales/es";
+import { fa } from "@boardstate/lit/locales/fa";
+import { fr } from "@boardstate/lit/locales/fr";
+import { hi } from "@boardstate/lit/locales/hi";
+import { id } from "@boardstate/lit/locales/id";
+import { it } from "@boardstate/lit/locales/it";
+import { ja_JP } from "@boardstate/lit/locales/ja-JP";
+import { ko } from "@boardstate/lit/locales/ko";
+import { nl } from "@boardstate/lit/locales/nl";
+import { pl } from "@boardstate/lit/locales/pl";
+import { pt_BR } from "@boardstate/lit/locales/pt-BR";
+import { ru } from "@boardstate/lit/locales/ru";
+import { th } from "@boardstate/lit/locales/th";
+import { tr } from "@boardstate/lit/locales/tr";
+import { uk } from "@boardstate/lit/locales/uk";
+import { vi } from "@boardstate/lit/locales/vi";
+import { zh_CN } from "@boardstate/lit/locales/zh-CN";
+import { zh_TW } from "@boardstate/lit/locales/zh-TW";
+import type { BoardstateStrings } from "@boardstate/lit";
+
+const LOCALE_TABLES: Record<string, BoardstateStrings | undefined> = {
+  en: undefined, // built-in default
+  ar,
+  de,
+  es,
+  fa,
+  fr,
+  hi,
+  id,
+  it,
+  "ja-JP": ja_JP,
+  ko,
+  nl,
+  pl,
+  "pt-BR": pt_BR,
+  ru,
+  th,
+  tr,
+  uk,
+  vi,
+  "zh-CN": zh_CN,
+  "zh-TW": zh_TW,
+};
 
 const SIM_AGENT = "agent:sales-bot";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +113,16 @@ function applyMode(mode: "light" | "dark"): void {
   if (btn) btn.textContent = mode === "dark" ? "🌙 Dark" : "☀️ Light";
 }
 
+/** The mounted view, so the language control can push `strings` into it. */
+let activeView: (HTMLElement & { strings?: BoardstateStrings }) | null = null;
+
+function wireLanguageControl(): void {
+  const select = document.getElementById("lang") as HTMLSelectElement | null;
+  select?.addEventListener("change", () => {
+    if (activeView) activeView.strings = LOCALE_TABLES[select.value];
+  });
+}
+
 function wireThemeControls(): void {
   const select = document.getElementById("theme") as HTMLSelectElement | null;
   const mode = document.getElementById("mode") as HTMLButtonElement | null;
@@ -79,11 +137,39 @@ function wireThemeControls(): void {
 
 async function main(): Promise<void> {
   wireThemeControls();
+  wireLanguageControl();
 
   const storage = new MemoryStorageAdapter();
   const store = new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
-  registerBoardstateRpc(host, { store });
+  registerBoardstateRpc(host, {
+    store,
+    // Gallery install, browser edition. The node installer writes bundle files to
+    // disk then registers the widget `pending`; here the starter widgets' files
+    // are ALREADY hosted statically (public/widgets/<name>/), so installing is
+    // purely the document-side registration — same approval gate (pending only),
+    // same "widget already exists" rule.
+    installWidgetBundle: async (targetStore, bundle, ctx) => {
+      const result = await targetStore.mutate(
+        (draft) => {
+          if (draft.widgetsRegistry[bundle.name]) {
+            throw new Error("widget already exists");
+          }
+          draft.widgetsRegistry[bundle.name] = { status: "pending", createdBy: ctx.actor };
+        },
+        { actor: ctx.actor },
+      );
+      return { doc: result.doc };
+    },
+  });
+
+  // Point the widget gallery at the demo's own registry (public/registry/) so
+  // Browse → Install works out of the box. Only seeded when the operator hasn't
+  // chosen a registry themselves.
+  const galleryUrl = new URL(`${import.meta.env.BASE_URL}registry/index.json`, location.href).href;
+  if (!localStorage.getItem("boardstate:gallery-url:v1")) {
+    localStorage.setItem("boardstate:gallery-url:v1", galleryUrl);
+  }
 
   // Seed the "Agent HQ" template so the board looks composed on first paint.
   await host.request("dashboard.workspace.replace", {
@@ -95,9 +181,14 @@ async function main(): Promise<void> {
     transport?: unknown;
     connected?: boolean;
     basePath?: string;
+    strings?: BoardstateStrings;
+    storage?: Pick<Storage, "getItem" | "setItem">;
   };
+  activeView = view;
   view.transport = host;
   view.connected = true;
+  // Persistence seam for view conveniences (remembered gallery URL, etc.).
+  view.storage = localStorage;
   // Widget assets resolve under Vite's base ("/" in dev, "/boardstate/" on the
   // hosted demo) — widgetAssetUrl() joins `${basePath}/widgets/<name>/<file>`.
   view.basePath = import.meta.env.BASE_URL.replace(/\/+$/, "");

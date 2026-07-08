@@ -1,0 +1,78 @@
+<!doctype html>
+<!--
+  notes — a scratchpad, and an honest example of the current persistence
+  gap: there is NO getState/setState bridge message and no state:persist
+  capability in the reference implementation (its bridge only handles
+  ready/getData/getTheme/sendPrompt inbound — anything else is silently
+  dropped). This widget keeps text in its own in-memory JS state instead of
+  pretending to persist it: that survives re-renders but resets on iframe
+  remount (drag, tab switch, re-add). See docs/authoring.md and this dir's
+  README.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        font-family: var(--font-sans, system-ui, sans-serif);
+        background: Canvas;
+        color: CanvasText;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        box-sizing: border-box;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+      textarea {
+        flex: 1;
+        resize: none;
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        border-radius: 6px;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      footer {
+        margin-top: 8px;
+        font-size: 0.7rem;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Notes</h1>
+    <textarea id="note" placeholder="Type a note… (resets if this widget remounts)"></textarea>
+    <footer>In-memory only — see the comment at the top of this file.</footer>
+    <script>
+      function post(type, payload) {
+        window.parent.postMessage(Object.assign({ v: 1, type: type }, payload || {}), "*");
+      }
+
+      function applyTheme(tokens) {
+        var root = document.documentElement.style;
+        if (tokens["--bg"]) root.setProperty("--wg-bg", tokens["--bg"]);
+        if (tokens["--text"]) root.setProperty("--wg-text", tokens["--text"]);
+      }
+
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (msg && msg.v === 1 && msg.type === "dashboard:theme") applyTheme(msg.tokens || {});
+      });
+
+      post("dashboard:ready");
+      post("dashboard:getTheme", { requestId: "theme-1" });
+    </script>
+  </body>
+</html>

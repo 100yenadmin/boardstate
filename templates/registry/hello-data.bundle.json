@@ -1,0 +1,24 @@
+{
+  "manifest": {
+    "schemaVersion": 1,
+    "name": "hello-data",
+    "title": "Hello Data",
+    "entrypoint": "index.html",
+    "bindings": [
+      {
+        "id": "greeting",
+        "source": "static",
+        "value": "Hello from your dashboard widget!"
+      }
+    ],
+    "capabilities": ["data:read"],
+    "preferredSize": {
+      "w": 4,
+      "h": 3
+    }
+  },
+  "files": {
+    "README.md": "# hello-data\n\nMinimal example: requests one `static` binding (`greeting`) with\n`dashboard:getData` on load, and re-renders on both the `dashboard:data`\nreply and any later `dashboard:push`.\n\nSwap the `greeting` binding's `source` in `widget.json` to `rpc` (naming an\nallowlisted read method) or `file` (naming a logical path under the host's\ndata dir) to point this at real data instead of a static string — the\n`index.html` code doesn't need to change either way, since it only cares\nabout the `bindingId`, not where the data came from.\n\nSee `docs/authoring.md` for the full bridge protocol and manifest schema.\n\n---\n\nAdapted from the reference implementation's documentation (openclaw/openclaw#101136 series).\n",
+    "index.html": "<!doctype html>\n<!--\n  hello-data — minimal read path: getData once on load, re-render on both the\n  getData reply (dashboard:data) and a later push (dashboard:push). See\n  docs/authoring.md for the full bridge protocol.\n  To reuse: copy this dir, rename it, update widget.json's \"name\" to match,\n  and swap the \"greeting\" binding's source to \"rpc\" or \"file\" for real data.\n-->\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>Hello Data</title>\n    <style>\n      :root {\n        color-scheme: light dark;\n      }\n      body {\n        margin: 0;\n        padding: 16px;\n        font-family: var(--font-sans, system-ui, sans-serif);\n        background: Canvas;\n        color: CanvasText;\n      }\n      h1 {\n        margin: 0 0 12px;\n        font-size: 1rem;\n      }\n      #greeting {\n        white-space: pre-wrap;\n        overflow-wrap: anywhere;\n      }\n    </style>\n  </head>\n  <body>\n    <h1>Hello Data</h1>\n    <p id=\"greeting\">Waiting for dashboard data…</p>\n    <script>\n      // Every message is { v: 1, type, ...fields }. targetOrigin is always\n      // \"*\" both ways — the iframe's origin is opaque, so there's no real\n      // origin to compare against.\n      var greetingNode = document.getElementById(\"greeting\");\n\n      function post(type, payload) {\n        window.parent.postMessage(Object.assign({ v: 1, type: type }, payload || {}), \"*\");\n      }\n\n      function render(data) {\n        greetingNode.textContent = typeof data === \"string\" ? data : JSON.stringify(data, null, 2);\n      }\n\n      window.addEventListener(\"message\", function (event) {\n        var msg = event.data;\n        if (!msg || msg.v !== 1) return;\n        if (msg.type === \"dashboard:data\" || msg.type === \"dashboard:push\") {\n          if (msg.bindingId === \"greeting\") render(msg.data);\n        } else if (msg.type === \"dashboard:error\") {\n          greetingNode.textContent = \"Error (\" + msg.code + \"): \" + msg.message;\n        }\n      });\n\n      post(\"dashboard:ready\");\n      post(\"dashboard:getData\", { requestId: \"greeting-1\", bindingId: \"greeting\" });\n    </script>\n  </body>\n</html>\n"
+  }
+}

@@ -1,0 +1,336 @@
+{
+  "schemaVersion": 1,
+  "workspaceVersion": 1,
+  "tabs": [
+    {
+      "slug": "triage",
+      "title": "Triage",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "triage-open-issues",
+          "kind": "builtin:stat-card",
+          "title": "Open Issues",
+          "grid": { "x": 0, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 142, "format": "int", "label": "Open Issues" }
+        },
+        {
+          "id": "triage-prs-review",
+          "kind": "builtin:stat-card",
+          "title": "PRs Awaiting Review",
+          "grid": { "x": 3, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 18, "format": "int", "label": "PRs Awaiting Review" }
+        },
+        {
+          "id": "triage-stale",
+          "kind": "builtin:stat-card",
+          "title": "Stale >30d",
+          "grid": { "x": 6, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 27, "format": "int", "label": "Stale >30d" }
+        },
+        {
+          "id": "triage-issues-table",
+          "kind": "builtin:table",
+          "title": "Open Issues",
+          "grid": { "x": 0, "y": 2, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["id", "title", "labels", "age", "author"],
+            "limit": 10,
+            "rows": [
+              {
+                "id": "#412",
+                "title": "Panic on empty payload in decoder",
+                "labels": "bug, p1",
+                "age": "2d",
+                "author": "@nvasquez"
+              },
+              {
+                "id": "#409",
+                "title": "Add --dry-run flag to launch CLI",
+                "labels": "enhancement",
+                "age": "5d",
+                "author": "@kperry"
+              },
+              {
+                "id": "#398",
+                "title": "Docs: clarify retry backoff config",
+                "labels": "docs",
+                "age": "9d",
+                "author": "@ohan"
+              },
+              {
+                "id": "#387",
+                "title": "Memory leak in long-running worker pool",
+                "labels": "bug, p2",
+                "age": "14d",
+                "author": "@rmartins"
+              },
+              {
+                "id": "#355",
+                "title": "Support custom TLS trust store",
+                "labels": "enhancement",
+                "age": "31d",
+                "author": "@fkessler"
+              },
+              {
+                "id": "#341",
+                "title": "Flaky test: launcher_integration_test.go",
+                "labels": "test, flaky",
+                "age": "38d",
+                "author": "@nvasquez"
+              },
+              {
+                "id": "#298",
+                "title": "Windows path handling broken on UNC shares",
+                "labels": "bug",
+                "age": "61d",
+                "author": "@dlindqvist"
+              },
+              {
+                "id": "#276",
+                "title": "RFC: pluggable telemetry backends",
+                "labels": "discussion",
+                "age": "74d",
+                "author": "@kperry"
+              }
+            ]
+          }
+        },
+        {
+          "id": "triage-activity",
+          "kind": "builtin:activity",
+          "title": "Repo Activity",
+          "grid": { "x": 7, "y": 2, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "entries": [
+                  {
+                    "ts": 1751980800000,
+                    "jobName": "ci",
+                    "status": "error",
+                    "summary": "Nightly integration suite failed on windows-2022 runner (timeout in launcher_integration_test.go)"
+                  },
+                  {
+                    "ts": 1751980500000,
+                    "jobName": "release-bot",
+                    "status": "ok",
+                    "summary": "v2.14.1 published to npm + GitHub Releases"
+                  },
+                  {
+                    "ts": 1751980200000,
+                    "jobName": "triage-bot",
+                    "status": "ok",
+                    "summary": "Auto-labeled 6 new issues, flagged #412 as p1 (crash report with repro)"
+                  },
+                  {
+                    "ts": 1751979900000,
+                    "jobName": "stale-bot",
+                    "status": "pending",
+                    "summary": "Marked #276 stale — no activity in 74 days, closes in 14d unless updated"
+                  },
+                  {
+                    "ts": 1751979600000,
+                    "jobName": "ci",
+                    "status": "ok",
+                    "summary": "PR #415 (fix decoder panic) passed full matrix, ready for review"
+                  },
+                  {
+                    "ts": 1751979300000,
+                    "jobName": "release-bot",
+                    "status": "ok",
+                    "summary": "Changelog draft generated for v2.15.0-rc.1"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "slug": "ci",
+      "title": "CI",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "ci-build-success",
+          "kind": "builtin:chart",
+          "title": "Build Success Rate",
+          "grid": { "x": 0, "y": 0, "w": 5, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [94]
+            }
+          },
+          "props": { "type": "gauge", "min": 0, "max": 100 }
+        },
+        {
+          "id": "ci-recent-runs",
+          "kind": "builtin:table",
+          "title": "Recent Runs",
+          "grid": { "x": 5, "y": 0, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["workflow", "branch", "status", "duration", "triggeredBy"],
+            "limit": 10,
+            "rows": [
+              {
+                "workflow": "CI / full-matrix",
+                "branch": "main",
+                "status": "passed",
+                "duration": "6m 12s",
+                "triggeredBy": "@nvasquez"
+              },
+              {
+                "workflow": "CI / full-matrix",
+                "branch": "fix/decoder-panic",
+                "status": "passed",
+                "duration": "5m 58s",
+                "triggeredBy": "@kperry"
+              },
+              {
+                "workflow": "Release / publish",
+                "branch": "release/v2.14.1",
+                "status": "passed",
+                "duration": "2m 40s",
+                "triggeredBy": "release-bot"
+              },
+              {
+                "workflow": "CI / full-matrix",
+                "branch": "feat/tls-truststore",
+                "status": "failed",
+                "duration": "4m 05s",
+                "triggeredBy": "@fkessler"
+              },
+              {
+                "workflow": "Nightly / windows-2022",
+                "branch": "main",
+                "status": "failed",
+                "duration": "11m 02s",
+                "triggeredBy": "ci"
+              },
+              {
+                "workflow": "CI / lint",
+                "branch": "docs/retry-backoff",
+                "status": "passed",
+                "duration": "48s",
+                "triggeredBy": "@ohan"
+              }
+            ]
+          }
+        },
+        {
+          "id": "ci-flaky-tests",
+          "kind": "builtin:markdown",
+          "title": "Known Flaky Tests",
+          "grid": { "x": 0, "y": 5, "w": 5, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## Known flaky tests\n\n- `launcher_integration_test.go::TestRetryBackoff` — fails ~8% of runs on windows-2022, timing-sensitive. Tracked in #341.\n- `worker_pool_test.go::TestDrainUnderLoad` — occasional goroutine-leak false positive under `-race`.\n\nRe-run before merging if either fails on an otherwise-green PR."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "financials",
+      "title": "Financials",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "fin-sponsors",
+          "kind": "builtin:stat-card",
+          "title": "Sponsors",
+          "grid": { "x": 0, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 214, "format": "int", "label": "Sponsors" }
+        },
+        {
+          "id": "fin-mrr",
+          "kind": "builtin:stat-card",
+          "title": "MRR",
+          "grid": { "x": 3, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 8420, "format": "usd", "label": "MRR" }
+        },
+        {
+          "id": "fin-donations",
+          "kind": "builtin:chart",
+          "title": "Donations (12mo)",
+          "grid": { "x": 0, "y": 2, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [520, 610, 590, 700, 680, 740, 810, 760, 790, 860, 900, 940]
+            }
+          },
+          "props": { "type": "line" }
+        },
+        {
+          "id": "fin-expenses",
+          "kind": "builtin:table",
+          "title": "Expenses",
+          "grid": { "x": 6, "y": 2, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["category", "amount", "month", "vendor"],
+            "limit": 8,
+            "rows": [
+              {
+                "category": "CI minutes",
+                "amount": "$340",
+                "month": "Jun",
+                "vendor": "GitHub Actions"
+              },
+              { "category": "Docs hosting", "amount": "$45", "month": "Jun", "vendor": "Vercel" },
+              {
+                "category": "Domain + DNS",
+                "amount": "$18",
+                "month": "Jun",
+                "vendor": "Cloudflare"
+              },
+              {
+                "category": "Contributor bounty",
+                "amount": "$500",
+                "month": "Jun",
+                "vendor": "Bountysource"
+              },
+              {
+                "category": "Security audit",
+                "amount": "$1,200",
+                "month": "May",
+                "vendor": "Trail of Bits"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "widgetsRegistry": {},
+  "prefs": { "tabOrder": ["triage", "ci", "financials"] }
+}

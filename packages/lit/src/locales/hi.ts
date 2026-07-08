@@ -1,0 +1,55 @@
+// hi strings for the Boardstate reference view.
+// Ported from the source project's Control-UI locale bundle; only keys whose
+// English source matched Boardstate's English table verbatim were carried over,
+// so every value is a faithful translation of the string it replaces. Unlisted
+// keys fall back to the built-in English.
+import type { BoardstateStrings } from "../strings.js";
+
+export const hi: BoardstateStrings = {
+  "common.save": "सहेजें",
+  "common.cancel": "रद्द करें",
+  "common.reload": "फिर से लोड करें",
+  "common.loading": "लोड हो रहा है…",
+  "common.dismiss": "खारिज करें",
+  "dashboard.tabs.label": "कार्यक्षेत्र",
+  "dashboard.tabs.hidden": "छिपाए गए ({count})",
+  "dashboard.empty.onboardingTitle": "अभी तक कोई कार्यक्षेत्र नहीं",
+  "dashboard.empty.tabTitle": "यह कार्यक्षेत्र खाली है",
+  "dashboard.widget.editTitleTitle": "विजेट शीर्षक संपादित करें",
+  "dashboard.widget.editTitleLabel": "विजेट शीर्षक",
+  "dashboard.widget.moveToTabEmpty": "इस विजेट को स्थानांतरित करने के लिए कोई अन्य टैब नहीं है।",
+  "dashboard.widget.menu.editTitle": "शीर्षक संपादित करें",
+  "dashboard.widget.menu.hide": "छिपाएं",
+  "dashboard.widget.menu.remove": "हटाएँ",
+  "dashboard.widget.expand": "विजेट विस्तृत करें",
+  "dashboard.widget.collapse": "विजेट संक्षिप्त करें",
+  "dashboard.widget.moveHandle": "विजेट स्थानांतरित करें",
+  "dashboard.widget.resizeHandle": "विजेट का आकार बदलें",
+  "dashboard.widget.approval.approve": "स्वीकृत करें",
+  "dashboard.widget.approval.reject": "अस्वीकार करें",
+  "dashboard.widget.table.empty": "दिखाने के लिए कोई पंक्तियाँ नहीं हैं।",
+  "dashboard.widget.table.more": "+{count} और",
+  "dashboard.widget.sessions.empty": "अभी तक कोई सत्र नहीं है।",
+  "dashboard.widget.usage.cost": "लागत",
+  "dashboard.widget.usage.tokens": "टोकन",
+  "dashboard.widget.cron.empty": "कोई अनुसूचित कार्य नहीं।",
+  "dashboard.widget.cron.next": "अगला {time}",
+  "dashboard.widget.cron.noNext": "अनुसूचित नहीं",
+  "dashboard.widget.instances.empty": "कोई कनेक्टेड इंस्टेंस नहीं है।",
+  "dashboard.widget.activity.empty": "कोई हालिया गतिविधि नहीं है।",
+  "dashboard.widget.actionForm.submit": "भेजें",
+  "dashboard.widget.agentStatus.idle": "निष्क्रिय",
+  "dashboard.widget.approvals.approve": "स्वीकृत करें",
+  "dashboard.widget.approvals.deny": "अस्वीकार करें",
+  "common.back": "वापस",
+  "dashboard.tabs.groupUser": "आप",
+  "dashboard.tabs.groupSystem": "सिस्टम",
+  "dashboard.widget.menu.pin": "पिन करें",
+  "dashboard.history.open": "इतिहास",
+  "dashboard.history.previewTitle": "स्नैपशॉट",
+  "dashboard.history.actorUnknown": "अज्ञात",
+  "dashboard.history.kind.widget-moved": "स्थानांतरित किया गया",
+  "dashboard.distribution.export": "निर्यात करें",
+};
+
+export default hi;

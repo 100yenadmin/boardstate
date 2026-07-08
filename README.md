@@ -81,6 +81,13 @@ To give an AI the tools directly:
 npx @boardstate/mcp --serve 4400    # MCP stdio server + a live host page
 ```
 
+Or drive the same control plane from your shell with the **`boardstate`** CLI (from `@boardstate/server`). It reads/writes a local state dir (`$BOARDSTATE_STATE_DIR`, else `~/.boardstate`):
+
+```sh
+npx --package @boardstate/server boardstate tab add sales   # add a workspace tab
+npx --package @boardstate/server boardstate dashboard tabs list
+```
+
 ## Theming
 
 `@boardstate/lit` ships a complete, world-class default theme — **Graphite** (a
@@ -115,6 +122,17 @@ import "@boardstate/lit/styles.css"; // the Graphite default — light + dark
 The **[live demo](https://100yenadmin.github.io/boardstate/)** has the theme
 switcher + light/dark toggle in its header — the fastest way to see all three.
 
+## Localization
+
+The view ships partial translations for **20 languages** (Arabic, German, Spanish, Farsi, French, Hindi, Indonesian, Italian, Japanese, Korean, Dutch, Polish, Portuguese-BR, Russian, Thai, Turkish, Ukrainian, Vietnamese, and both Chinese scripts) — faithfully ported from the source project's catalogs; untranslated keys fall back to English. Pass a table to the view's `strings` property:
+
+```ts
+import { de } from "@boardstate/lit/locales/de";
+view.strings = de; // or any BoardstateStrings partial of your own
+```
+
+The live demo's **Lang** menu switches all 20 at runtime.
+
 ## Learn more
 
 - **[SPEC.md](packages/schema/SPEC.md)** — the protocol: document format, `dashboard.*` methods, bridge protocol v1, capability & approval model, the security invariants.
@@ -122,7 +140,8 @@ switcher + light/dark toggle in its header — the fastest way to see all three.
 - **[docs/authoring.md](docs/authoring.md)** — write a widget (builtin renderer or sandboxed custom).
 - **[docs/living-answers.md](docs/living-answers.md)** — the agent convention: answer visual questions with live widgets, not prose.
 - **[docs/design-review.md](docs/design-review.md)** — the agent workflow for reviewing and refining a layout it built.
-- **[templates/](templates)** — starter widgets and workspace templates.
+- **[templates/](templates)** — workspace templates (Agent HQ, small-business, OSS-maintainer), starter custom widgets, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
+- **[docs/demo-script.md](docs/demo-script.md)** — the acceptance walkthrough: a scripted Do/Observe tour proving every feature, for maintainers and PR reviewers.
 
 ## Status
 

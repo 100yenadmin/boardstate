@@ -1,0 +1,56 @@
+// ru strings for the Boardstate reference view.
+// Ported from the source project's Control-UI locale bundle; only keys whose
+// English source matched Boardstate's English table verbatim were carried over,
+// so every value is a faithful translation of the string it replaces. Unlisted
+// keys fall back to the built-in English.
+import type { BoardstateStrings } from "../strings.js";
+
+export const ru: BoardstateStrings = {
+  "common.save": "Сохранить",
+  "common.cancel": "Отмена",
+  "common.reload": "Перезагрузить",
+  "common.loading": "Загрузка…",
+  "common.dismiss": "Закрыть",
+  "dashboard.tabs.label": "Рабочие области",
+  "dashboard.tabs.hidden": "Скрытые ({count})",
+  "dashboard.empty.onboardingTitle": "Рабочих областей пока нет",
+  "dashboard.empty.tabTitle": "Эта рабочая область пуста",
+  "dashboard.widget.editTitleTitle": "Изменить название виджета",
+  "dashboard.widget.editTitleLabel": "Название виджета",
+  "dashboard.widget.moveToTabEmpty": "Нет других вкладок, куда можно переместить этот виджет.",
+  "dashboard.widget.menu.editTitle": "Изменить название",
+  "dashboard.widget.menu.hide": "Скрыть",
+  "dashboard.widget.menu.remove": "Удалить",
+  "dashboard.widget.provenanceChip": "ИИ",
+  "dashboard.widget.expand": "Развернуть виджет",
+  "dashboard.widget.collapse": "Свернуть виджет",
+  "dashboard.widget.moveHandle": "Переместить виджет",
+  "dashboard.widget.resizeHandle": "Изменить размер виджета",
+  "dashboard.widget.approval.approve": "Одобрить",
+  "dashboard.widget.approval.reject": "Отклонить",
+  "dashboard.widget.table.empty": "Нет строк для отображения.",
+  "dashboard.widget.table.more": "+{count} ещё",
+  "dashboard.widget.sessions.empty": "Сессий пока нет.",
+  "dashboard.widget.usage.cost": "Стоимость",
+  "dashboard.widget.usage.tokens": "Токены",
+  "dashboard.widget.cron.empty": "Нет запланированных задач.",
+  "dashboard.widget.cron.next": "След. {time}",
+  "dashboard.widget.cron.noNext": "Не запланировано",
+  "dashboard.widget.instances.empty": "Нет подключенных экземпляров.",
+  "dashboard.widget.activity.empty": "Недавней активности нет.",
+  "dashboard.widget.actionForm.submit": "Отправить",
+  "dashboard.widget.agentStatus.idle": "Бездействует",
+  "dashboard.widget.approvals.approve": "Одобрить",
+  "dashboard.widget.approvals.deny": "Запретить",
+  "common.back": "Назад",
+  "dashboard.tabs.groupUser": "Вы",
+  "dashboard.tabs.groupSystem": "Системная",
+  "dashboard.widget.menu.pin": "Закрепить",
+  "dashboard.history.open": "История",
+  "dashboard.history.previewTitle": "Снимок",
+  "dashboard.history.actorUnknown": "Неизвестно",
+  "dashboard.history.kind.widget-moved": "Перемещено",
+  "dashboard.distribution.export": "Экспорт",
+};
+
+export default ru;

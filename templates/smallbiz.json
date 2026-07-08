@@ -1,0 +1,283 @@
+{
+  "schemaVersion": 1,
+  "workspaceVersion": 1,
+  "tabs": [
+    {
+      "slug": "today",
+      "title": "Today",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "today-revenue",
+          "kind": "builtin:stat-card",
+          "title": "Revenue Today",
+          "grid": { "x": 0, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 2840, "format": "usd", "label": "Revenue Today" }
+        },
+        {
+          "id": "today-orders",
+          "kind": "builtin:stat-card",
+          "title": "Orders Today",
+          "grid": { "x": 3, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 86, "format": "int", "label": "Orders Today" }
+        },
+        {
+          "id": "today-avg-ticket",
+          "kind": "builtin:stat-card",
+          "title": "Avg Ticket",
+          "grid": { "x": 6, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 33.02, "format": "usd", "label": "Avg Ticket" }
+        },
+        {
+          "id": "today-orders-table",
+          "kind": "builtin:table",
+          "title": "Recent Orders",
+          "grid": { "x": 0, "y": 2, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["order", "item", "total", "status"],
+            "limit": 10,
+            "rows": [
+              {
+                "order": "#1042",
+                "item": "Oat Milk Latte + Croissant",
+                "total": "$9.25",
+                "status": "completed"
+              },
+              {
+                "order": "#1043",
+                "item": "Cold Brew (L)",
+                "total": "$5.50",
+                "status": "completed"
+              },
+              {
+                "order": "#1044",
+                "item": "Drip Coffee + Blueberry Muffin",
+                "total": "$7.75",
+                "status": "completed"
+              },
+              {
+                "order": "#1045",
+                "item": "Cappuccino x2",
+                "total": "$8.00",
+                "status": "completed"
+              },
+              {
+                "order": "#1046",
+                "item": "Iced Matcha Latte",
+                "total": "$5.95",
+                "status": "refunded"
+              },
+              {
+                "order": "#1047",
+                "item": "Espresso Shot + Biscotti",
+                "total": "$4.50",
+                "status": "completed"
+              },
+              {
+                "order": "#1048",
+                "item": "Pour Over (Ethiopia)",
+                "total": "$6.25",
+                "status": "completed"
+              },
+              {
+                "order": "#1049",
+                "item": "Vanilla Cold Brew (L)",
+                "total": "$6.50",
+                "status": "preparing"
+              },
+              { "order": "#1050", "item": "Drip Coffee", "total": "$3.25", "status": "completed" },
+              {
+                "order": "#1051",
+                "item": "Chai Latte + Croissant",
+                "total": "$8.75",
+                "status": "preparing"
+              }
+            ]
+          }
+        },
+        {
+          "id": "today-sales-by-hour",
+          "kind": "builtin:chart",
+          "title": "Sales by Hour",
+          "grid": { "x": 7, "y": 2, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [4, 12, 26, 38, 52, 61, 54, 40, 46, 58, 42, 27, 14]
+            }
+          },
+          "props": { "type": "area" }
+        }
+      ]
+    },
+    {
+      "slug": "inventory",
+      "title": "Inventory",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "inv-low-stock",
+          "kind": "builtin:table",
+          "title": "Low Stock",
+          "grid": { "x": 0, "y": 0, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["item", "onHand", "reorderPoint", "status"],
+            "limit": 10,
+            "rows": [
+              { "item": "Oat milk (qt)", "onHand": 6, "reorderPoint": 12, "status": "low" },
+              {
+                "item": "Cold brew concentrate (gal)",
+                "onHand": 2,
+                "reorderPoint": 4,
+                "status": "low"
+              },
+              {
+                "item": "12oz cups (sleeve)",
+                "onHand": 3,
+                "reorderPoint": 8,
+                "status": "critical"
+              },
+              {
+                "item": "Vanilla syrup (bottle)",
+                "onHand": 1,
+                "reorderPoint": 3,
+                "status": "critical"
+              },
+              { "item": "Whole milk (gal)", "onHand": 9, "reorderPoint": 10, "status": "low" },
+              {
+                "item": "Espresso beans (5lb bag)",
+                "onHand": 4,
+                "reorderPoint": 6,
+                "status": "low"
+              },
+              {
+                "item": "Blueberry muffins (case)",
+                "onHand": 2,
+                "reorderPoint": 5,
+                "status": "low"
+              }
+            ]
+          }
+        },
+        {
+          "id": "inv-reorder-notes",
+          "kind": "builtin:markdown",
+          "title": "Reorder Notes",
+          "grid": { "x": 7, "y": 0, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## Reorder this week\n\n- **12oz cups** — critical, order 10 sleeves from Karat (rep: Dana, 2-day lead)\n- **Vanilla syrup** — critical, order 6 bottles from Torani direct\n- **Oat milk** — order 3 cases from Sysco on the Thursday delivery\n- **Cold brew concentrate** — brew a fresh batch tonight, order 2 more gal from the roaster\n\nCheck the walk-in temp log before Thursday's delivery — compressor was running warm Monday."
+          }
+        },
+        {
+          "id": "inv-stock-health",
+          "kind": "builtin:chart",
+          "title": "Stock Health",
+          "grid": { "x": 0, "y": 6, "w": 5, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [78]
+            }
+          },
+          "props": { "type": "gauge", "min": 0, "max": 100 }
+        }
+      ]
+    },
+    {
+      "slug": "marketing",
+      "title": "Marketing",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "mkt-signups",
+          "kind": "builtin:chart",
+          "title": "Loyalty Signups by Week",
+          "grid": { "x": 0, "y": 0, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [18, 24, 21, 30, 35, 29, 41, 47]
+            }
+          },
+          "props": { "type": "line" }
+        },
+        {
+          "id": "mkt-campaigns",
+          "kind": "builtin:table",
+          "title": "Campaigns",
+          "grid": { "x": 6, "y": 0, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["campaign", "channel", "spend", "signups", "roi"],
+            "limit": 8,
+            "rows": [
+              {
+                "campaign": "Fall Latte Launch",
+                "channel": "Instagram",
+                "spend": "$220",
+                "signups": 64,
+                "roi": "3.1x"
+              },
+              {
+                "campaign": "Neighborhood Postcards",
+                "channel": "Direct mail",
+                "spend": "$180",
+                "signups": 22,
+                "roi": "1.4x"
+              },
+              {
+                "campaign": "Loyalty Referral Push",
+                "channel": "Email",
+                "spend": "$0",
+                "signups": 38,
+                "roi": "—"
+              },
+              {
+                "campaign": "Weekend Pup Cup Promo",
+                "channel": "Instagram",
+                "spend": "$60",
+                "signups": 19,
+                "roi": "2.2x"
+              }
+            ]
+          }
+        },
+        {
+          "id": "mkt-notes",
+          "kind": "builtin:notes",
+          "title": "Marketing Notes",
+          "grid": { "x": 0, "y": 6, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "text": "Track Instagram Reels performance weekly — the Fall Latte Launch reel outperformed feed posts 4:1. Consider a referral code for regulars before the holiday rush. Postcards are underperforming — maybe cut next quarter."
+          }
+        }
+      ]
+    }
+  ],
+  "widgetsRegistry": {},
+  "prefs": { "tabOrder": ["today", "inventory", "marketing"] }
+}

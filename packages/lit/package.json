@@ -10,7 +10,11 @@
     },
     "./styles.css": "./src/styles/boardstate.css",
     "./themes/aurora.css": "./src/styles/themes/aurora.css",
-    "./themes/vibrancy.css": "./src/styles/themes/vibrancy.css"
+    "./themes/vibrancy.css": "./src/styles/themes/vibrancy.css",
+    "./locales/*": {
+      "types": "./dist/locales/*.d.ts",
+      "import": "./dist/locales/*.js"
+    }
   },
   "files": [
     "dist",
