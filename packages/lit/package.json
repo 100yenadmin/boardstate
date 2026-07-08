@@ -31,5 +31,8 @@
     "type": "git",
     "url": "github:100yenadmin/boardstate",
     "directory": "packages/lit"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

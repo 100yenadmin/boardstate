@@ -24,5 +24,8 @@
     "type": "git",
     "url": "github:100yenadmin/boardstate",
     "directory": "packages/host"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

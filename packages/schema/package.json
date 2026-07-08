@@ -20,5 +20,8 @@
     "type": "git",
     "url": "github:100yenadmin/boardstate",
     "directory": "packages/schema"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

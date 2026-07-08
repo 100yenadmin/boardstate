@@ -29,5 +29,8 @@
     "type": "git",
     "url": "github:100yenadmin/boardstate",
     "directory": "packages/mcp"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

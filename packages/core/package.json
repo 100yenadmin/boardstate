@@ -23,5 +23,8 @@
     "type": "git",
     "url": "github:100yenadmin/boardstate",
     "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
