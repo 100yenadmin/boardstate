@@ -1,0 +1,352 @@
+import path from "node:path";
+import {
+  DEFAULT_DASHBOARD_WORKSPACE,
+  migrateWorkspaceDoc,
+  validateWorkspaceDoc,
+  type JsonValue,
+  type WorkspaceDoc,
+} from "@boardstate/schema";
+import { FsStorageAdapter } from "./adapters/storage-fs.js";
+import type { StorageAdapter } from "./adapters/storage.js";
+
+export type DashboardMutationOptions = { actor: string };
+export type DashboardMutationResult = { doc: WorkspaceDoc; changed: boolean };
+
+/** A persisted widget-state envelope: the widget's opaque blob plus write metadata. */
+export type WidgetStateRecord = { version: number; updatedAt: string; blob: JsonValue };
+export type WidgetStateWriteResult = { version: number };
+
+/**
+ * Read-only metadata for one undo-ring snapshot (time-travel history). `version`
+ * is the snapshot's own `workspaceVersion` (the state it represents), NOT the ring
+ * filename (which is that version + 1, the mutation that superseded it). Bodies
+ * are never included here — callers fetch a full snapshot via `getHistorySnapshot`.
+ */
+export type DashboardHistoryEntry = { version: number; savedAt: string; bytes: number };
+
+const MAX_WORKSPACE_BYTES = 256 * 1024;
+const UNDO_RING_SIZE = 20;
+// Hard per-widget state cap, enforced on the SERIALIZED envelope BEFORE any write.
+// Separate from (and smaller than) the 256 KB workspace cap so state blobs never
+// count against the workspace document.
+const MAX_WIDGET_STATE_BYTES = 64 * 1024;
+// The widget id is used as a filename segment under `state/`; it must match the
+// same charset the workspace schema enforces for widget ids so a caller can never
+// smuggle a path separator or traversal into the state directory.
+const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
+
+function serializeWorkspaceDoc(doc: WorkspaceDoc): string {
+  return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+function assertWorkspaceSize(serialized: string): void {
+  if (Buffer.byteLength(serialized, "utf8") > MAX_WORKSPACE_BYTES) {
+    throw new Error("workspace document exceeds 256 KB");
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Defensively normalize a persisted widget-state envelope read from disk. A file
+ * that predates this format (or was hand-edited) still yields a usable record; the
+ * `blob` is passed through opaquely (the widget owns its own shape).
+ */
+function validateWidgetStateRecord(value: unknown): WidgetStateRecord {
+  if (!isRecord(value)) {
+    throw new Error("widget state file is malformed");
+  }
+  const version =
+    typeof value.version === "number" && Number.isInteger(value.version) && value.version >= 0
+      ? value.version
+      : 0;
+  const updatedAt = typeof value.updatedAt === "string" ? value.updatedAt : "";
+  return { version, updatedAt, blob: (value.blob ?? null) as JsonValue };
+}
+
+/**
+ * Drop ephemeral widgets whose `expiresAt` is at or before `nowMs` (Living
+ * Answers TTL sweep). Returns a new doc with `workspaceVersion` bumped when
+ * anything expired, or null when nothing did — so the caller writes exactly once
+ * and only when the sweep changed something.
+ */
+function sweepExpiredEphemeral(doc: WorkspaceDoc, nowMs: number): WorkspaceDoc | null {
+  let removed = false;
+  const tabs = doc.tabs.map((tab) => {
+    const widgets = tab.widgets.filter((widget) => {
+      const expiresAt = widget.ephemeral?.expiresAt;
+      if (expiresAt === undefined) {
+        return true;
+      }
+      const expiry = Date.parse(expiresAt);
+      // A validated doc always parses; keep an unparseable stamp rather than guess.
+      if (Number.isNaN(expiry) || expiry > nowMs) {
+        return true;
+      }
+      removed = true;
+      return false;
+    });
+    return widgets.length === tab.widgets.length ? tab : { ...tab, widgets };
+  });
+  if (!removed) {
+    return null;
+  }
+  return { ...doc, tabs, workspaceVersion: doc.workspaceVersion + 1 };
+}
+
+export class DashboardStore {
+  readonly stateDir: string;
+  readonly dashboardDir: string;
+  readonly workspacePath: string;
+  readonly undoDir: string;
+  readonly widgetStateDir: string;
+  private readonly storage: StorageAdapter;
+  private readonly now: () => number;
+  private queue: Promise<void> = Promise.resolve();
+
+  constructor(options: { storage?: StorageAdapter; now?: () => number } = {}) {
+    this.storage = options.storage ?? new FsStorageAdapter();
+    this.stateDir = this.storage.storageDir();
+    this.dashboardDir = path.join(this.stateDir, "dashboard");
+    this.workspacePath = path.join(this.dashboardDir, "workspace.json");
+    this.undoDir = path.join(this.dashboardDir, "undo");
+    this.widgetStateDir = path.join(this.dashboardDir, "state");
+    this.now = options.now ?? (() => Date.now());
+  }
+
+  private async readJsonFile(filePath: string): Promise<unknown> {
+    const raw = await this.storage.readFile(filePath);
+    if (raw === null) {
+      return undefined;
+    }
+    return JSON.parse(raw) as unknown;
+  }
+
+  async read(): Promise<WorkspaceDoc> {
+    const raw = await this.readJsonFile(this.workspacePath);
+    if (raw === undefined) {
+      const seeded = validateWorkspaceDoc(structuredClone(DEFAULT_DASHBOARD_WORKSPACE));
+      await this.writeWorkspaceDoc(seeded);
+      return seeded;
+    }
+    const migrated = migrateWorkspaceDoc(raw);
+    let doc = migrated.doc;
+    let mustWrite = migrated.changed;
+    // Living Answers TTL: expired ephemeral widgets are swept lazily on read, in a
+    // single atomic write folded together with any migration write above.
+    const swept = sweepExpiredEphemeral(doc, this.now());
+    if (swept) {
+      doc = swept;
+      mustWrite = true;
+    }
+    if (mustWrite) {
+      await this.writeWorkspaceDoc(doc);
+    }
+    return doc;
+  }
+
+  async mutate(
+    fn: (draft: WorkspaceDoc) => WorkspaceDoc | void | Promise<WorkspaceDoc | void>,
+    _options: DashboardMutationOptions,
+  ): Promise<DashboardMutationResult> {
+    return await this.runExclusive(async () => {
+      const current = await this.read();
+      const draft = structuredClone(current);
+      const returned = await fn(draft);
+      const candidate = returned === undefined ? draft : returned;
+      candidate.workspaceVersion = current.workspaceVersion + 1;
+      const next = validateWorkspaceDoc(candidate);
+      const serialized = serializeWorkspaceDoc(next);
+      assertWorkspaceSize(serialized);
+      await this.writeUndoSnapshot(current, next.workspaceVersion);
+      await this.writeWorkspaceSerialized(serialized);
+      return { doc: next, changed: true };
+    });
+  }
+
+  async replace(
+    doc: WorkspaceDoc,
+    options: DashboardMutationOptions,
+  ): Promise<DashboardMutationResult> {
+    return await this.mutate(() => structuredClone(doc), options);
+  }
+
+  async undo(): Promise<WorkspaceDoc> {
+    return await this.runExclusive(async () => {
+      const files = await this.listUndoFiles();
+      const newest = files.at(-1);
+      if (!newest) {
+        throw new Error("no dashboard undo snapshot available");
+      }
+      const snapshotPath = path.join(this.undoDir, newest);
+      const snapshot = validateWorkspaceDoc(await this.readJsonFile(snapshotPath));
+      const serialized = serializeWorkspaceDoc(snapshot);
+      assertWorkspaceSize(serialized);
+      await this.writeWorkspaceSerialized(serialized);
+      await this.storage.rm(snapshotPath);
+      return snapshot;
+    });
+  }
+
+  /**
+   * List undo-ring snapshots newest-first as metadata only (history.list). Reads
+   * the ring but never mutates it, so it needs no exclusive lock. `bytes` is the
+   * on-disk serialized size; `savedAt` is derived from the snapshot's own version.
+   * Snapshots that fail validation are skipped rather than failing the whole listing.
+   */
+  async listHistory(): Promise<DashboardHistoryEntry[]> {
+    const files = await this.listUndoFiles();
+    const entries = await Promise.all(
+      files.map(async (fileName): Promise<DashboardHistoryEntry | undefined> => {
+        const filePath = path.join(this.undoDir, fileName);
+        try {
+          const content = await this.storage.readFile(filePath);
+          if (content === null) {
+            return undefined;
+          }
+          const doc = validateWorkspaceDoc(JSON.parse(content) as unknown);
+          return {
+            version: doc.workspaceVersion,
+            savedAt: new Date().toISOString(),
+            bytes: Buffer.byteLength(content, "utf8"),
+          };
+        } catch {
+          return undefined;
+        }
+      }),
+    );
+    return entries
+      .filter((entry): entry is DashboardHistoryEntry => entry !== undefined)
+      .toSorted((a, b) => b.version - a.version);
+  }
+
+  /**
+   * Return the full snapshot doc for a ring `version` (history.get), or throw if it
+   * is no longer in the ring. Read-only; matches on the snapshot's own
+   * `workspaceVersion` so callers never depend on the ring filename offset.
+   */
+  async getHistorySnapshot(version: number): Promise<WorkspaceDoc> {
+    const files = await this.listUndoFiles();
+    for (const fileName of files) {
+      const raw = await this.readJsonFile(path.join(this.undoDir, fileName));
+      if (raw === undefined) {
+        continue;
+      }
+      const doc = validateWorkspaceDoc(raw);
+      if (doc.workspaceVersion === version) {
+        return doc;
+      }
+    }
+    throw new Error(`no dashboard history snapshot for version ${version}`);
+  }
+
+  /**
+   * Resolve the on-disk file for one widget's persisted state. The charset guard
+   * already forbids separators / traversal, but containment is re-checked so the
+   * resolved path can never escape the `state/` jail (belt-and-braces).
+   */
+  private resolveWidgetStatePath(widgetId: string): string {
+    if (!WIDGET_ID_PATTERN.test(widgetId)) {
+      throw new Error("widget id is invalid");
+    }
+    const stateRoot = path.resolve(this.widgetStateDir);
+    const filePath = path.resolve(stateRoot, `${widgetId}.json`);
+    if (!filePath.startsWith(`${stateRoot}${path.sep}`)) {
+      throw new Error("widget id is invalid");
+    }
+    return filePath;
+  }
+
+  /** Read a widget's persisted state envelope, or null if it has never been written. */
+  async readWidgetState(widgetId: string): Promise<WidgetStateRecord | null> {
+    const filePath = this.resolveWidgetStatePath(widgetId);
+    const raw = await this.readJsonFile(filePath);
+    if (raw === undefined) {
+      return null;
+    }
+    return validateWidgetStateRecord(raw);
+  }
+
+  /**
+   * Persist a widget's opaque blob under `state/<widgetId>.json`. The serialized
+   * envelope is size-capped BEFORE the write, so an oversize blob is rejected WHOLE
+   * (nothing is written). Writes are serialized through the process mutex and land
+   * atomically; the version increments per successful write for change markers.
+   *
+   * Optimistic concurrency: when `opts.expectedVersion` is supplied, the write only
+   * proceeds if it matches the current persisted version (0 = never written) —
+   * otherwise it rejects WHOLE with a conflict, so two clients editing the same
+   * widget can't silently lose each other's updates. Omitting it preserves the
+   * original last-write-wins behavior.
+   */
+  async writeWidgetState(
+    widgetId: string,
+    blob: JsonValue,
+    opts: { expectedVersion?: number } = {},
+  ): Promise<WidgetStateWriteResult> {
+    const filePath = this.resolveWidgetStatePath(widgetId);
+    return await this.runExclusive(async () => {
+      const previous = await this.readWidgetState(widgetId).catch(() => null);
+      const currentVersion = previous?.version ?? 0;
+      if (opts.expectedVersion !== undefined && opts.expectedVersion !== currentVersion) {
+        throw new Error(
+          `widget state version conflict: expected ${opts.expectedVersion}, found ${currentVersion}`,
+        );
+      }
+      const record: WidgetStateRecord = {
+        version: currentVersion + 1,
+        updatedAt: new Date().toISOString(),
+        blob,
+      };
+      const serialized = `${JSON.stringify(record, null, 2)}\n`;
+      if (Buffer.byteLength(serialized, "utf8") > MAX_WIDGET_STATE_BYTES) {
+        throw new Error("widget state exceeds 64 KB");
+      }
+      await this.storage.mkdir(this.widgetStateDir, { mode: 0o700 });
+      await this.storage.writeFileAtomic(filePath, serialized, { mode: 0o600 });
+      return { version: record.version };
+    });
+  }
+
+  private async runExclusive<T>(run: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(run, run);
+    // One gateway process is the only writer; this promise chain serializes
+    // all RPC/tool/CLI callers so read-modify-write cycles cannot interleave.
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await next;
+  }
+
+  private async writeWorkspaceDoc(doc: WorkspaceDoc): Promise<void> {
+    const serialized = serializeWorkspaceDoc(doc);
+    assertWorkspaceSize(serialized);
+    await this.writeWorkspaceSerialized(serialized);
+  }
+
+  private async writeWorkspaceSerialized(serialized: string): Promise<void> {
+    await this.storage.mkdir(this.dashboardDir, { mode: 0o700 });
+    await this.storage.writeFileAtomic(this.workspacePath, serialized, { mode: 0o600 });
+  }
+
+  private async writeUndoSnapshot(doc: WorkspaceDoc, nextWorkspaceVersion: number): Promise<void> {
+    await this.storage.mkdir(this.undoDir, { mode: 0o700 });
+    await this.storage.writeFileAtomic(
+      path.join(this.undoDir, `${String(nextWorkspaceVersion).padStart(4, "0")}.json`),
+      serializeWorkspaceDoc(doc),
+      { mode: 0o600 },
+    );
+    const files = await this.listUndoFiles();
+    const evict = files.slice(0, Math.max(0, files.length - UNDO_RING_SIZE));
+    await Promise.all(evict.map((fileName) => this.storage.rm(path.join(this.undoDir, fileName))));
+  }
+
+  private async listUndoFiles(): Promise<string[]> {
+    return (await this.storage.readdir(this.undoDir))
+      .filter((fileName) => /^\d+\.json$/.test(fileName))
+      .toSorted();
+  }
+}
