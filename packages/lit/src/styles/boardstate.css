@@ -38,13 +38,14 @@
   --bs-text-dim: #9a9aa6;
   --bs-muted: #6b6b77;
 
-  /* Accent / semantic */
-  --bs-accent: #7c6cff;
+  /* Accent / semantic — light values sit a step darker than dark mode's so
+     accent-as-text and white-on-accent both clear WCAG AA (4.5:1) on white. */
+  --bs-accent: #6c5bfa;
   --bs-accent-foreground: #ffffff;
-  --bs-ring: rgba(124, 108, 255, 0.5);
-  --bs-focus-ring: 0 0 0 2px rgba(124, 108, 255, 0.45);
-  --bs-success: #2e9d47;
-  --bs-warning: #b6820f;
+  --bs-ring: rgba(108, 91, 250, 0.5);
+  --bs-focus-ring: 0 0 0 2px rgba(108, 91, 250, 0.45);
+  --bs-success: #27853c;
+  --bs-warning: #986d0d;
   --bs-danger: #d92c25;
   --bs-danger-subtle: rgba(217, 44, 37, 0.1);
 
@@ -1638,7 +1639,7 @@ select.bs-dialog__input {
 }
 .bs-btn--primary {
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(124, 108, 255, 0.25);
+  box-shadow: 0 1px 2px rgba(108, 91, 250, 0.25);
 }
 .bs-btn--primary:hover {
   background: color-mix(in srgb, var(--bs-accent) 88%, #000);

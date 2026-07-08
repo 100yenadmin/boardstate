@@ -48,17 +48,17 @@
   --bs-muted: #5f6172;
 
   /* --- Accent / semantic colors ------------------------------------------ */
-  --bs-accent: #0891b2; /* darker cyan — keeps AA contrast on white */
+  --bs-accent: #07819f; /* darker cyan — keeps AA (4.5:1) on white, incl. button labels */
   --bs-accent-foreground: #ffffff;
-  --bs-ring: rgba(8, 145, 178, 0.4);
-  --bs-focus-ring: 0 0 0 2px rgba(8, 145, 178, 0.4);
-  --bs-success: #059669;
+  --bs-ring: rgba(7, 129, 159, 0.4);
+  --bs-focus-ring: 0 0 0 2px rgba(7, 129, 159, 0.4);
+  --bs-success: #05855d;
   --bs-warning: #b45309;
   --bs-danger: #e11d48;
   --bs-danger-subtle: rgba(225, 29, 72, 0.1);
 
   /* Restrained glow token — softened to a thin ring in light mode. */
-  --bs-glow: 0 0 0 1px rgba(8, 145, 178, 0.3);
+  --bs-glow: 0 0 0 1px rgba(7, 129, 159, 0.3);
 
   /* --- Radii -------------------------------------------------------------- */
   --bs-radius-sm: 5px;

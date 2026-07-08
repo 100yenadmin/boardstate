@@ -12,7 +12,7 @@
           "id": "mrr",
           "kind": "builtin:stat-card",
           "title": "MRR",
-          "grid": { "x": 0, "y": 0, "w": 4, "h": 2 },
+          "grid": { "x": 0, "y": 0, "w": 3, "h": 2 },
           "collapsed": false,
           "hidden": false,
           "props": { "value": 128400, "format": "usd", "label": "MRR" }
@@ -21,7 +21,7 @@
           "id": "active-agents",
           "kind": "builtin:stat-card",
           "title": "Active Agents",
-          "grid": { "x": 4, "y": 0, "w": 4, "h": 2 },
+          "grid": { "x": 3, "y": 0, "w": 3, "h": 2 },
           "collapsed": false,
           "hidden": false,
           "props": { "value": 12, "format": "int", "label": "Active Agents" }
@@ -30,10 +30,19 @@
           "id": "approval-rate",
           "kind": "builtin:stat-card",
           "title": "Approval Rate",
-          "grid": { "x": 8, "y": 0, "w": 4, "h": 2 },
+          "grid": { "x": 6, "y": 0, "w": 3, "h": 2 },
           "collapsed": false,
           "hidden": false,
           "props": { "value": 0.94, "format": "percent", "label": "Approval Rate" }
+        },
+        {
+          "id": "avg-task-time",
+          "kind": "builtin:stat-card",
+          "title": "Avg Task Time",
+          "grid": { "x": 9, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": "42s", "label": "Avg Task Time" }
         },
         {
           "id": "recent-runs",
@@ -44,6 +53,7 @@
           "hidden": false,
           "props": {
             "columns": ["agent", "task", "status", "duration"],
+            "limit": 10,
             "rows": [
               {
                 "agent": "agent:finance",
@@ -74,6 +84,36 @@
                 "task": "Weekly digest draft",
                 "status": "done",
                 "duration": "31s"
+              },
+              {
+                "agent": "agent:support",
+                "task": "Refund policy Q&A",
+                "status": "done",
+                "duration": "9s"
+              },
+              {
+                "agent": "agent:security",
+                "task": "Dependency CVE scan",
+                "status": "failed",
+                "duration": "1m 04s"
+              },
+              {
+                "agent": "agent:ops",
+                "task": "Backup verification",
+                "status": "done",
+                "duration": "22s"
+              },
+              {
+                "agent": "agent:growth",
+                "task": "Lead enrichment batch",
+                "status": "pending review",
+                "duration": "—"
+              },
+              {
+                "agent": "agent:finance",
+                "task": "Vendor invoice match",
+                "status": "running",
+                "duration": "—"
               }
             ]
           }
@@ -86,20 +126,188 @@
           "collapsed": false,
           "hidden": false,
           "bindings": {
-            "value": { "source": "static", "value": [12, 18, 14, 22, 30, 26, 34, 40, 37, 45] }
+            "value": {
+              "source": "static",
+              "value": [12, 18, 14, 22, 30, 26, 34, 40, 37, 45, 41, 52, 48, 58]
+            }
           },
           "props": { "type": "area" }
+        },
+        {
+          "id": "agent-events",
+          "kind": "builtin:activity",
+          "title": "Agent Events",
+          "grid": { "x": 0, "y": 8, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "entries": [
+                  {
+                    "ts": 1751980800000,
+                    "jobName": "agent:finance",
+                    "status": "ok",
+                    "summary": "Completed Q3 revenue rollup, posted to #finance-reports"
+                  },
+                  {
+                    "ts": 1751980500000,
+                    "jobName": "agent:security",
+                    "status": "error",
+                    "summary": "Dependency CVE scan failed: registry timeout after 3 retries"
+                  },
+                  {
+                    "ts": 1751980200000,
+                    "jobName": "agent:ops",
+                    "status": "ok",
+                    "summary": "Nightly log sweep started, 14 hosts queued"
+                  },
+                  {
+                    "ts": 1751979900000,
+                    "jobName": "agent:growth",
+                    "status": "pending",
+                    "summary": "Lead enrichment batch awaiting operator approval"
+                  },
+                  {
+                    "ts": 1751979600000,
+                    "jobName": "agent:support",
+                    "status": "ok",
+                    "summary": "Auto-triaged 22 tickets, 3 escalated to human queue"
+                  },
+                  {
+                    "ts": 1751979300000,
+                    "jobName": "agent:finance",
+                    "status": "ok",
+                    "summary": "Vendor invoice match run started"
+                  }
+                ]
+              }
+            }
+          }
         },
         {
           "id": "scratchpad",
           "kind": "builtin:notes",
           "title": "Scratchpad",
-          "grid": { "x": 0, "y": 8, "w": 12, "h": 4 },
+          "grid": { "x": 6, "y": 8, "w": 6, "h": 5 },
           "collapsed": false,
           "hidden": false,
           "props": {
             "text": "Pin follow-ups here — this pad is agent- and human-editable and persists via write-back state."
           }
+        }
+      ]
+    },
+    {
+      "slug": "fleet",
+      "title": "Fleet",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "fleet-agents",
+          "kind": "builtin:table",
+          "title": "Agent Fleet",
+          "grid": { "x": 0, "y": 0, "w": 8, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["name", "model", "tasksCompleted", "uptime"],
+            "limit": 12,
+            "rows": [
+              {
+                "name": "agent:finance",
+                "model": "claude-sonnet-5",
+                "tasksCompleted": 1842,
+                "uptime": "99.98%"
+              },
+              {
+                "name": "agent:support",
+                "model": "claude-haiku-4.5",
+                "tasksCompleted": 6210,
+                "uptime": "99.90%"
+              },
+              {
+                "name": "agent:ops",
+                "model": "claude-sonnet-5",
+                "tasksCompleted": 934,
+                "uptime": "99.95%"
+              },
+              {
+                "name": "agent:growth",
+                "model": "claude-sonnet-5",
+                "tasksCompleted": 512,
+                "uptime": "99.80%"
+              },
+              {
+                "name": "agent:security",
+                "model": "claude-opus-4.8",
+                "tasksCompleted": 288,
+                "uptime": "99.60%"
+              },
+              {
+                "name": "agent:legal",
+                "model": "claude-opus-4.8",
+                "tasksCompleted": 96,
+                "uptime": "99.97%"
+              },
+              {
+                "name": "agent:recruiting",
+                "model": "claude-sonnet-5",
+                "tasksCompleted": 341,
+                "uptime": "99.70%"
+              },
+              {
+                "name": "agent:it-helpdesk",
+                "model": "claude-haiku-4.5",
+                "tasksCompleted": 4028,
+                "uptime": "99.85%"
+              }
+            ]
+          }
+        },
+        {
+          "id": "tokens-today",
+          "kind": "builtin:stat-card",
+          "title": "Tokens Today",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": "4.2M", "label": "Tokens Today" }
+        },
+        {
+          "id": "cost-today",
+          "kind": "builtin:stat-card",
+          "title": "Cost Today",
+          "grid": { "x": 8, "y": 2, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 61.8, "format": "usd", "label": "Cost Today" }
+        },
+        {
+          "id": "queue-depth",
+          "kind": "builtin:stat-card",
+          "title": "Queue Depth",
+          "grid": { "x": 8, "y": 4, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 3, "format": "int", "label": "Queue Depth" }
+        },
+        {
+          "id": "fleet-task-counts",
+          "kind": "builtin:chart",
+          "title": "Tasks by Agent (7d)",
+          "grid": { "x": 0, "y": 6, "w": 12, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [1842, 6210, 934, 512, 288, 96, 341, 4028]
+            }
+          },
+          "props": { "type": "bar" }
         }
       ]
     },
@@ -112,19 +320,19 @@
         {
           "id": "welcome",
           "kind": "builtin:markdown",
-          "title": "Welcome",
-          "grid": { "x": 0, "y": 0, "w": 12, "h": 5 },
+          "title": "Which regions grew fastest last quarter?",
+          "grid": { "x": 0, "y": 0, "w": 12, "h": 6 },
           "collapsed": false,
           "hidden": false,
           "props": {
-            "markdown": "# Welcome to Agent HQ\n\nThis whole dashboard is one JSON document — **any AI can build it, any human can edit it.**\n\n- Click **🤖 simulate agent** above to watch an agent compose a new view live.\n- Drag widgets, resize them, or hit *undo* — you're editing the same document the agent uses.\n- Approve (or reject) any agent-authored widget before it ever runs — sandboxed, by construction.\n\nAsk something below to see the action-form pattern in action."
+            "markdown": "# Which regions grew fastest last quarter?\n\n**agent:growth** · answered 4h ago · sourced from `revenue.q3.by_region`\n\nAPAC led growth at **+34% QoQ**, driven by a partner-channel push in Singapore and Tokyo enterprise renewals. EMEA held steady on renewal strength; LATAM's dip traces to a single churned logo (Nubank-adjacent fintech, now recovered on a smaller plan).\n\n| Region | QoQ Growth | Net New MRR |\n| --- | --- | --- |\n| APAC | +34% | $18,200 |\n| NA | +11% | $22,900 |\n| EMEA | +9% | $14,050 |\n| LATAM | -4% | -$2,100 |\n\nThis whole dashboard is one JSON document — **any AI can build it, any human can edit it.**\n\n- Click **🤖 simulate agent** above to watch an agent compose a new view live.\n- Drag widgets, resize them, or hit *undo* — you're editing the same document the agent uses.\n- Approve (or reject) any agent-authored widget before it ever runs — sandboxed, by construction.\n\nAsk something below to see the action-form pattern in action."
           }
         },
         {
           "id": "ask-agent",
           "kind": "builtin:action-form",
           "title": "Ask the Agent",
-          "grid": { "x": 0, "y": 5, "w": 6, "h": 6 },
+          "grid": { "x": 0, "y": 6, "w": 6, "h": 6 },
           "collapsed": false,
           "hidden": false,
           "props": {
@@ -140,10 +348,112 @@
             ],
             "buttonLabel": "Ask the agent"
           }
+        },
+        {
+          "id": "signups-by-week",
+          "kind": "builtin:chart",
+          "title": "Signups by Week",
+          "grid": { "x": 6, "y": 6, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [64, 71, 68, 84, 92, 88, 101, 118, 109, 126]
+            }
+          },
+          "props": { "type": "line" }
+        }
+      ]
+    },
+    {
+      "slug": "incidents",
+      "title": "Incidents",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "incidents-table",
+          "kind": "builtin:table",
+          "title": "Recent Incidents",
+          "grid": { "x": 0, "y": 0, "w": 8, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["id", "severity", "summary", "status"],
+            "limit": 8,
+            "rows": [
+              {
+                "id": "INC-241",
+                "severity": "sev2",
+                "summary": "agent:security CVE scan stuck retrying against a stale registry mirror",
+                "status": "resolved"
+              },
+              {
+                "id": "INC-238",
+                "severity": "sev3",
+                "summary": "agent:support triage latency spike during EU morning peak",
+                "status": "resolved"
+              },
+              {
+                "id": "INC-233",
+                "severity": "sev1",
+                "summary": "Approval queue backed up after webhook delivery outage",
+                "status": "resolved"
+              },
+              {
+                "id": "INC-229",
+                "severity": "sev3",
+                "summary": "agent:growth digest draft duplicated for 6 accounts",
+                "status": "monitoring"
+              },
+              {
+                "id": "INC-221",
+                "severity": "sev2",
+                "summary": "agent:finance forecast run exceeded token budget mid-task",
+                "status": "resolved"
+              }
+            ]
+          }
+        },
+        {
+          "id": "mttr",
+          "kind": "builtin:stat-card",
+          "title": "MTTR",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": "18m", "label": "MTTR" }
+        },
+        {
+          "id": "error-budget",
+          "kind": "builtin:chart",
+          "title": "Error Budget Remaining",
+          "grid": { "x": 8, "y": 2, "w": 4, "h": 4 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [81, 79, 76, 74, 72]
+            }
+          },
+          "props": { "type": "gauge", "min": 0, "max": 100 }
+        },
+        {
+          "id": "postmortem",
+          "kind": "builtin:markdown",
+          "title": "Post-mortem: INC-233",
+          "grid": { "x": 0, "y": 6, "w": 12, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## INC-233 — Approval queue backlog\n\n**Severity:** sev1 · **Duration:** 26m · **Impact:** 340 pending-review runs delayed\n\n**Root cause:** the outbound webhook delivering `dashboard.widget.approve` notifications lost its connection to the queue broker; retries backed off silently instead of alerting, so the approval UI looked healthy while the backlog grew.\n\n**Fix:** added a dead-letter alert on the webhook retry path and a queue-depth stat card to Fleet so backlog growth is visible before it pages anyone.\n\n**Follow-ups:** (1) webhook health check every 60s, (2) queue-depth alert threshold at 25, (3) runbook link added to on-call rotation."
+          }
         }
       ]
     }
   ],
   "widgetsRegistry": {},
-  "prefs": { "tabOrder": ["overview", "answers"] }
+  "prefs": { "tabOrder": ["overview", "fleet", "answers", "incidents"] }
 }

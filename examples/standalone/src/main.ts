@@ -4,9 +4,11 @@
 // This is the proof that the library is genuinely headless + browser-capable.
 //
 // Custom widgets normally load their assets over `@boardstate/server`'s static
-// route (SPEC §9). With no server here, a Service Worker (public/widget-loader-sw.js)
-// answers the exact `/widgets/<name>/<file>` requests lit's unmodified custom-widget
-// host issues — same CSP, same approval gate, no backend.
+// route (SPEC §9). With no server here, the demo widget's two files live as
+// static assets (public/widgets/agent-insight-card/), served by Vite / any
+// static host at the exact `/widgets/<name>/<file>` paths lit's unmodified
+// custom-widget host requests — including the sandboxed iframe's own document
+// navigation, which no Service Worker can intercept for an opaque-origin frame.
 
 import { DashboardStore, MemoryStorageAdapter, type WorkspaceDoc } from "@boardstate/core";
 import { createInProcessHost, registerBoardstateRpc } from "@boardstate/server";
@@ -19,14 +21,11 @@ import "@boardstate/lit/styles.css";
 import auroraThemeUrl from "@boardstate/lit/themes/aurora.css?url";
 import vibrancyThemeUrl from "@boardstate/lit/themes/vibrancy.css?url";
 import agentHq from "../../../templates/agent-hq.json";
-import { ensureWidgetLoaderReady, publishWidgetFiles } from "./widget-loader.js";
 import {
   DEMO_WIDGET_BINDING_ID,
   DEMO_WIDGET_NAME,
   DEMO_WIDGET_TITLE,
   DEMO_WIDGET_VALUE,
-  buildDemoWidgetHtml,
-  buildDemoWidgetManifest,
 } from "./demo-widget-content.js";
 
 const SIM_AGENT = "agent:sales-bot";
@@ -99,12 +98,10 @@ async function main(): Promise<void> {
   };
   view.transport = host;
   view.connected = true;
-  view.basePath = "";
+  // Widget assets resolve under Vite's base ("/" in dev, "/boardstate/" on the
+  // hosted demo) — widgetAssetUrl() joins `${basePath}/widgets/<name>/<file>`.
+  view.basePath = import.meta.env.BASE_URL.replace(/\/+$/, "");
   document.getElementById("app")!.appendChild(view);
-
-  // The custom-widget loader (Service Worker) is only needed once the simulate flow
-  // mounts a custom widget — warm it up in the background, never blocking first paint.
-  void ensureWidgetLoaderReady().catch(() => undefined);
 
   wireSimulateButton(host);
 }
@@ -143,21 +140,9 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
       await sleep(700);
 
       say("🤖 scaffolding a custom widget… (it lands PENDING — needs your approval)");
-      // Ensure the widget-asset loader (SW) is live + controlling before publishing,
-      // so the sandboxed iframe's fetches resolve the moment it mounts.
-      await ensureWidgetLoaderReady();
-      await publishWidgetFiles([
-        {
-          pathname: `/widgets/${DEMO_WIDGET_NAME}/widget.json`,
-          body: JSON.stringify(buildDemoWidgetManifest()),
-          contentType: "application/json",
-        },
-        {
-          pathname: `/widgets/${DEMO_WIDGET_NAME}/index.html`,
-          body: buildDemoWidgetHtml(SIM_AGENT),
-          contentType: "text/html",
-        },
-      ]);
+      // A real host would write widget.json + index.html to disk here (SPEC §9's
+      // scaffold). In this no-backend demo those files already sit in public/
+      // widgets/, so "scaffolding" is purely the document-side registration below.
       const doc = ((await host.request("dashboard.workspace.get")) as { doc: WorkspaceDoc }).doc;
       const sales = doc.tabs.find((tab) => tab.slug === "sales")!;
       sales.widgets.push({

@@ -58,7 +58,7 @@ compose correctly:
   --bs-bg: #fbfbfd;
   --bs-card: #ffffff;
   --bs-text: #15151b;
-  --bs-accent: #7c6cff;
+  --bs-accent: #6c5bfa;
   /* …the rest of the token table… */
 }
 :root[data-theme="dark"] {
@@ -93,15 +93,15 @@ Defaults below are the **Graphite light** values; each has a matching dark value
 | `--bs-border-strong`     | Stronger borders (dropzones, resize, hover)    | `#d9d9e2`                                                     |
 | `--bs-bg-hover`          | Hover background wash                          | `#f2f2f7`                                                     |
 | `--bs-bg-muted`          | Muted fill (code chips, tab strip, badges)     | `rgba(16,16,24,0.03)`                                         |
-| `--bs-accent`            | Accent (active tab, chart, primary button)     | `#7c6cff`                                                     |
+| `--bs-accent`            | Accent (active tab, chart, primary button)     | `#6c5bfa`                                                     |
 | `--bs-accent-foreground` | Text on the accent surface                     | `#ffffff`                                                     |
 | `--bs-danger`            | Danger / error                                 | `#d92c25`                                                     |
 | `--bs-danger-subtle`     | Subtle danger wash (error badges/surfaces)     | `rgba(217,44,37,0.1)`                                         |
-| `--bs-success`           | Live / ok status                               | `#2e9d47`                                                     |
-| `--bs-warning`           | Degraded status                                | `#b6820f`                                                     |
+| `--bs-success`           | Live / ok status                               | `#27853c`                                                     |
+| `--bs-warning`           | Degraded status                                | `#986d0d`                                                     |
 | `--bs-input`             | Input surface (falls back to `--bs-border`)    | `#ffffff`                                                     |
-| `--bs-ring`              | Focus-ring color (falls back to `--bs-accent`) | `rgba(124,108,255,0.5)`                                       |
-| `--bs-focus-ring`        | Full focus-ring `box-shadow`                   | `0 0 0 2px rgba(124,108,255,0.45)`                            |
+| `--bs-ring`              | Focus-ring color (falls back to `--bs-accent`) | `rgba(108,91,250,0.5)`                                        |
+| `--bs-focus-ring`        | Full focus-ring `box-shadow`                   | `0 0 0 2px rgba(108,91,250,0.45)`                             |
 | `--bs-radius-sm`         | Small radius (chips, menu items)               | `6px`                                                         |
 | `--bs-radius-md`         | Medium radius (buttons, tabs, menus)           | `9px`                                                         |
 | `--bs-radius-lg`         | Large radius (cards, widgets)                  | `12px`                                                        |

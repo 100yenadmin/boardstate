@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Insight Card</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --wg-bg: Canvas;
+        --wg-card: Canvas;
+        --wg-text: CanvasText;
+        --wg-accent: #6366f1;
+        --wg-border: rgba(127, 127, 127, 0.3);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: var(--font-sans, system-ui, sans-serif);
+        background: var(--wg-bg);
+        color: var(--wg-text);
+      }
+      .card {
+        border: 1px solid var(--wg-border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        background: var(--wg-card);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--wg-accent);
+      }
+      .badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--wg-accent);
+      }
+      h1 {
+        margin: 10px 0 6px;
+        font-size: 1.05rem;
+      }
+      p {
+        margin: 0;
+        opacity: 0.85;
+        line-height: 1.4;
+      }
+      .count {
+        margin-top: 12px;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--wg-accent);
+      }
+      footer {
+        margin-top: 14px;
+        font-size: 0.72rem;
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <span class="badge" id="badge">Loading</span>
+      <h1 id="headline">Waiting for dashboard data…</h1>
+      <p id="detail"></p>
+      <div class="count" id="count"></div>
+    </div>
+    <footer>Built by agent:sales-bot · runs sandboxed, no network</footer>
+    <script>
+      var headlineNode = document.getElementById("headline");
+      var detailNode = document.getElementById("detail");
+      var countNode = document.getElementById("count");
+      var badgeNode = document.getElementById("badge");
+
+      function post(type, payload) {
+        window.parent.postMessage(Object.assign({ v: 1, type: type }, payload || {}), "*");
+      }
+
+      function render(data) {
+        if (data && typeof data === "object") {
+          headlineNode.textContent = typeof data.headline === "string" ? data.headline : "";
+          detailNode.textContent = typeof data.detail === "string" ? data.detail : "";
+          countNode.textContent = typeof data.count === "number" ? String(data.count) : "";
+        } else {
+          headlineNode.textContent = typeof data === "string" ? data : JSON.stringify(data);
+        }
+        badgeNode.textContent = "Live";
+      }
+
+      function applyTheme(tokens) {
+        var root = document.documentElement.style;
+        if (tokens["--bg"]) root.setProperty("--wg-bg", tokens["--bg"]);
+        if (tokens["--card"]) root.setProperty("--wg-card", tokens["--card"]);
+        if (tokens["--text"]) root.setProperty("--wg-text", tokens["--text"]);
+        if (tokens["--accent"]) root.setProperty("--wg-accent", tokens["--accent"]);
+        if (tokens["--border"]) root.setProperty("--wg-border", tokens["--border"]);
+      }
+
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (!msg || msg.v !== 1) return;
+        if (
+          (msg.type === "dashboard:data" || msg.type === "dashboard:push") &&
+          msg.bindingId === "value"
+        ) {
+          render(msg.data);
+        } else if (msg.type === "dashboard:theme") {
+          applyTheme(msg.tokens || {});
+        } else if (msg.type === "dashboard:error") {
+          badgeNode.textContent = "Error";
+          headlineNode.textContent = msg.code + ": " + msg.message;
+        }
+      });
+
+      post("dashboard:ready");
+      post("dashboard:getData", { requestId: "initial", bindingId: "value" });
+      post("dashboard:getTheme", { requestId: "theme" });
+    </script>
+  </body>
+</html>
