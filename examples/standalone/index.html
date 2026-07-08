@@ -3,9 +3,87 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Boardstate — Standalone Example</title>
+    <title>Boardstate — standalone example</title>
+    <style>
+      :root {
+        --bs-bg: #fbfbfd;
+        --bs-text: #1d1d21;
+        --bs-text-muted: #6b6b76;
+        --bs-accent: #4f46e5;
+        --bs-card: #ffffff;
+        --bs-border: #e6e6ec;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: var(--bs-text);
+        background: var(--bs-bg);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid var(--bs-border);
+        background: var(--bs-card);
+      }
+      header h1 {
+        font-size: 1rem;
+        margin: 0;
+        font-weight: 650;
+      }
+      header p {
+        margin: 0;
+        color: var(--bs-text-muted);
+        font-size: 0.85rem;
+      }
+      .spacer {
+        flex: 1;
+      }
+      #simulate {
+        border: 0;
+        border-radius: 8px;
+        background: var(--bs-accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.55rem 0.95rem;
+        cursor: pointer;
+      }
+      #simulate:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      #status {
+        min-height: 1.2rem;
+        padding: 0.4rem 1.25rem;
+        color: var(--bs-text-muted);
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--bs-border);
+      }
+      #app {
+        padding: 1rem 1.25rem;
+      }
+    </style>
   </head>
   <body>
+    <header>
+      <div>
+        <h1>Boardstate</h1>
+        <p>Your dashboard is data. Any AI can build it; any human can edit it.</p>
+      </div>
+      <div class="spacer"></div>
+      <button id="simulate">🤖 Simulate agent</button>
+    </header>
+    <div id="status">
+      Press “Simulate agent” — then drag things around. You’re editing the same document.
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

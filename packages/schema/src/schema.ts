@@ -231,7 +231,8 @@ function assertJsonValue(value: unknown, path: string): JsonValue {
 }
 
 function serializedBytes(value: unknown): number {
-  return Buffer.byteLength(JSON.stringify(value), "utf8");
+  // TextEncoder (browser + node), not Buffer — keeps @boardstate/schema browser-safe.
+  return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
 function validateBinding(value: unknown, path: string): DashboardBinding {

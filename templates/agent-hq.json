@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "workspaceVersion": 1,
+  "tabs": [
+    {
+      "slug": "overview",
+      "title": "Overview",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "mrr",
+          "kind": "builtin:stat-card",
+          "title": "MRR",
+          "grid": { "x": 0, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 128400, "format": "usd", "label": "MRR" }
+        },
+        {
+          "id": "active-agents",
+          "kind": "builtin:stat-card",
+          "title": "Active Agents",
+          "grid": { "x": 4, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 12, "format": "int", "label": "Active Agents" }
+        },
+        {
+          "id": "approval-rate",
+          "kind": "builtin:stat-card",
+          "title": "Approval Rate",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 0.94, "format": "percent", "label": "Approval Rate" }
+        },
+        {
+          "id": "recent-runs",
+          "kind": "builtin:table",
+          "title": "Recent Agent Runs",
+          "grid": { "x": 0, "y": 2, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["agent", "task", "status", "duration"],
+            "rows": [
+              {
+                "agent": "agent:finance",
+                "task": "Q3 revenue rollup",
+                "status": "done",
+                "duration": "48s"
+              },
+              {
+                "agent": "agent:support",
+                "task": "Auto-triage tickets",
+                "status": "done",
+                "duration": "12s"
+              },
+              {
+                "agent": "agent:ops",
+                "task": "Nightly log sweep",
+                "status": "running",
+                "duration": "—"
+              },
+              {
+                "agent": "agent:finance",
+                "task": "Forecast v4",
+                "status": "pending review",
+                "duration": "—"
+              },
+              {
+                "agent": "agent:growth",
+                "task": "Weekly digest draft",
+                "status": "done",
+                "duration": "31s"
+              }
+            ]
+          }
+        },
+        {
+          "id": "throughput",
+          "kind": "builtin:chart",
+          "title": "Task Throughput",
+          "grid": { "x": 7, "y": 2, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": { "source": "static", "value": [12, 18, 14, 22, 30, 26, 34, 40, 37, 45] }
+          },
+          "props": { "type": "area" }
+        },
+        {
+          "id": "scratchpad",
+          "kind": "builtin:notes",
+          "title": "Scratchpad",
+          "grid": { "x": 0, "y": 8, "w": 12, "h": 4 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "text": "Pin follow-ups here — this pad is agent- and human-editable and persists via write-back state."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "answers",
+      "title": "Answers",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "welcome",
+          "kind": "builtin:markdown",
+          "title": "Welcome",
+          "grid": { "x": 0, "y": 0, "w": 12, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "# Welcome to Agent HQ\n\nThis whole dashboard is one JSON document — **any AI can build it, any human can edit it.**\n\n- Click **🤖 simulate agent** above to watch an agent compose a new view live.\n- Drag widgets, resize them, or hit *undo* — you're editing the same document the agent uses.\n- Approve (or reject) any agent-authored widget before it ever runs — sandboxed, by construction.\n\nAsk something below to see the action-form pattern in action."
+          }
+        },
+        {
+          "id": "ask-agent",
+          "kind": "builtin:action-form",
+          "title": "Ask the Agent",
+          "grid": { "x": 0, "y": 5, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "template": "Draft a {tone} summary about {topic}.",
+            "fields": [
+              { "name": "topic", "label": "Topic", "type": "text", "maxLength": 80 },
+              {
+                "name": "tone",
+                "label": "Tone",
+                "type": "select",
+                "options": ["concise", "friendly", "formal"]
+              }
+            ],
+            "buttonLabel": "Ask the agent"
+          }
+        }
+      ]
+    }
+  ],
+  "widgetsRegistry": {},
+  "prefs": { "tabOrder": ["overview", "answers"] }
+}
