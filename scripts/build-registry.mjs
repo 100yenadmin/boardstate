@@ -24,15 +24,21 @@ const WIDGETS_DIR = join(ROOT, "templates/widgets");
 const REGISTRY_DIR = join(ROOT, "templates/registry");
 const PUBLIC_DIR = join(ROOT, "examples/standalone/public");
 
-/** First non-empty, non-heading line of a README, markdown emphasis stripped. */
+/** First prose PARAGRAPH of a README (headings skipped, hard wraps joined). */
 function readmeDescription(dir) {
   try {
     const text = readFileSync(join(dir, "README.md"), "utf8");
-    for (const raw of text.split("\n")) {
-      const line = raw.trim();
-      if (!line || line.startsWith("#")) continue;
-      return line.replaceAll(/[*_`]/g, "");
+    const lines = text.split("\n");
+    let i = 0;
+    while (i < lines.length && (!lines[i].trim() || lines[i].trim().startsWith("#"))) i++;
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !lines[i].trim().startsWith("#")) {
+      para.push(lines[i].trim());
+      i++;
     }
+    const joined = para.join(" ").replaceAll(/[*_`]/g, "");
+    if (!joined) return null;
+    return joined.length > 180 ? `${joined.slice(0, 177).trimEnd()}…` : joined;
   } catch {
     /* no README — fall through */
   }

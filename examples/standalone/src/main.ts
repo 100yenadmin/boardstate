@@ -220,6 +220,32 @@ async function main(): Promise<void> {
 
   wireBoardPicker(host);
   wireSimulateButton(host);
+  wireTourChips();
+}
+
+/** The "Try" strip: each chip drives the REAL UI (no special demo paths). */
+function wireTourChips(): void {
+  const say = (msg: string) => {
+    const status = document.getElementById("status");
+    if (status) status.textContent = msg;
+  };
+  const click = (selector: string) => document.querySelector<HTMLButtonElement>(selector)?.click();
+  document.getElementById("tour-simulate")?.addEventListener("click", () => {
+    document.getElementById("simulate")?.click();
+  });
+  document.getElementById("tour-game")?.addEventListener("click", () => {
+    click('[data-test-id="dashboard-gallery-open"]');
+    say("🧩 pick twenty48 → View → Install — it lands pending until you approve.");
+    // The registry URL is pre-seeded; browse it for them.
+    setTimeout(() => click('[data-test-id="dashboard-gallery-browse"]'), 250);
+  });
+  document.getElementById("tour-history")?.addEventListener("click", () => {
+    click('[data-test-id="dashboard-history-toggle"]');
+    say("🕰 every change is a version — preview, diff, and undo the latest.");
+  });
+  document.getElementById("tour-drag")?.addEventListener("click", () => {
+    say("🖱 grab a widget's title bar to move it; drag the corner to resize.");
+  });
 }
 
 /** The scripted "an agent builds a dashboard" flow, over the SAME transport a human uses. */
@@ -281,6 +307,11 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
         decision: "approved",
         actor: "user",
       });
+      // Take the viewer to the punchline: activate the tab the agent built.
+      await sleep(400);
+      [...document.querySelectorAll<HTMLElement>(".dashboard-tab")]
+        .find((el) => el.textContent?.trim() === "Sales")
+        ?.click();
     } catch (error) {
       say(`error: ${String(error)}`);
     } finally {

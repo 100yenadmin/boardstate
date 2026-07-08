@@ -593,13 +593,21 @@ function onHiddenTabsToggle(event: Event): void {
   details.addEventListener("toggle", onClosed);
 }
 
-/** First-visit onboarding banner teaching how to add a tab. Dismissible + persisted. */
+/**
+ * First-visit onboarding banner teaching how to add a tab. Dismissible +
+ * persisted — and only shown while the workspace is genuinely unfurnished
+ * (no widgets anywhere): a seeded/composed board doesn't need teaching.
+ */
 function renderOnboardingBanner(
   props: BoardstateViewProps,
   viewState: DashboardViewState,
+  workspace: DashboardWorkspace,
   requestUpdate: () => void,
 ): TemplateResult | typeof nothing {
   if (viewState.onboardingDismissed) {
+    return nothing;
+  }
+  if (workspace.tabs.some((tab) => tab.widgets.length > 0)) {
     return nothing;
   }
   const dismiss = () => {
@@ -1588,7 +1596,7 @@ function renderBody(
   }
   return html`
     ${renderWorkspacesHeader(props, state, viewState, tab)}
-    ${renderOnboardingBanner(props, viewState, () => props.onRequestUpdate?.())}
+    ${renderOnboardingBanner(props, viewState, workspace, () => props.onRequestUpdate?.())}
     ${renderTabStrip(props, state, viewState, workspace)}
     ${renderGrid(props, state, viewState, workspace, tab)}
   `;

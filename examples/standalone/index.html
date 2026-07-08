@@ -3,14 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Boardstate — standalone example</title>
+    <title>Boardstate — your dashboard is data. Any AI can build it.</title>
+    <meta
+      name="description"
+      content="Agent-composable dashboards: one validated JSON document any AI can compose through tools, any human can edit with drag & drop — with agent-authored widgets running provably sandboxed."
+    />
+    <meta property="og:title" content="Boardstate — your dashboard is data. Any AI can build it." />
+    <meta
+      property="og:description"
+      content="Press “Simulate agent” and watch an AI compose a live dashboard — then install a sandboxed game from the widget gallery."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://100yenadmin.github.io/boardstate/" />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/100yenadmin/boardstate/main/docs/media/social-preview.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%236c5bfa'/%3E%3Crect x='6' y='6' width='12' height='9' rx='2' fill='white'/%3E%3Crect x='20' y='6' width='6' height='20' rx='2' fill='white' opacity='.75'/%3E%3Crect x='6' y='17' width='12' height='9' rx='2' fill='white' opacity='.55'/%3E%3C/svg%3E"
     />
     <style>
       /* Fallback tokens so the page is legible before a theme stylesheet loads.
-         A theme file (themes/theme-*.css) redefines these on :root. */
+         A theme file (or the built-in Graphite) redefines these on :root. */
       :root {
         --bs-bg: #0b0b0f;
         --bs-card: #131318;
@@ -21,6 +37,7 @@
         --bs-text-muted: #9a9aa6;
         --bs-accent: #7c6cff;
         --bs-accent-foreground: #fff;
+        --bs-bg-hover: rgba(255, 255, 255, 0.04);
         --bs-radius-md: 9px;
         --bs-font-sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
       }
@@ -32,44 +49,55 @@
         font-family: var(--bs-font-sans);
         color: var(--bs-text);
         background: var(--bs-bg);
-        transition:
-          background 180ms ease,
-          color 180ms ease;
       }
       header {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 0.9rem 1.25rem;
+        flex-wrap: wrap;
+        gap: 0.6rem 1rem;
+        padding: 0.7rem 1.25rem;
         border-bottom: 1px solid var(--bs-border);
         background: var(--bs-card);
       }
-      header h1 {
-        font-size: 1rem;
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-right: auto;
+        min-width: 0;
+      }
+      .brand svg {
+        flex: none;
+      }
+      .brand h1 {
+        font-size: 0.95rem;
         margin: 0;
         font-weight: 650;
         color: var(--bs-text-strong);
         letter-spacing: -0.01em;
+        white-space: nowrap;
       }
-      header p {
-        margin: 0.1rem 0 0;
+      .brand p {
+        margin: 0;
         color: var(--bs-text-muted);
-        font-size: 0.85rem;
-      }
-      .spacer {
-        flex: 1;
+        font-size: 0.78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .controls {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        flex-wrap: wrap;
+        gap: 0.45rem;
       }
       .controls label {
-        font-size: 0.72rem;
+        font-size: 0.68rem;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
         color: var(--bs-text-muted);
+        margin-left: 0.35rem;
       }
       select,
       .ghost-btn {
@@ -79,13 +107,19 @@
         background: var(--bs-card);
         color: var(--bs-text);
         font-family: inherit;
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 500;
-        padding: 0.4rem 0.7rem;
+        padding: 0.38rem 0.65rem;
         cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
       }
+      select:hover,
       .ghost-btn:hover {
         border-color: var(--bs-accent);
+        background: var(--bs-bg-hover);
       }
       #simulate {
         border: 0;
@@ -93,33 +127,87 @@
         background: var(--bs-accent);
         color: var(--bs-accent-foreground);
         font-weight: 600;
-        font-size: 0.85rem;
-        padding: 0.55rem 0.95rem;
+        font-size: 0.84rem;
+        padding: 0.5rem 0.9rem;
         cursor: pointer;
       }
       #simulate:disabled {
         opacity: 0.55;
         cursor: default;
       }
-      #status {
-        min-height: 1.2rem;
-        padding: 0.4rem 1.25rem;
-        color: var(--bs-text-muted);
-        font-size: 0.85rem;
+      /* The guided-tour strip: numbered things to try + a live status readout. */
+      .tour {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.4rem 0.55rem;
+        padding: 0.45rem 1.25rem;
         border-bottom: 1px solid var(--bs-border);
+        font-size: 0.8rem;
+      }
+      .tour-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--bs-text-muted);
+      }
+      .tour button {
+        border: 1px solid var(--bs-border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--bs-text);
+        font-family: inherit;
+        font-size: 0.76rem;
+        padding: 0.22rem 0.65rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .tour button:hover {
+        border-color: var(--bs-accent);
+        background: var(--bs-bg-hover);
+      }
+      .tour button b {
+        color: var(--bs-accent);
+        font-weight: 700;
+        margin-right: 0.3rem;
+      }
+      #status {
+        margin-left: auto;
+        color: var(--bs-text-muted);
+        font-size: 0.78rem;
+        min-height: 1rem;
+        text-align: right;
       }
       #app {
         padding: 1rem 1.25rem;
+      }
+      @media (max-width: 760px) {
+        .brand p {
+          display: none;
+        }
+        #status {
+          margin-left: 0;
+          width: 100%;
+          text-align: left;
+        }
       }
     </style>
   </head>
   <body>
     <header>
-      <div>
-        <h1>Boardstate</h1>
-        <p>Your dashboard is data. Any AI can build it; any human can edit it.</p>
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="#6c5bfa" />
+          <rect x="6" y="6" width="12" height="9" rx="2" fill="#fff" />
+          <rect x="20" y="6" width="6" height="20" rx="2" fill="#fff" opacity=".75" />
+          <rect x="6" y="17" width="12" height="9" rx="2" fill="#fff" opacity=".55" />
+        </svg>
+        <div>
+          <h1>Boardstate</h1>
+          <p>Your dashboard is data. Any AI can build it; any human can edit it.</p>
+        </div>
       </div>
-      <div class="spacer"></div>
       <div class="controls">
         <label for="board">Board</label>
         <select id="board" title="Swap the whole workspace document (a template)">
@@ -159,11 +247,30 @@
           <option value="aurora">Aurora</option>
         </select>
         <button id="mode" class="ghost-btn" title="Toggle light / dark">🌙 Dark</button>
+        <a
+          class="ghost-btn"
+          href="https://github.com/100yenadmin/boardstate"
+          target="_blank"
+          rel="noopener"
+          title="Source, docs, and templates on GitHub"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+          GitHub
+        </a>
+        <button id="simulate">🤖 Simulate agent</button>
       </div>
-      <button id="simulate">🤖 Simulate agent</button>
     </header>
-    <div id="status">
-      Press “Simulate agent” — then drag things around. You’re editing the same document.
+    <div class="tour">
+      <span class="tour-label">Try</span>
+      <button id="tour-simulate" type="button"><b>1</b>Simulate an agent</button>
+      <button id="tour-game" type="button"><b>2</b>Install the game</button>
+      <button id="tour-history" type="button"><b>3</b>Time-travel</button>
+      <button id="tour-drag" type="button"><b>4</b>Drag things around</button>
+      <span id="status"></span>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
