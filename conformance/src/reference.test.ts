@@ -16,9 +16,10 @@ import { describe, expect, it } from "vitest";
 import { DashboardStore, MemoryStorageAdapter, type Transport } from "@boardstate/core";
 import {
   createInProcessHost,
+  nodeRpcDeps,
   registerBoardstateRpc,
   type RequestContext,
-} from "@boardstate/server";
+} from "@boardstate/server/node";
 import { runTransportConformance } from "./suite.js";
 
 /** A fresh reference host; `dataRead` points at an isolated real temp dir. */
@@ -30,7 +31,7 @@ async function makeReferenceHost(): Promise<{
   const storage = new MemoryStorageAdapter();
   const store = new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
-  registerBoardstateRpc(host, { store, dataRead: { stateDir: dataDir } });
+  registerBoardstateRpc(host, { store, dataRead: { stateDir: dataDir }, ...nodeRpcDeps() });
   return { host, dataDir };
 }
 
@@ -53,7 +54,7 @@ runTransportConformance(
       const storage = new MemoryStorageAdapter();
       const store = new DashboardStore({ storage });
       const host = createInProcessHost(store, storage);
-      registerBoardstateRpc(host, { store });
+      registerBoardstateRpc(host, { store, ...nodeRpcDeps() });
       const scoped = (operatorId: string | null): Transport => ({
         request: (method, params) => host.request(method, params, { operatorId } as RequestContext),
         addEventListener: (event, fn) => host.addEventListener(event, fn),
@@ -82,7 +83,7 @@ describe("reference file-binding resolution (node fs)", () => {
       const storage = new MemoryStorageAdapter();
       const store = new DashboardStore({ storage });
       const host = createInProcessHost(store, storage);
-      registerBoardstateRpc(host, { store, dataRead: { stateDir: dataDir } });
+      registerBoardstateRpc(host, { store, dataRead: { stateDir: dataDir }, ...nodeRpcDeps() });
 
       // The whole binding flows under `{ binding }`; the server applies the pointer.
       const resolved = (await host.request("dashboard.data.read", {

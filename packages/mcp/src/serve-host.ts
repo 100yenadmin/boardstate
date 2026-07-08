@@ -24,7 +24,11 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { DashboardStore } from "@boardstate/core";
-import { createWidgetHttpRouteHandler, formatError, type InProcessHost } from "@boardstate/server";
+import {
+  createWidgetHttpRouteHandler,
+  formatError,
+  type InProcessHost,
+} from "@boardstate/server/node";
 
 export type ServeHostOptions = {
   store: DashboardStore;

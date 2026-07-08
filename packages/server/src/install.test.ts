@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DashboardStore, FsStorageAdapter, resolveWidgetDir } from "@boardstate/core";
+import { DashboardStore } from "@boardstate/core";
+import { FsStorageAdapter, resolveWidgetDir } from "@boardstate/core/node";
 import { describe, expect, it } from "vitest";
 import { installWidgetBundle, WIDGET_BUNDLE_MAX_BYTES } from "./install.js";
 

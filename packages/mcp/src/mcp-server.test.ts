@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { DashboardStore, FsStorageAdapter, MemoryStorageAdapter } from "@boardstate/core";
+import { DashboardStore, MemoryStorageAdapter } from "@boardstate/core";
+import { FsStorageAdapter } from "@boardstate/core/node";
 import { describe, expect, it } from "vitest";
 import {
   APPROVE_TOOL_NAME,
@@ -110,7 +111,7 @@ describe("@boardstate/mcp server", () => {
 
     await client.callTool({ name: "boardstate_tab_create", arguments: { title: "Docs" } });
     const read = await client.readResource({ uri: WORKSPACE_RESOURCE_URI });
-    const doc = JSON.parse(read.contents[0]!.text as string) as {
+    const doc = JSON.parse((read.contents[0] as { text: string }).text) as {
       tabs: Array<{ title: string }>;
     };
     expect(doc.tabs.some((tab) => tab.title === "Docs")).toBe(true);

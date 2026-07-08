@@ -9,7 +9,9 @@
 // (§10), time-travel history, gallery install, presence, and full-bleed/ephemeral
 // tab+widget support.
 
-import { randomUUID } from "node:crypto";
+// Web Crypto `randomUUID` (Node 20+ and browsers) — keeps rpc.ts browser-safe so
+// the control plane can register onto an in-browser in-process host.
+const randomUUID = (): string => globalThis.crypto.randomUUID();
 import {
   isDashboardActor,
   validateWorkspaceDoc,
@@ -29,7 +31,25 @@ import {
   type ResolveBindingOptions,
 } from "@boardstate/core";
 import { formatError, type RpcHandlerContext, type ServerHost } from "./host.js";
-import { installWidgetBundle } from "./install.js";
+import type { InstallWidgetOptions, WidgetBundleInput } from "./install.js";
+
+/**
+ * Installs a validated widget bundle (SPEC §8.2 — lands `pending`). This is the
+ * node implementation (`@boardstate/server/node` `installWidgetBundle`); it is
+ * INJECTED so rpc.ts stays browser-safe (the bundle writer touches `node:fs`). A
+ * browser host omits it and the `dashboard.widget.install` method errors.
+ */
+export type WidgetBundleInstaller = (
+  store: DashboardStore,
+  bundle: WidgetBundleInput,
+  ctx: InstallWidgetOptions,
+) => Promise<{ doc: WorkspaceDoc }>;
+
+/** Resolves a data binding server-side. Node hosts inject `@boardstate/core/node`'s. */
+export type BindingResolver = (
+  binding: unknown,
+  options?: ResolveBindingOptions,
+) => Promise<unknown>;
 
 const TAB_SLUG_PATTERN = /^[a-z0-9-]{1,40}$/;
 const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
@@ -41,6 +61,10 @@ type Respond = Ctx["respond"];
 export type RegisterBoardstateRpcOptions = {
   store: DashboardStore;
   dataRead?: ResolveBindingOptions;
+  /** Full (file-capable) binding resolver; defaults to the browser-safe core resolver (file bindings then error). */
+  resolveBinding?: BindingResolver;
+  /** Node widget-bundle installer; when absent, `dashboard.widget.install` errors. */
+  installWidgetBundle?: WidgetBundleInstaller;
 };
 
 function respondError(respond: Respond, error: unknown) {
@@ -838,17 +862,16 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
           throw new Error("name is invalid");
         }
         const actor = readOptionalActor(params);
-        await respondWrite(
-          opts,
-          actor,
-          undefined,
-          async () =>
-            await installWidgetBundle(
-              store,
-              { name, manifest: params.manifest, files: params.files },
-              { actor, stateDir: store.stateDir },
-            ),
-        );
+        await respondWrite(opts, actor, undefined, async () => {
+          if (!options.installWidgetBundle) {
+            throw new Error("widget install requires the node host (@boardstate/server/node)");
+          }
+          return await options.installWidgetBundle(
+            store,
+            { name, manifest: params.manifest, files: params.files },
+            { actor, stateDir: store.stateDir },
+          );
+        });
       } catch (error) {
         respondError(opts.respond, error);
       }
@@ -929,8 +952,9 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
     async (opts) => {
       try {
         const params = readParams(opts.params, ["binding"]);
+        const resolveData = options.resolveBinding ?? resolveBinding;
         opts.respond(true, {
-          data: await resolveBinding(params.binding, options.dataRead),
+          data: await resolveData(params.binding, options.dataRead),
         });
       } catch (error) {
         respondError(opts.respond, error);

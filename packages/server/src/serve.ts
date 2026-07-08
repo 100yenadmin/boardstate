@@ -10,11 +10,8 @@
 import fs from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import path from "node:path";
-import {
-  CUSTOM_WIDGET_NAME_PATTERN,
-  resolveWidgetDir,
-  type DashboardStore,
-} from "@boardstate/core";
+import { CUSTOM_WIDGET_NAME_PATTERN, type DashboardStore } from "@boardstate/core";
+import { resolveWidgetDir } from "@boardstate/core/node";
 
 export const WIDGETS_ROUTE_PREFIX = "/widgets";
 

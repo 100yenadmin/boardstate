@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DashboardStore, FsStorageAdapter } from "@boardstate/core";
+import { DashboardStore } from "@boardstate/core";
+import { FsStorageAdapter } from "@boardstate/core/node";
 import { Command } from "commander";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";

@@ -2,7 +2,7 @@
 // trivially "atomic" (a single Map set); the same absolute-path contract as the fs
 // adapter holds, so a store driven by this behaves identically to one on disk.
 
-import path from "node:path";
+import { LOGICAL_SEP } from "../internal/logical-path.js";
 import type { StorageAdapter } from "./storage.js";
 
 export class MemoryStorageAdapter implements StorageAdapter {
@@ -30,7 +30,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
   }
 
   async readdir(dirPath: string): Promise<string[]> {
-    const prefix = dirPath.endsWith(path.sep) ? dirPath : `${dirPath}${path.sep}`;
+    const prefix = dirPath.endsWith(LOGICAL_SEP) ? dirPath : `${dirPath}${LOGICAL_SEP}`;
     const names = new Set<string>();
     for (const filePath of this.files.keys()) {
       if (!filePath.startsWith(prefix)) {
@@ -39,7 +39,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
       // Only the immediate child segment (basename for a direct file, first dir
       // segment for a nested one) — matching fs.readdir's shallow listing.
       const rest = filePath.slice(prefix.length);
-      const segment = rest.split(path.sep)[0];
+      const segment = rest.split(LOGICAL_SEP)[0];
       if (segment) {
         names.add(segment);
       }
@@ -49,7 +49,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
 
   async rm(targetPath: string): Promise<void> {
     this.files.delete(targetPath);
-    const prefix = `${targetPath}${path.sep}`;
+    const prefix = `${targetPath}${LOGICAL_SEP}`;
     // Collect matches first, then delete — never mutate the Map mid-iteration.
     const nested: string[] = [];
     for (const filePath of this.files.keys()) {

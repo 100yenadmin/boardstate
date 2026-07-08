@@ -4,9 +4,11 @@
 // state dir (no server needed); `--url` targets a remote host's JSON endpoint.
 
 import type { Command } from "commander";
-import { DashboardStore, FsStorageAdapter, type Transport } from "@boardstate/core";
+import { DashboardStore, type Transport } from "@boardstate/core";
+import { FsStorageAdapter, resolveBinding } from "@boardstate/core/node";
 import { createInProcessHost } from "../host.js";
 import { registerBoardstateRpc } from "../rpc.js";
+import { installWidgetBundle } from "../install.js";
 
 export type ClientOptions = {
   url?: string;
@@ -96,6 +98,6 @@ export function clientFromOptions(
   const storage = new FsStorageAdapter(stateDir ? { storageDir: stateDir } : {});
   const store = new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
-  registerBoardstateRpc(host, { store });
+  registerBoardstateRpc(host, { store, resolveBinding, installWidgetBundle });
   return new BoardstateClient(host);
 }

@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   DEFAULT_DASHBOARD_WORKSPACE,
   migrateWorkspaceDoc,
@@ -6,7 +5,7 @@ import {
   type JsonValue,
   type WorkspaceDoc,
 } from "@boardstate/schema";
-import { FsStorageAdapter } from "./adapters/storage-fs.js";
+import { joinLogical, LOGICAL_SEP } from "./internal/logical-path.js";
 import type { StorageAdapter } from "./adapters/storage.js";
 
 export type DashboardMutationOptions = { actor: string };
@@ -34,6 +33,10 @@ const MAX_WIDGET_STATE_BYTES = 64 * 1024;
 // same charset the workspace schema enforces for widget ids so a caller can never
 // smuggle a path separator or traversal into the state directory.
 const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
+
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
 
 function serializeWorkspaceDoc(doc: WorkspaceDoc): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
@@ -68,7 +71,7 @@ export function reconcileReplaceApproval(
 }
 
 function assertWorkspaceSize(serialized: string): void {
-  if (Buffer.byteLength(serialized, "utf8") > MAX_WORKSPACE_BYTES) {
+  if (utf8ByteLength(serialized) > MAX_WORKSPACE_BYTES) {
     throw new Error("workspace document exceeds 256 KB");
   }
 }
@@ -134,13 +137,16 @@ export class DashboardStore {
   private readonly now: () => number;
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(options: { storage?: StorageAdapter; now?: () => number } = {}) {
-    this.storage = options.storage ?? new FsStorageAdapter();
+  constructor(options: { storage: StorageAdapter; now?: () => number }) {
+    // Storage is required and injected — the store never reaches for a default fs
+    // adapter, so `@boardstate/core` stays browser-safe. Node hosts pass
+    // `FsStorageAdapter` from `@boardstate/core/node`; browsers pass `MemoryStorageAdapter`.
+    this.storage = options.storage;
     this.stateDir = this.storage.storageDir();
-    this.dashboardDir = path.join(this.stateDir, "dashboard");
-    this.workspacePath = path.join(this.dashboardDir, "workspace.json");
-    this.undoDir = path.join(this.dashboardDir, "undo");
-    this.widgetStateDir = path.join(this.dashboardDir, "state");
+    this.dashboardDir = joinLogical(this.stateDir, "dashboard");
+    this.workspacePath = joinLogical(this.dashboardDir, "workspace.json");
+    this.undoDir = joinLogical(this.dashboardDir, "undo");
+    this.widgetStateDir = joinLogical(this.dashboardDir, "state");
     this.now = options.now ?? (() => Date.now());
   }
 
@@ -225,7 +231,7 @@ export class DashboardStore {
       if (!newest) {
         throw new Error("no dashboard undo snapshot available");
       }
-      const snapshotPath = path.join(this.undoDir, newest);
+      const snapshotPath = joinLogical(this.undoDir, newest);
       const snapshot = validateWorkspaceDoc(await this.readJsonFile(snapshotPath));
       const serialized = serializeWorkspaceDoc(snapshot);
       assertWorkspaceSize(serialized);
@@ -245,7 +251,7 @@ export class DashboardStore {
     const files = await this.listUndoFiles();
     const entries = await Promise.all(
       files.map(async (fileName): Promise<DashboardHistoryEntry | undefined> => {
-        const filePath = path.join(this.undoDir, fileName);
+        const filePath = joinLogical(this.undoDir, fileName);
         try {
           const content = await this.storage.readFile(filePath);
           if (content === null) {
@@ -255,7 +261,7 @@ export class DashboardStore {
           return {
             version: doc.workspaceVersion,
             savedAt: new Date().toISOString(),
-            bytes: Buffer.byteLength(content, "utf8"),
+            bytes: utf8ByteLength(content),
           };
         } catch {
           return undefined;
@@ -275,7 +281,7 @@ export class DashboardStore {
   async getHistorySnapshot(version: number): Promise<WorkspaceDoc> {
     const files = await this.listUndoFiles();
     for (const fileName of files) {
-      const raw = await this.readJsonFile(path.join(this.undoDir, fileName));
+      const raw = await this.readJsonFile(joinLogical(this.undoDir, fileName));
       if (raw === undefined) {
         continue;
       }
@@ -296,9 +302,9 @@ export class DashboardStore {
     if (!WIDGET_ID_PATTERN.test(widgetId)) {
       throw new Error("widget id is invalid");
     }
-    const stateRoot = path.resolve(this.widgetStateDir);
-    const filePath = path.resolve(stateRoot, `${widgetId}.json`);
-    if (!filePath.startsWith(`${stateRoot}${path.sep}`)) {
+    const stateRoot = this.widgetStateDir;
+    const filePath = joinLogical(stateRoot, `${widgetId}.json`);
+    if (!filePath.startsWith(`${stateRoot}${LOGICAL_SEP}`)) {
       throw new Error("widget id is invalid");
     }
     return filePath;
@@ -346,7 +352,7 @@ export class DashboardStore {
         blob,
       };
       const serialized = `${JSON.stringify(record, null, 2)}\n`;
-      if (Buffer.byteLength(serialized, "utf8") > MAX_WIDGET_STATE_BYTES) {
+      if (utf8ByteLength(serialized) > MAX_WIDGET_STATE_BYTES) {
         throw new Error("widget state exceeds 64 KB");
       }
       await this.storage.mkdir(this.widgetStateDir, { mode: 0o700 });
@@ -380,13 +386,15 @@ export class DashboardStore {
   private async writeUndoSnapshot(doc: WorkspaceDoc, nextWorkspaceVersion: number): Promise<void> {
     await this.storage.mkdir(this.undoDir, { mode: 0o700 });
     await this.storage.writeFileAtomic(
-      path.join(this.undoDir, `${String(nextWorkspaceVersion).padStart(4, "0")}.json`),
+      joinLogical(this.undoDir, `${String(nextWorkspaceVersion).padStart(4, "0")}.json`),
       serializeWorkspaceDoc(doc),
       { mode: 0o600 },
     );
     const files = await this.listUndoFiles();
     const evict = files.slice(0, Math.max(0, files.length - UNDO_RING_SIZE));
-    await Promise.all(evict.map((fileName) => this.storage.rm(path.join(this.undoDir, fileName))));
+    await Promise.all(
+      evict.map((fileName) => this.storage.rm(joinLogical(this.undoDir, fileName))),
+    );
   }
 
   private async listUndoFiles(): Promise<string[]> {

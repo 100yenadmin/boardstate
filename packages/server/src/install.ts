@@ -15,11 +15,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   CUSTOM_WIDGET_NAME_PATTERN,
-  FsStorageAdapter,
-  resolveWidgetDir,
   validateWidgetManifest,
   type DashboardStore,
 } from "@boardstate/core";
+import { FsStorageAdapter, resolveWidgetDir } from "@boardstate/core/node";
 import type { DashboardActor, WorkspaceDoc } from "@boardstate/schema";
 import { isServableWidgetFile, normalizeWidgetLogicalPath } from "./serve.js";
 

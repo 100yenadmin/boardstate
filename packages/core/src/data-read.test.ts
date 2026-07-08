@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DATA_READ_RPC_ALLOWLIST, resolveBinding } from "./data-read.js";
+import { DATA_READ_RPC_ALLOWLIST } from "./data-read.js";
+import { resolveBinding } from "./data-read-node.js";
 
 async function withTempStateDir<T>(run: (stateDir: string) => Promise<T>): Promise<T> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-data-"));

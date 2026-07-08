@@ -2,10 +2,12 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { DashboardStore, FsStorageAdapter } from "@boardstate/core";
+import { DashboardStore } from "@boardstate/core";
+import { FsStorageAdapter } from "@boardstate/core/node";
 import { describe, expect, it } from "vitest";
 import { createInProcessHost, type InProcessHost, type RequestContext } from "./host.js";
 import { registerBoardstateRpc } from "./rpc.js";
+import { nodeRpcDeps } from "./node.js";
 
 const CHANGE_EVENTS = [
   "boardstate.changed",
@@ -28,7 +30,7 @@ async function withHost<T>(
     const storage = new FsStorageAdapter({ storageDir: stateDir });
     const store = new DashboardStore({ storage });
     const host = createInProcessHost(store, storage);
-    registerBoardstateRpc(host, { store });
+    registerBoardstateRpc(host, { store, dataRead: { stateDir }, ...nodeRpcDeps() });
     const calls: Call[] = [];
     for (const event of CHANGE_EVENTS) {
       host.addEventListener(event, (payload) => calls.push({ event, payload }));

@@ -19,15 +19,17 @@ import {
   SubscribeRequestSchema,
   UnsubscribeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { DashboardStore, FsStorageAdapter, type StorageAdapter } from "@boardstate/core";
+import { DashboardStore, type StorageAdapter } from "@boardstate/core";
+import { FsStorageAdapter } from "@boardstate/core/node";
 import {
   createDashboardTools,
   createInProcessHost,
+  nodeRpcDeps,
   formatError,
   registerBoardstateRpc,
   type AgentTool,
   type InProcessHost,
-} from "@boardstate/server";
+} from "@boardstate/server/node";
 
 export const SERVER_NAME = "boardstate-mcp";
 export const SERVER_VERSION = "0.0.0";
@@ -112,7 +114,7 @@ export function createBoardstateMcpServer(
     new FsStorageAdapter(options.stateDir ? { storageDir: options.stateDir } : {});
   const store = options.store ?? new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
-  registerBoardstateRpc(host, { store });
+  registerBoardstateRpc(host, { store, dataRead: { stateDir: store.stateDir }, ...nodeRpcDeps() });
 
   const server = new Server(
     { name: SERVER_NAME, version: SERVER_VERSION },

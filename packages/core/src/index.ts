@@ -11,9 +11,12 @@
 // The workspace document schema + validators live in `@boardstate/schema`; import
 // those directly.
 
+// Browser-safe surface: this entry imports ZERO `node:*`. The fs storage adapter
+// and the fs-backed loaders (file-binding resolution, widget-manifest loading)
+// live in `@boardstate/core/node` (./node.ts) so a browser host can import this
+// without a Node runtime.
 export type { StorageAdapter } from "./adapters/storage.js";
 export type { Transport } from "./adapters/transport.js";
-export { FsStorageAdapter, BOARDSTATE_STATE_DIR_ENV } from "./adapters/storage-fs.js";
 export { MemoryStorageAdapter } from "./adapters/storage-memory.js";
 
 export * from "./store.js";

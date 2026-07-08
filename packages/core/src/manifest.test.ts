@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadWidgetManifest, resolveWidgetDir, validateWidgetManifest } from "./manifest.js";
+import { validateWidgetManifest } from "./manifest.js";
+import { loadWidgetManifest, resolveWidgetDir } from "./manifest-node.js";
 
 async function withTempStateDir<T>(run: (stateDir: string) => Promise<T>): Promise<T> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-manifest-"));

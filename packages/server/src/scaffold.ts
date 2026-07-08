@@ -6,7 +6,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FsStorageAdapter } from "@boardstate/core";
+import { FsStorageAdapter } from "@boardstate/core/node";
 
 const CUSTOM_WIDGET_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 

@@ -18,7 +18,8 @@ import {
   type JsonValue,
   type WorkspaceDoc,
 } from "@boardstate/schema";
-import { resolveBinding, DashboardStore, type ResolveBindingOptions } from "@boardstate/core";
+import { DashboardStore, type ResolveBindingOptions } from "@boardstate/core";
+import { FsStorageAdapter, resolveBinding } from "@boardstate/core/node";
 import { Type } from "typebox";
 import { toolJson, type AgentTool, type ToolContext } from "./host.js";
 import { scaffoldDashboardWidget } from "./scaffold.js";
@@ -491,7 +492,7 @@ function toolDescription(text: string): string {
 }
 
 export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
-  const store = params.store ?? new DashboardStore();
+  const store = params.store ?? new DashboardStore({ storage: new FsStorageAdapter() });
   const actor = actorFromContext(params.context);
   const broadcast = params.broadcast;
   const mutationBase = {
