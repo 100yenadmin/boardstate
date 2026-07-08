@@ -165,7 +165,9 @@ describe("serveWidgetAsset security jail", () => {
         const { res, captured } = fakeResponse();
         await serveWidgetAsset({ method: "GET", pathname }, res, { store, stateDir });
         expect(captured.statusCode).toBe(404);
-        expect(captured.headers["content-security-policy"]).toBeUndefined();
+        // SPEC §9/§11-I1: the locked CSP is on EVERY response, 404s included.
+        expect(captured.headers["content-security-policy"]).toBe(WIDGET_CSP);
+        expect(captured.headers["content-security-policy"]).toContain("connect-src 'none'");
       });
     });
   }

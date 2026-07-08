@@ -39,6 +39,34 @@ function serializeWorkspaceDoc(doc: WorkspaceDoc): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
+/**
+ * Enforce the approval invariant (SPEC §8.2) at the store, not the caller: a
+ * full-document `replace` can NEVER elevate a custom widget to `approved`. Any
+ * incoming registry entry that claims `approved` for a widget that was not
+ * ALREADY `approved` in the current document is forced back to `pending` and its
+ * `approvedBy`/`approvedAt` are stripped. The only path to `approved` is an
+ * explicit `dashboard.widget.approve` (which edits the entry directly, not via
+ * replace); undo/history restore prior *store-produced* docs and never pass
+ * through here. This makes the gate structural — it holds no matter which caller
+ * (agent tool, import, raw RPC, CLI) reaches `replace`, without trusting any of
+ * them to sanitize first.
+ */
+export function reconcileReplaceApproval(
+  incoming: WorkspaceDoc,
+  current: WorkspaceDoc,
+): WorkspaceDoc {
+  const currentRegistry = current.widgetsRegistry ?? {};
+  const incomingRegistry = incoming.widgetsRegistry ?? {};
+  for (const [name, entry] of Object.entries(incomingRegistry)) {
+    if (entry.status === "approved" && currentRegistry[name]?.status !== "approved") {
+      entry.status = "pending";
+      delete entry.approvedBy;
+      delete entry.approvedAt;
+    }
+  }
+  return incoming;
+}
+
 function assertWorkspaceSize(serialized: string): void {
   if (Buffer.byteLength(serialized, "utf8") > MAX_WORKSPACE_BYTES) {
     throw new Error("workspace document exceeds 256 KB");
@@ -171,6 +199,23 @@ export class DashboardStore {
     options: DashboardMutationOptions,
   ): Promise<DashboardMutationResult> {
     return await this.mutate(() => structuredClone(doc), options);
+  }
+
+  /**
+   * Like `replace`, but enforces the approval invariant (SPEC §8.2) against the
+   * CURRENT document, inside the write lock (no TOCTOU): a caller-supplied doc can
+   * never ELEVATE a custom widget to `approved`. Every UNTRUSTED entry point (the
+   * `dashboard.workspace.replace` RPC, imports) MUST use this; `replace` itself
+   * stays a trusted primitive for seeding, restore, and undo.
+   */
+  async replaceSanitized(
+    doc: WorkspaceDoc,
+    options: DashboardMutationOptions,
+  ): Promise<DashboardMutationResult> {
+    return await this.mutate(
+      (current) => reconcileReplaceApproval(structuredClone(doc), current),
+      options,
+    );
   }
 
   async undo(): Promise<WorkspaceDoc> {

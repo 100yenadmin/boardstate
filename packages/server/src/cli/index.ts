@@ -402,14 +402,13 @@ export function registerDashboardCli(options: RegisterDashboardCliOptions): void
       title: commandOptions.title,
       stateDir: commandOptions.stateDir ?? defaultStateDir,
     });
+    // A scaffold enters the registry as PENDING — never auto-approved. The
+    // operator approves it separately (`dashboard.widget.approve`), which is the
+    // only path to `approved` (SPEC §8.2). The store enforces this regardless of
+    // what we send, so we register the honest pending state.
     const activeClient = client(commandOptions);
     const doc = await readWorkspace(activeClient);
-    doc.widgetsRegistry[scaffold.name] = {
-      status: "approved",
-      createdBy: "user",
-      approvedBy: "user",
-      approvedAt: new Date().toISOString(),
-    };
+    doc.widgetsRegistry[scaffold.name] = { status: "pending", createdBy: "user" };
     const result = await activeClient.request("dashboard.workspace.replace", {
       doc,
       actor: "user",
@@ -418,7 +417,7 @@ export function registerDashboardCli(options: RegisterDashboardCliOptions): void
     if (commandOptions.json) {
       writeJson({ ...scaffold, registry: next.doc.widgetsRegistry[scaffold.name] });
     } else {
-      writeLine(`created ${scaffold.dir}`);
+      writeLine(`created ${scaffold.dir} (pending approval)`);
     }
   });
 }

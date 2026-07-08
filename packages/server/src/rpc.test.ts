@@ -354,6 +354,77 @@ describe("private-tab visibility (control-hub)", () => {
       );
     });
   });
+
+  it("does NOT leak a private tab through history.get for a non-owner (I6)", async () => {
+    await withHost(async ({ host }) => {
+      const created = await call(
+        host,
+        "dashboard.tab.create",
+        { slug: "secrets", title: "Secrets", visibility: "private" },
+        { operatorId: "operator-a" },
+      );
+      const version = created.result?.doc.workspaceVersion as number;
+      // Supersede that version with another mutation so it enters the undo ring
+      // (history serves superseded snapshots, not the live head).
+      await call(host, "dashboard.tab.create", { slug: "public", title: "Public" });
+
+      // operator-b (a non-owner) asks for that exact historical snapshot.
+      const snap = await call(
+        host,
+        "dashboard.workspace.history.get",
+        { version },
+        { operatorId: "operator-b" },
+      );
+      expect(snap.ok, JSON.stringify(snap.error)).toBe(true);
+      expect((snap.result?.doc.tabs as Array<{ slug: string }>).map((t) => t.slug)).not.toContain(
+        "secrets",
+      );
+      expect(JSON.stringify(snap.result)).not.toContain("secrets");
+    });
+  });
+});
+
+describe("approval gate is store-enforced (I3)", () => {
+  it("workspace.replace can NEVER elevate a custom widget to approved", async () => {
+    await withHost(async ({ host }) => {
+      const before = await call(host, "dashboard.workspace.get", {});
+      const doc = structuredClone(before.result?.doc);
+      // A caller (agent given write scope, a hostile import, a raw RPC client)
+      // submits a doc claiming an APPROVED custom widget with forged provenance.
+      doc.tabs[0].widgets.push({
+        id: "evil-1",
+        kind: "custom:evil",
+        grid: { x: 0, y: 40, w: 4, h: 3 },
+        collapsed: false,
+        hidden: false,
+      });
+      doc.widgetsRegistry.evil = {
+        status: "approved",
+        createdBy: "agent:x",
+        approvedBy: "user",
+        approvedAt: "2020-01-01T00:00:00.000Z",
+      };
+      const replaced = await call(host, "dashboard.workspace.replace", { doc });
+      expect(replaced.ok, JSON.stringify(replaced.error)).toBe(true);
+      // The store demotes it: no approval, no forged provenance.
+      expect(replaced.result?.doc.widgetsRegistry.evil).toEqual({
+        status: "pending",
+        createdBy: "agent:x",
+      });
+
+      // The ONLY path to approved is the explicit approve RPC.
+      const approved = await call(host, "dashboard.widget.approve", {
+        name: "evil",
+        decision: "approved",
+      });
+      expect(approved.result?.doc.widgetsRegistry.evil.status).toBe("approved");
+
+      // And a later replace that keeps it approved does NOT demote (already approved).
+      const keep = structuredClone(approved.result?.doc);
+      const kept = await call(host, "dashboard.workspace.replace", { doc: keep });
+      expect(kept.result?.doc.widgetsRegistry.evil.status).toBe("approved");
+    });
+  });
 });
 
 describe("widget write-back", () => {

@@ -147,10 +147,23 @@ export function isServableWidgetFile(logicalPath: string): boolean {
   return extensionContentType(logicalPath) !== null;
 }
 
+/**
+ * The locked-down security headers that MUST appear on EVERY response this route
+ * emits (SPEC §9/§11-I1), success or 404 alike — a 404 without `connect-src
+ * 'none'` would be a hole in the "no network is structural" guarantee, and the
+ * uniform header set also keeps failures indistinguishable.
+ */
+function setSecurityHeaders(res: ServerResponse): void {
+  res.setHeader("Content-Security-Policy", WIDGET_CSP);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cache-Control", "no-store");
+}
+
 function notFound(res: ServerResponse): true {
   res.statusCode = 404;
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("X-Content-Type-Options", "nosniff");
+  setSecurityHeaders(res);
   res.end("not found");
   return true;
 }
@@ -237,10 +250,7 @@ export async function serveWidgetAsset(
 
   res.statusCode = 200;
   res.setHeader("Content-Type", contentType);
-  res.setHeader("Content-Security-Policy", WIDGET_CSP);
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
-  res.setHeader("Cache-Control", "no-store");
+  setSecurityHeaders(res);
   if (req.method === "HEAD") {
     res.end();
   } else {

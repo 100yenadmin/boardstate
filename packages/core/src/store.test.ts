@@ -308,6 +308,40 @@ describe("DashboardStore", () => {
   });
 });
 
+describe("replaceSanitized (approval gate, SPEC §8.2)", () => {
+  it("cannot elevate a widget to approved, but preserves an already-approved one", async () => {
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      // Trusted seed: establish an approved widget via the raw primitive.
+      const seed = await store.read();
+      seed.widgetsRegistry.trusted = {
+        status: "approved",
+        createdBy: "user",
+        approvedBy: "user",
+        approvedAt: "2026-01-01T00:00:00.000Z",
+      };
+      await store.replace(seed, { actor: "user" });
+
+      // Untrusted replace: keep `trusted` approved (legit) AND smuggle a NEW approved.
+      const doc = structuredClone(await store.read());
+      doc.widgetsRegistry.smuggled = {
+        status: "approved",
+        createdBy: "agent:x",
+        approvedBy: "user",
+        approvedAt: "2020-01-01T00:00:00.000Z",
+      };
+      const result = await store.replaceSanitized(doc, { actor: "agent:x" });
+
+      // Already-approved survives; the smuggled elevation is forced to pending.
+      expect(result.doc.widgetsRegistry.trusted?.status).toBe("approved");
+      expect(result.doc.widgetsRegistry.smuggled).toEqual({
+        status: "pending",
+        createdBy: "agent:x",
+      });
+    });
+  });
+});
+
 async function viWaitFor(assertion: () => void): Promise<void> {
   const deadline = Date.now() + 1000;
   for (;;) {

@@ -863,7 +863,15 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
         const params = readParams(opts.params, ["doc", "actor"]);
         const actor = readOptionalActor(params);
         const doc = validateWorkspaceDoc(params.doc);
-        await respondWrite(opts, actor, undefined, async () => await store.replace(doc, { actor }));
+        // Untrusted entry point: replaceSanitized forbids elevating any custom
+        // widget to `approved` (SPEC §8.2 / §11-I3) — approval is only via
+        // dashboard.widget.approve. The agent tool additionally strips provenance.
+        await respondWrite(
+          opts,
+          actor,
+          undefined,
+          async () => await store.replaceSanitized(doc, { actor }),
+        );
       } catch (error) {
         respondError(opts.respond, error);
       }
@@ -905,7 +913,10 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
       try {
         const params = readParams(opts.params, ["version"]);
         const doc = await store.getHistorySnapshot(readVersion(params));
-        opts.respond(true, { doc });
+        // A historical snapshot is a full workspace doc — it MUST pass the same
+        // server-side visibility filter as a live response (SPEC §11-I6), or a
+        // non-owner could read a private tab out of history.
+        opts.respond(true, { doc: filterWorkspaceForOperator(doc, opts.operatorId) });
       } catch (error) {
         respondError(opts.respond, error);
       }
