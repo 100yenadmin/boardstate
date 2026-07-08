@@ -7,10 +7,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./styles.css": "./src/styles/boardstate.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/styles/boardstate.css",
+    "THEME.md"
   ],
   "scripts": {
     "build": "tsdown",
