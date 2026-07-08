@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  hello-data — minimal read path: getData once on load, re-render on both the
+  getData reply (dashboard:data) and a later push (dashboard:push). See
+  docs/authoring.md for the full bridge protocol.
+  To reuse: copy this dir, rename it, update widget.json's "name" to match,
+  and swap the "greeting" binding's source to "rpc" or "file" for real data.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Data</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: var(--font-sans, system-ui, sans-serif);
+        background: Canvas;
+        color: CanvasText;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1rem;
+      }
+      #greeting {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello Data</h1>
+    <p id="greeting">Waiting for dashboard data…</p>
+    <script>
+      // Every message is { v: 1, type, ...fields }. targetOrigin is always
+      // "*" both ways — the iframe's origin is opaque, so there's no real
+      // origin to compare against.
+      var greetingNode = document.getElementById("greeting");
+
+      function post(type, payload) {
+        window.parent.postMessage(Object.assign({ v: 1, type: type }, payload || {}), "*");
+      }
+
+      function render(data) {
+        greetingNode.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      }
+
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (!msg || msg.v !== 1) return;
+        if (msg.type === "dashboard:data" || msg.type === "dashboard:push") {
+          if (msg.bindingId === "greeting") render(msg.data);
+        } else if (msg.type === "dashboard:error") {
+          greetingNode.textContent = "Error (" + msg.code + "): " + msg.message;
+        }
+      });
+
+      post("dashboard:ready");
+      post("dashboard:getData", { requestId: "greeting-1", bindingId: "greeting" });
+    </script>
+  </body>
+</html>

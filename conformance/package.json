@@ -1,0 +1,32 @@
+{
+  "name": "@boardstate/conformance",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/core": "workspace:*",
+    "@boardstate/server": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "^4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:100yenadmin/boardstate",
+    "directory": "conformance"
+  }
+}

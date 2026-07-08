@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+  - conformance
+  - examples/*
+allowBuilds:
+  esbuild: true

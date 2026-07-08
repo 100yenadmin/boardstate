@@ -1,0 +1,129 @@
+<!doctype html>
+<!--
+  calculator — a pure, fully self-contained widget: no bindings, no
+  capabilities, no data requests. Shows the protocol floor: it still sends
+  dashboard:ready on load for consistency, but that's the only message it
+  ever sends or expects a reply to.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calculator</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 10px;
+        font-family: var(--font-mono, ui-monospace, monospace);
+        background: Canvas;
+        color: CanvasText;
+      }
+      #display {
+        text-align: right;
+        font-size: 1.4rem;
+        padding: 8px;
+        margin-bottom: 8px;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        border-radius: 6px;
+        overflow-wrap: anywhere;
+      }
+      #keys {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+      }
+      button {
+        font: inherit;
+        padding: 8px 0;
+        border-radius: 6px;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="display">0</div>
+    <div id="keys"></div>
+    <script>
+      // Accumulator-style calculator: combines numbers with one pending
+      // operator at a time. No eval() — just enough logic to prove out a
+      // self-contained widget with zero dashboard data.
+      var display = document.getElementById("display");
+      var acc = null,
+        op = null,
+        entry = "0",
+        fresh = true;
+      var OPS = {
+        "+": function (a, b) {
+          return a + b;
+        },
+        "-": function (a, b) {
+          return a - b;
+        },
+        "*": function (a, b) {
+          return a * b;
+        },
+        "/": function (a, b) {
+          return b === 0 ? NaN : a / b;
+        },
+      };
+
+      function render() {
+        display.textContent = entry;
+      }
+
+      function pressDigit(d) {
+        entry = fresh
+          ? d === "."
+            ? "0."
+            : d
+          : d === "." && entry.indexOf(".") !== -1
+            ? entry
+            : entry === "0" && d !== "."
+              ? d
+              : entry + d;
+        fresh = false;
+        render();
+      }
+
+      function pressOp(key) {
+        var value = parseFloat(entry);
+        acc = acc === null ? value : fresh ? acc : OPS[op](acc, value);
+        op = key === "=" ? null : key;
+        entry = String(acc);
+        fresh = true;
+        if (key === "=") acc = null;
+        render();
+      }
+
+      function pressClear() {
+        acc = null;
+        op = null;
+        entry = "0";
+        fresh = true;
+        render();
+      }
+
+      ["7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "0", ".", "=", "+", "C"].forEach(
+        function (key) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.textContent = key;
+          button.onclick = function () {
+            if (key === "C") pressClear();
+            else if (OPS[key] || key === "=") pressOp(key);
+            else pressDigit(key);
+          };
+          document.getElementById("keys").appendChild(button);
+        },
+      );
+
+      window.parent.postMessage({ v: 1, type: "dashboard:ready" }, "*");
+    </script>
+  </body>
+</html>

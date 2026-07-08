@@ -1,0 +1,154 @@
+# Boardstate Specification — v0.1 (draft)
+
+> **Your dashboard is data. Any AI can build it; any human can edit it.**
+
+Boardstate is a protocol and runtime for **agent-composable dashboards**: the entire dashboard — tabs, widgets, layout, data bindings, and the custom-widget registry — is one validated JSON document (the _board state_). Every author (an AI agent via tools, a human via UI drag/drop, a script via CLI/RPC) mutates it through the same guarded control plane. Agent-authored widgets run inside a sandbox strict enough to make foreign code safe _by construction_, behind an explicit operator approval gate.
+
+This document specifies: the workspace document (§3), the control-plane RPC protocol (§4–5), data bindings (§6), the widget bridge protocol (§7), the capability & approval model (§8), widget-asset serving (§9), widget state (§10), and the normative security invariants (§11).
+
+The key words MUST, MUST NOT, SHOULD, and MAY are to be interpreted as in RFC 2119.
+
+## 1. Design model
+
+- **One store, N faces.** All mutations funnel through a single validated store. There is no privileged path: agents, humans, and scripts use the same methods with the same validation. Human drag/drop parity is a protocol requirement, not a UI nicety.
+- **Two-tier capability ladder.** _Builtin_ widgets are first-party, trusted, full-capability renderers. _Custom_ widgets are foreign (agent/user-authored) code: sandboxed, capability-gated, approval-gated. Write-back (§10) upgrades both tiers from views to stateful apps.
+- **Layout as data.** Because the board state is a document, it is diffable, undoable, exportable, importable, templatable, and time-travelable. The document is the API.
+
+## 2. Conformance
+
+A **host** is conformant if it (a) persists workspace documents that validate under §3, (b) exposes the control-plane methods of §4 with the exact parameter and response shapes, (c) emits the change notification of §5, and (d) upholds every invariant in §11. The reference conformance suite (`@boardstate/conformance`) MUST pass against the host's transport. The protocol method namespace is `dashboard.*` by design — "dashboard" is the domain noun; Boardstate is the implementation brand. The reference implementation also ships as an OpenClaw plugin, making OpenClaw the first conformant host.
+
+## 3. The workspace document (schema v1)
+
+Top level (unknown keys MUST be rejected):
+
+| Field              | Type                          | Constraints                                            |
+| ------------------ | ----------------------------- | ------------------------------------------------------ |
+| `schemaVersion`    | `1`                           | only 1; hosts MUST reject other versions               |
+| `workspaceVersion` | integer ≥ 0                   | monotonic; bumped on every committed mutation          |
+| `tabs`             | `Tab[]`                       | ≤ 32                                                   |
+| `widgetsRegistry`  | `Record<name, RegistryEntry>` | name: `^[A-Za-z0-9._-]{1,64}$`, excluding `.` and `..` |
+| `prefs`            | `{ tabOrder: string[] }`      | each entry a known tab slug, no duplicates             |
+
+**Tab:** `slug` (`^[a-z0-9-]{1,40}$`, unique), `title` (1–80), `icon?` (≤ 40), `hidden` (bool), `createdBy` (_Actor_), `widgets` (≤ 24), `layout?` (`"grid"` \| `"full"` — full-bleed tab apps), `visibility?` (`"shared"` \| `"private"`), `owner?` (operator identity; REQUIRED when private).
+
+**Widget:** `id` (`^[A-Za-z0-9_-]{1,48}$`, globally unique), `kind` (§3.1), `title?` (≤ 80), `grid` (`x` 0–11, `y` 0–499, `w` 1–12, `h` 1–20; `x+w` ≤ 12), `collapsed` (bool), `hidden` (bool), `bindings?` (`Record<bindingId, Binding>` — §6), `props?` (JSON-serializable), `ephemeral?` (`{ expiresAt: ISO-8601 }` — the store sweeps expired ephemeral widgets on read; clearing the marker "pins" the widget).
+
+**Actor:** `"user"` \| `"system"` \| `"agent:<sanitized-id>"` — provenance for every tab/widget, the basis of per-agent grouping and blame.
+
+**RegistryEntry:** `{ status: "pending" | "approved" | "rejected", createdBy: Actor, approvedBy?, approvedAt? }`. See §8 for the lifecycle rules.
+
+### 3.1 Widget kinds
+
+`builtin:<name>` where `<name>` ∈ the host's builtin registry (reference set: `stat-card`, `markdown`, `table`, `iframe-embed`, `sessions`, `usage`, `cron`, `instances`, `activity`, `chart`, `notes`, `action-form`, `preview`, `agent-status`, `approvals`), or `custom:<name>` where `<name>` is a `widgetsRegistry` key. A UI MUST NOT instantiate a `custom:` widget whose registry status is not `approved` (§8, §11-I3).
+
+### 3.2 Size limits
+
+Serialized document ≤ 256 KB. `static` binding values ≤ 8 KB. Per-widget state blobs ≤ 64 KB (§10). Undo history: 20 entries (ring).
+
+## 4. The control-plane protocol
+
+Transport-agnostic request/response methods. Parameters are validated against an **allowed-keys whitelist per method** — unknown keys MUST be rejected with an error (this catches contract drift at the wire; see §12 for why). Unless noted, mutating methods take an optional `actor` and respond `{ doc, workspaceVersion }` with the post-mutation document; read methods never mutate.
+
+| Method                        | Params (allowed keys)                                                      | Notes                                                                                            |
+| ----------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `dashboard.workspace.get`     | —                                                                          | → `{ doc, workspaceVersion }`                                                                    |
+| `dashboard.workspace.replace` | `doc`, `actor?`                                                            | full-document replace; MUST run full §3 validation; agent-facing surfaces MUST sanitize per §8.2 |
+| `dashboard.workspace.undo`    | `actor?`                                                                   | pops the undo ring                                                                               |
+| `dashboard.tab.create`        | `title`, `slug?`, `icon?`, `actor?`                                        | slug generated when absent                                                                       |
+| `dashboard.tab.update`        | `slug`, `patch{title,icon,hidden}`, `actor?`                               |                                                                                                  |
+| `dashboard.tab.delete`        | `slug`, `actor?`                                                           |                                                                                                  |
+| `dashboard.tab.reorder`       | `order[]`, `actor?`                                                        |                                                                                                  |
+| `dashboard.widget.add`        | `tab`, `widget{...}`, `actor?`                                             |                                                                                                  |
+| `dashboard.widget.update`     | `tab`, `id`, `patch{title,grid,collapsed,hidden,bindings,props}`, `actor?` | **the** widget-mutation shape: `{ tab, id, patch }`                                              |
+| `dashboard.widget.move`       | `tab`, `id`, `grid` XOR `toTab`, `actor?`                                  |                                                                                                  |
+| `dashboard.widget.remove`     | `tab`, `id`, `actor?`                                                      |                                                                                                  |
+| `dashboard.widget.setLayout`  | `tab`, `layout[{id,grid}]`, `actor?`                                       | batch geometry                                                                                   |
+| `dashboard.widget.approve`    | `name`, `decision: "approved"\|"rejected"`, `actor?`                       | the ONLY path to `approved` (§8)                                                                 |
+| `dashboard.data.read`         | `binding`                                                                  | → `{ data }`; resolves `file`/server-side bindings (§6)                                          |
+
+**Extensions** (shipped by the reference implementation; normative tables finalized with the v0.1 port): `dashboard.widget.state.set` / `state.get` (per-widget state with optional `expectedVersion` optimistic concurrency — §10); `dashboard.workspace.history.list` / `history.get` (time-travel over the undo ring); gallery install and presence surfaces. Hosts MAY omit extensions; the conformance suite marks them optional.
+
+**Multi-operator visibility:** a host serving multiple operator identities MUST filter every doc-serializing response through the private-tab visibility rule (§11-I6) — a `private` tab is absent from the wire payload (including `prefs.tabOrder`) for every caller except its `owner`. Fail closed: an unidentified caller sees no private tabs.
+
+## 5. Change notification
+
+After every committed mutation the host MUST broadcast exactly one event — reference name `boardstate.changed` — with payload `{ workspaceVersion, changedTabSlug?, actor }`. Clients use `workspaceVersion` to gate refetches; UIs MAY apply optimistic mutations and MUST reconcile on the broadcast (reference behavior: revert only if no fresher document has arrived).
+
+## 6. Data bindings
+
+A binding declares _what data a widget sees_; resolution is performed by the trusted side (host UI parent or server), **never by widget code** (§7, §11-I1).
+
+| Source     | Shape                                         | Resolved by                      | Rules                                                                                                                                                                       |
+| ---------- | --------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rpc`      | `{ source:"rpc", method, params?, pointer? }` | client                           | `method` MUST be in the host's read-methods allowlist (reference: 17 read-only methods). The server MUST reject resolving `rpc` bindings itself (`binding_client_resolved`) |
+| `file`     | `{ source:"file", path, pointer? }`           | server via `dashboard.data.read` | path jailed under the host's dashboard data dir; ≤ 1 MB; JSON pointer applied server-side                                                                                   |
+| `static`   | `{ source:"static", value }`                  | either                           | ≤ 8 KB                                                                                                                                                                      |
+| `stream`   | `{ source:"stream", event, pointer? }`        | client                           | `event` MUST be in the host's event allowlist; no arbitrary subscription                                                                                                    |
+| `computed` | `{ source:"computed", op, inputs[], arg? }`   | client                           | `op` from a fixed enumerated set — **no expression evaluation, no eval**                                                                                                    |
+
+The rpc/event allowlists are host policy; the reference lists are normative for the reference host and a ceiling, not a floor — hosts SHOULD start narrower. Client and server copies of an allowlist MUST be drift-guarded by a test that imports both.
+
+## 7. The widget bridge protocol (v1)
+
+Communication between the trusted parent (host page) and a sandboxed custom widget is exclusively `postMessage`. Every message carries `{ v: 1 }`; unknown or malformed inbound messages are **silently dropped** (counted, never answered).
+
+**Child → parent:** `dashboard:ready` (handshake) · `dashboard:getData { requestId, bindingId }` · `dashboard:getTheme { requestId }` · `dashboard:sendPrompt { requestId, text }` (non-empty).
+
+**Parent → child:** `dashboard:data { requestId, bindingId, data }` · `dashboard:push { bindingId, data }` (unsolicited update; no requestId) · `dashboard:theme { requestId, tokens }` · `dashboard:error { requestId?, code, message }`.
+
+**Error codes:** `binding_denied` · `capability_denied` · `rate_limited` · `prompt_declined` · `timeout` · `resolve_failed` (+ reserved `malformed`).
+
+**Gating rules (normative):**
+
+1. `getData` — `bindingId` MUST be declared in the widget's own manifest, else `binding_denied`; the parent then re-checks the binding against the host allowlist (defense in depth) before resolving; resolution timeout (reference 10 s) → `timeout`.
+2. `sendPrompt` — requires the manifest capability `prompt:send` else `capability_denied`; then a rate limit (reference: 1 in-flight + 10 per rolling 60 s, keyed by **widget name at module scope** so an iframe remount cannot reset it); then a **per-invocation operator confirmation**; a decline sends `prompt_declined`. All prompt dispatch MUST route through the host's single confirm+rate gate — no widget-reachable secondary path (§11-I5).
+3. **Identity, not origin:** the child's origin is opaque (`null`); implementations MUST NOT compare origin strings. The parent MUST accept messages only from the exact window it created (`event.source === iframe.contentWindow`) and MUST post to the child with `targetOrigin: "*"` carrying only data the widget is entitled to.
+
+## 8. Capability model & approval lifecycle
+
+### 8.1 Manifest
+
+A custom widget ships `widget.json`: name (§3 charset), entry (`index.html`), declared `bindingIds`, and capabilities from the enumerated set (`data:read`, `prompt:send`, `state:persist`). Capabilities are a _ceiling_ — each is further gated at use time (§7).
+
+### 8.2 The approval invariant
+
+A custom widget's registry status is `pending` at every entry point: scaffolding, agent `workspace.replace` (sanitizer forces new entries to pending), and **import** (sanitizer additionally strips `approvedBy`/`approvedAt` and forces pending unconditionally — an imported document claiming approval is still pending). The ONLY transition to `approved` is an explicit operator decision via `dashboard.widget.approve`. Hosts MUST NOT auto-approve under any circumstance. Pending/rejected widgets: no iframe client-side, 404 server-side (§9).
+
+## 9. Widget-asset serving
+
+Assets for a custom widget MAY be served without ambient credentials (sandboxed frames carry none), if and only if ALL of the following hold: static files only, GET/HEAD only; the widget name validates against §3 charset (rejecting `.`/`..`); the resolved path passes containment **twice** — lexical resolve-prefix check, then `realpath` on both sides re-checked (defeats symlink escape); the registry status is `approved`; and **every** failure mode returns 404 (never 403 — the route must not leak existence). Every response MUST carry (reference values, normative for the reference host):
+
+```
+Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-ancestors 'self'
+X-Content-Type-Options: nosniff · Referrer-Policy: no-referrer · Cache-Control: no-store
+```
+
+`connect-src 'none'` makes "widgets have no network" structural rather than conventional.
+
+## 10. Widget state (write-back)
+
+Persistent per-widget state upgrades widgets from views to apps. `dashboard.widget.state.set { widgetId, blob, expectedVersion? }` — blob ≤ 64 KB, jailed under the widget's own state key (a widget can never address another widget's state), `expectedVersion` mismatch MUST reject (optimistic concurrency). Bridge access requires the `state:persist` capability. State records carry `{ version, updatedAt, blob }`.
+
+## 11. Security invariants (normative)
+
+| #   | Invariant                                                                                                                                                                                      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I1  | Widget code never fetches: bindings are resolved by the trusted side only; CSP `connect-src 'none'` enforces it structurally                                                                   |
+| I2  | Custom widgets run with opaque origin: `sandbox="allow-scripts"` and never `allow-same-origin`; message trust is by window identity, never origin string                                       |
+| I3  | No approval, no execution: pending/rejected ⇒ no iframe client-side AND 404 server-side; approval is an explicit operator act; imports/scaffolds/agent-replaces always land pending            |
+| I4  | Serving is jailed: charset + double containment + static-only + uniform 404                                                                                                                    |
+| I5  | Prompt dispatch is single-gated: every widget-originated prompt crosses one shared operator-confirm + rate-limit gate; interpolated templates are single-pass (inserted text never re-scanned) |
+| I6  | Private tabs are enforced server-side: filtered from every serialized response for non-owners; fail-closed for unidentified callers                                                            |
+| I7  | Pub/sub is tab-scoped: the parent broker never crosses tab boundaries; capability-gated, size- and rate-capped                                                                                 |
+| I8  | The document is the sole state authority: one validated store, serialized writes, atomic persistence, bounded undo                                                                             |
+
+## 12. Why the conformance suite exists
+
+The reference implementation's UI and server were originally unit-tested against _mocks of each other_, and three P1 contract-drift bugs shipped green: file bindings sent the wrong shape, every widget mutation sent the wrong shape, and initial load read the wrong response envelope — an empty dashboard. `@boardstate/conformance` productizes that lesson: it drives a **real client against a real host over the host's own transport** and pins the exact wire shapes (`{ doc }` envelope; `{ tab, id, patch }` mutations, rejecting legacy `{ slug, widgetId }`; `{ binding }` data reads; import→pending; single `boardstate.changed` per mutation). Run it against your transport before shipping a host.
+
+## 13. Provenance
+
+Extracted from the modular-dashboard system built for OpenClaw (roadmap: openclaw/openclaw#101136) by its authors. Source branches (fork `100yenadmin/openclaw`): base `up/pr3-custom-widgets @ aa54dc0c2b`; features `write-back @ 4c5b119770` · `preview @ b23a3b2362` · `charts+sdk @ d0b8615fd0` · `sdk-docs @ b00611bf83` · `ops-widgets @ 6624e5b986` · `notes @ f6a71c1f48` · `binding-kinds @ 1717e4a5ee` · `pubsub @ 5430328c6e` · `living-answers @ e68b455066` · `time-travel @ 876d5a397d` · `apps-layer @ 0da800fcb6` · `control-hub @ 1d92fb6236` · `distribution @ c71f97aa77`.
+
+_Spec version 0.1-draft · 2026-07-08 · License: MIT_

@@ -1,0 +1,33 @@
+{
+  "name": "@boardstate/mcp",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "boardstate-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/core": "workspace:*",
+    "@boardstate/server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:100yenadmin/boardstate",
+    "directory": "packages/mcp"
+  }
+}

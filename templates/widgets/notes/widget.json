@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "notes",
+  "title": "Notes",
+  "entrypoint": "index.html",
+  "bindings": [],
+  "capabilities": ["data:read"],
+  "preferredSize": { "w": 4, "h": 4 }
+}
