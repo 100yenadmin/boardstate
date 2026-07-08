@@ -34,6 +34,9 @@ export type DashboardGridRect = {
   h: number;
 };
 
+/** Auto-expiry marker (Living Answers): the store sweeps the widget once past `expiresAt`. */
+export type DashboardEphemeral = { expiresAt: string };
+
 export type DashboardWidget = {
   id: string;
   kind: DashboardWidgetKind;
@@ -43,13 +46,27 @@ export type DashboardWidget = {
   createdBy?: DashboardCreatedBy;
   bindings?: Record<string, DashboardBinding>;
   props?: Record<string, unknown>;
+  /** Present while the widget is a temporary (unpinned) Living Answer. */
+  ephemeral?: DashboardEphemeral;
 };
+
+/** Tab content layout (SPEC §3): the default 12-col grid, or a single full-bleed widget. */
+export type DashboardTabLayout = "grid" | "full";
+
+/** Tab visibility (SPEC §3, §11-I6); server-enforced. Absent === shared. */
+export type DashboardTabVisibility = "shared" | "private";
 
 export type DashboardTab = {
   slug: string;
   title: string;
   icon?: string;
   hidden: boolean;
+  /** Absent means the default grid layout (full-bleed tab apps use `"full"`). */
+  layout?: DashboardTabLayout;
+  /** A `private` tab is only served to its owner; the UI marks it with a lock. */
+  visibility?: DashboardTabVisibility;
+  /** Operator identity that owns a `private` tab (REQUIRED when private per SPEC §3). */
+  owner?: string;
   createdBy?: DashboardCreatedBy;
   widgets: DashboardWidget[];
 };

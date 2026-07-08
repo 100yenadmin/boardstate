@@ -11,16 +11,19 @@ import {
   loadWorkspace,
   moveWidget,
   moveWidgetToTab,
+  pinWidget,
   registerActiveDrag,
   removeWidgetFromTab,
   resolveBinding,
   resolveComputedBinding,
+  setTabLayout,
   setWidgetCollapsed,
   startBindingPolling,
   stopBindingPolling,
   stopDashboard,
   subscribeToDashboardEvents,
   subscribeToStreamBinding,
+  undoWorkspace,
   updateWidgetTitle,
 } from "./store.js";
 
@@ -155,6 +158,72 @@ describe("optimistic mutations", () => {
       id: "w1",
       toTab: "archive",
     });
+
+    // pinWidget clears the ephemeral marker via the same { tab, id, patch } shape.
+    state.workspace = normalizeWorkspace(sampleDoc);
+    await pinWidget(state, transport, { slug: "main", widgetId: "w1" });
+    expect(request).toHaveBeenLastCalledWith("dashboard.widget.update", {
+      tab: "main",
+      id: "w1",
+      patch: { ephemeral: null },
+    });
+  });
+
+  it("pins an ephemeral widget by clearing the flag optimistically and via ephemeral: null", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.workspace = normalizeWorkspace({
+      ...sampleDoc,
+      tabs: [
+        {
+          ...sampleDoc.tabs[0]!,
+          widgets: [
+            { ...sampleDoc.tabs[0]!.widgets[0]!, ephemeral: { expiresAt: "2026-07-09T12:00:00Z" } },
+          ],
+        },
+        sampleDoc.tabs[1]!,
+      ],
+    });
+    expect(state.workspace?.tabs[0]!.widgets[0]!.ephemeral).toEqual({
+      expiresAt: "2026-07-09T12:00:00Z",
+    });
+    const request = vi.fn(async () => ({}));
+    const transport = mockTransport({ request: request as never });
+    await pinWidget(state, transport, { slug: "main", widgetId: "w1" });
+    expect(state.workspace?.tabs[0]!.widgets[0]!.ephemeral).toBeUndefined();
+    expect(request).toHaveBeenCalledWith("dashboard.widget.update", {
+      tab: "main",
+      id: "w1",
+      patch: { ephemeral: null },
+    });
+  });
+
+  it("sets the tab layout optimistically and persists it via dashboard.tab.update", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.workspace = normalizeWorkspace(sampleDoc);
+    const request = vi.fn(async () => ({}));
+    const transport = mockTransport({ request: request as never });
+    await setTabLayout(state, transport, { slug: "main", layout: "full" });
+    expect(state.workspace?.tabs.find((tab) => tab.slug === "main")?.layout).toBe("full");
+    expect(request).toHaveBeenCalledWith("dashboard.tab.update", {
+      slug: "main",
+      patch: { layout: "full" },
+    });
+  });
+
+  it("reverts an optimistic tab-layout change when the RPC fails", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.workspace = normalizeWorkspace(sampleDoc);
+    const transport = mockTransport({
+      request: vi.fn(async () => {
+        throw new Error("nope");
+      }) as never,
+    });
+    await setTabLayout(state, transport, { slug: "main", layout: "full" });
+    expect(state.workspace?.tabs.find((tab) => tab.slug === "main")?.layout).toBeUndefined();
+    expect(state.actionError).toBe("nope");
   });
 
   it("reverts and surfaces an error when the RPC rejects", async () => {
@@ -215,6 +284,33 @@ describe("optimistic mutations", () => {
     expect(state.workspace?.workspaceVersion).toBe(4);
     expect(state.workspace?.tabs[0]!.widgets[0]!.title).toBe("Revenue (v4)");
     expect(state.actionError).toBe("rejected");
+  });
+});
+
+describe("undoWorkspace (restore)", () => {
+  it("calls the existing undo write path then reloads", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    const request = vi.fn(async (method: string) =>
+      method === "dashboard.workspace.undo" ? {} : { doc: sampleDoc, workspaceVersion: 3 },
+    );
+    const transport = mockTransport({ request: request as never });
+    await undoWorkspace(state, transport);
+    expect(request).toHaveBeenCalledWith("dashboard.workspace.undo", {});
+    expect(request).toHaveBeenCalledWith("dashboard.workspace.get", {});
+    expect(state.actionError).toBeNull();
+  });
+
+  it("surfaces an error when undo rejects", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    const transport = mockTransport({
+      request: vi.fn(async () => {
+        throw new Error("nothing to undo");
+      }) as never,
+    });
+    await undoWorkspace(state, transport);
+    expect(state.actionError).toBe("nothing to undo");
   });
 });
 

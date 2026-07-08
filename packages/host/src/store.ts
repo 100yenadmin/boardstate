@@ -20,12 +20,14 @@ import {
   type DashboardBindingSource,
   type DashboardChangedEvent,
   type DashboardGridRect,
+  type DashboardTabLayout,
   type DashboardWidget,
   type DashboardWorkspace,
   type Transport,
   type WorkspaceExportOptions,
 } from "@boardstate/core";
 import { isStreamEventAllowed } from "./bridge.js";
+import { clearPresence } from "./presence.js";
 
 /** Broadcast event the host emits on any workspace mutation (SPEC §5). */
 const CHANGED_EVENT = "boardstate.changed";
@@ -249,6 +251,7 @@ export function stopDashboard(host: DashboardHost): void {
   cancelActiveDrag(host);
   stopDashboardEvents(host);
   stopBindingPolling(host);
+  clearPresence(host);
 }
 
 function replaceWidget(
@@ -379,6 +382,28 @@ export function updateWidgetTitle(
   });
 }
 
+/**
+ * Pin a temporary (ephemeral) Living Answer: clear its `ephemeral` flag so the
+ * store's TTL sweep never removes it. Mirrors the other widget.update actions —
+ * `ephemeral: null` is the clear signal the store's patch reader understands.
+ */
+export function pinWidget(
+  state: DashboardUiState,
+  transport: Transport | null,
+  params: { slug: string; widgetId: string },
+): Promise<void> {
+  return optimisticMutation(state, transport, {
+    widgetId: params.widgetId,
+    method: "dashboard.widget.update",
+    rpcParams: { tab: params.slug, id: params.widgetId, patch: { ephemeral: null } },
+    optimistic: (workspace) =>
+      replaceWidget(workspace, params.slug, params.widgetId, (widget) => {
+        const { ephemeral: _ephemeral, ...rest } = widget;
+        return rest;
+      }),
+  });
+}
+
 export function hideWidget(
   state: DashboardUiState,
   transport: Transport | null,
@@ -434,6 +459,68 @@ export function moveWidgetToTab(
       };
     },
   });
+}
+
+/**
+ * Set a tab's content layout ("grid" | "full") → `dashboard.tab.update` (WRITE).
+ * Optimistically flips the tab layout so the full-bleed toggle feels instant, then
+ * reverts to the pre-mutation snapshot on failure (surfacing `actionError`). The
+ * revert is guarded like the widget mutations so a concurrent refetch isn't stomped.
+ */
+export async function setTabLayout(
+  state: DashboardUiState,
+  transport: Transport | null,
+  params: { slug: string; layout: DashboardTabLayout },
+): Promise<void> {
+  if (!transport || !state.workspace) {
+    return;
+  }
+  const previous = state.workspace;
+  const optimistic: DashboardWorkspace = {
+    ...previous,
+    tabs: previous.tabs.map((tab) =>
+      tab.slug === params.slug ? { ...tab, layout: params.layout } : tab,
+    ),
+  };
+  state.workspace = optimistic;
+  state.actionError = null;
+  notify(state);
+  try {
+    await transport.request("dashboard.tab.update", {
+      slug: params.slug,
+      patch: { layout: params.layout },
+    });
+  } catch (err) {
+    if (state.workspace === optimistic) {
+      state.workspace = previous;
+    }
+    state.actionError = formatError(err);
+    notify(state);
+  }
+}
+
+/**
+ * Restore the most recent workspace snapshot via the EXISTING undo write path
+ * (time-travel reuses `dashboard.workspace.undo`; no new write RPC). The resulting
+ * `boardstate.changed` broadcast refetches, but we also reload eagerly so the caller
+ * sees the reverted doc without waiting for the echo. A failure surfaces `actionError`.
+ */
+export async function undoWorkspace(
+  state: DashboardUiState,
+  transport: Transport | null,
+): Promise<void> {
+  if (!transport) {
+    return;
+  }
+  state.actionError = null;
+  notify(state);
+  try {
+    await transport.request("dashboard.workspace.undo", {});
+    await loadWorkspace(state, transport, { silent: true });
+  } catch (err) {
+    state.actionError = formatError(err);
+    notify(state);
+  }
 }
 
 /**

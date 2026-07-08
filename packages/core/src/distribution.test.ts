@@ -139,7 +139,7 @@ describe("sanitizeImportedWorkspace", () => {
     const sanitized = sanitizeImportedWorkspace(parseWorkspaceImport(json));
     expect((sanitized.tabs as unknown[]).length).toBe(2);
     const registry = sanitized.widgetsRegistry as Record<string, { status: string }>;
-    expect(registry.charts.status).toBe("pending");
-    expect(registry.pager.status).toBe("pending");
+    expect(registry.charts!.status).toBe("pending");
+    expect(registry.pager!.status).toBe("pending");
   });
 });

@@ -25,4 +25,6 @@ export * from "./types.js";
 export * from "./grid.js";
 export * from "./distribution.js";
 export * from "./queries.js";
+export * from "./history-client.js";
+export * from "./gallery.js";
 export * from "./transforms/index.js";

@@ -173,7 +173,7 @@ export function createInProcessHost(
     httpRoutes() {
       return [...routes];
     },
-    request(method, params, ctx) {
+    request(method: string, params?: unknown, ctx?: RequestContext) {
       const entry = rpcs.get(method);
       if (!entry) {
         const error = new Error(`unknown method: ${method}`) as Error & { code: string };

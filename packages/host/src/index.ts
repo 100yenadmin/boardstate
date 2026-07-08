@@ -17,3 +17,6 @@ export * from "./mount.js";
 export * from "./approval.js";
 export * from "./bindings-cache.js";
 export * from "./manifests.js";
+export * from "./history.js";
+export * from "./gallery.js";
+export * from "./presence.js";

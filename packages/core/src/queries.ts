@@ -6,7 +6,9 @@
 
 import {
   DASHBOARD_GRID_COLUMNS,
+  dashboardAgentProvenance,
   type DashboardBinding,
+  type DashboardEphemeral,
   type DashboardGridRect,
   type DashboardTab,
   type DashboardWidget,
@@ -77,6 +79,7 @@ function normalizeWidget(value: unknown): DashboardWidget | null {
   if (!id || !kind) {
     return null;
   }
+  const ephemeral = normalizeEphemeral(value.ephemeral);
   return {
     id,
     kind,
@@ -86,7 +89,16 @@ function normalizeWidget(value: unknown): DashboardWidget | null {
     ...(typeof value.createdBy === "string" ? { createdBy: value.createdBy } : {}),
     ...(normalizeBindings(value.bindings) ? { bindings: normalizeBindings(value.bindings) } : {}),
     ...(isRecord(value.props) ? { props: value.props } : {}),
+    ...(ephemeral ? { ephemeral } : {}),
   };
+}
+
+/** Read the ephemeral marker if present and well-formed (`{ expiresAt: string }`). */
+function normalizeEphemeral(value: unknown): DashboardEphemeral | null {
+  if (!isRecord(value) || typeof value.expiresAt !== "string" || !value.expiresAt.trim()) {
+    return null;
+  }
+  return { expiresAt: value.expiresAt };
 }
 
 function normalizeTab(value: unknown): DashboardTab | null {
@@ -105,6 +117,9 @@ function normalizeTab(value: unknown): DashboardTab | null {
     title: readString(value.title, slug),
     hidden: value.hidden === true,
     widgets,
+    ...(value.layout === "full" || value.layout === "grid" ? { layout: value.layout } : {}),
+    ...(value.visibility === "private" ? { visibility: "private" as const } : {}),
+    ...(typeof value.owner === "string" ? { owner: value.owner } : {}),
     ...(typeof value.icon === "string" ? { icon: value.icon } : {}),
     ...(typeof value.createdBy === "string" ? { createdBy: value.createdBy } : {}),
   };
@@ -207,6 +222,47 @@ export function visibleTabs(workspace: DashboardWorkspace): DashboardTab[] {
 
 export function hiddenTabs(workspace: DashboardWorkspace): DashboardTab[] {
   return orderedTabs(workspace).filter((tab) => tab.hidden);
+}
+
+/** Which actor bucket a tab belongs to in the per-agent nesting strip. */
+export type DashboardTabGroupKind = "user" | "system" | "agent";
+
+export type DashboardTabGroup = {
+  /** Stable group key: `"user"`, `"system"`, or `"agent:<id>"`. */
+  key: string;
+  kind: DashboardTabGroupKind;
+  /** Agent id for an `agent` group, else null. */
+  agentId: string | null;
+  tabs: DashboardTab[];
+};
+
+/**
+ * Bucket tabs by their `createdBy` provenance for the per-agent nesting strip: a
+ * `user` group (also the default for an unstamped tab), a `system` group, and one
+ * group per distinct `agent:<id>`. Group order follows each actor's first
+ * appearance in the input and tab order within a group is preserved, so callers
+ * pass already-ordered (visible) tabs.
+ */
+export function groupTabsByActor(tabs: DashboardTab[]): DashboardTabGroup[] {
+  const groups: DashboardTabGroup[] = [];
+  const byKey = new Map<string, DashboardTabGroup>();
+  for (const tab of tabs) {
+    const agentId = dashboardAgentProvenance(tab.createdBy);
+    const kind: DashboardTabGroupKind = agentId
+      ? "agent"
+      : tab.createdBy === "system"
+        ? "system"
+        : "user";
+    const key = kind === "agent" ? `agent:${agentId}` : kind;
+    let group = byKey.get(key);
+    if (!group) {
+      group = { key, kind, agentId: kind === "agent" ? agentId : null, tabs: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.tabs.push(tab);
+  }
+  return groups;
 }
 
 export function findTab(

@@ -1,4 +1,8 @@
-import { DEFAULT_DASHBOARD_WORKSPACE, type WorkspaceDoc } from "@boardstate/schema";
+import {
+  DEFAULT_DASHBOARD_WORKSPACE,
+  type DashboardTab,
+  type WorkspaceDoc,
+} from "@boardstate/schema";
 import { describe, expect, it } from "vitest";
 import { filterWorkspaceForOperator, isTabVisibleToOperator } from "./visibility.js";
 
@@ -53,15 +57,15 @@ describe("filterWorkspaceForOperator", () => {
   });
 
   it("isTabVisibleToOperator treats shared/unmarked tabs as public", () => {
-    const shared = {
+    const shared: DashboardTab = {
       slug: "s",
       title: "S",
       hidden: false,
       createdBy: "user",
       widgets: [],
-    } as const;
+    };
     expect(isTabVisibleToOperator(shared, null)).toBe(true);
-    const priv = { ...shared, visibility: "private", owner: "device:a" } as const;
+    const priv: DashboardTab = { ...shared, visibility: "private", owner: "device:a" };
     expect(isTabVisibleToOperator(priv, "device:a")).toBe(true);
     expect(isTabVisibleToOperator(priv, "device:z")).toBe(false);
   });

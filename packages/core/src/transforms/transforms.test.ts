@@ -3,12 +3,23 @@
 // — the presentation rendering is exercised in a host presentation package.
 
 import { describe, expect, it } from "vitest";
-import type { DashboardWidget } from "../types.js";
+import type { DashboardWidget, DashboardWorkspace } from "../types.js";
+import {
+  buildActionFormPrompt,
+  coerceFieldValue,
+  mapActionForm,
+  type ActionFormModel,
+} from "./action-form.js";
 import { mapActivity } from "./activity.js";
+import { mapAgentStatus } from "./agent-status.js";
+import { buildWidgetApprovalsSource, mapApprovals, toWidgetApprovalDecision } from "./approvals.js";
+import { mapChart, normalizeSeries } from "./chart.js";
 import { mapCron } from "./cron.js";
 import { evaluateEmbedUrl } from "./iframe-embed.js";
 import { mapInstances } from "./instances.js";
 import { mapMarkdownSource } from "./markdown.js";
+import { notesTextFromState } from "./notes.js";
+import { mapPreviewViewport } from "./preview.js";
 import { mapSessions } from "./sessions.js";
 import { mapStatCard } from "./stat-card.js";
 import { mapTable } from "./table.js";
@@ -196,5 +207,180 @@ describe("iframe-embed URL policy", () => {
     expect(evaluateEmbedUrl(undefined, { allowExternalEmbedUrls: true }, origin)).toEqual({
       status: "missing",
     });
+  });
+});
+
+describe("chart mapping", () => {
+  it("normalizes the tolerant value shapes to a plain number[]", () => {
+    expect(normalizeSeries([1, 2, 3])).toEqual([1, 2, 3]);
+    expect(normalizeSeries([{ y: 4 }, { value: 5 }, { x: 9, y: 6 }])).toEqual([4, 5, 6]);
+    expect(normalizeSeries({ points: [1, { value: 2 }] })).toEqual([1, 2]);
+    expect(normalizeSeries([1, "bad", null, { z: 3 }, 2])).toEqual([1, 2]);
+    expect(normalizeSeries(undefined)).toEqual([]);
+  });
+
+  it("defaults to a line chart and derives the value range", () => {
+    const model = mapChart(widget(), [3, 1, 5]);
+    expect(model.type).toBe("line");
+    expect(model.min).toBe(1);
+    expect(model.max).toBe(5);
+  });
+
+  it("honors a valid props.type and falls back on an unknown one", () => {
+    expect(mapChart(widget({ props: { type: "bar" } }), [1, 2]).type).toBe("bar");
+    expect(mapChart(widget({ props: { type: "pie" } }), [1, 2]).type).toBe("line");
+  });
+});
+
+describe("notes state<->text", () => {
+  it("reads the raw string blob, collapsing non-strings to empty", () => {
+    expect(notesTextFromState("hello")).toBe("hello");
+    expect(notesTextFromState(null)).toBe("");
+    expect(notesTextFromState({ note: "x" })).toBe("");
+  });
+});
+
+describe("action-form interpolation + caps", () => {
+  const textField = (name: string, extra: Partial<ActionFormModel["fields"][number]> = {}) => ({
+    name,
+    label: name,
+    type: "text" as const,
+    ...extra,
+  });
+  const model = (over: Partial<ActionFormModel> = {}): ActionFormModel => ({
+    template: "{a}",
+    fields: [textField("a")],
+    buttonLabel: null,
+    ...over,
+  });
+
+  it("fills only declared slots and leaves undeclared slots literal", () => {
+    expect(
+      buildActionFormPrompt(model({ template: "{a} then {b}" }), { a: "run", b: "ignored" }),
+    ).toBe("run then {b}");
+  });
+
+  it("never double-expands: a value containing a declared slot stays literal", () => {
+    const m = model({ template: "{a}", fields: [textField("a"), textField("evil")] });
+    expect(buildActionFormPrompt(m, { a: "{evil}", evil: "PWNED" })).toBe("{evil}");
+  });
+
+  it("enforces the per-field length cap and the 200-char default", () => {
+    expect(
+      buildActionFormPrompt(model({ fields: [textField("a", { maxLength: 3 })] }), { a: "abcdef" }),
+    ).toBe("abc");
+    expect(buildActionFormPrompt(model(), { a: "x".repeat(500) }).length).toBe(200);
+  });
+
+  it("coerces number and select values, collapsing invalid input to empty", () => {
+    expect(coerceFieldValue({ name: "n", label: "N", type: "number" }, "42")).toBe("42");
+    expect(coerceFieldValue({ name: "n", label: "N", type: "number" }, "not-a-number")).toBe("");
+    const select = { name: "s", label: "S", type: "select" as const, options: ["a", "b"] };
+    expect(coerceFieldValue(select, "a")).toBe("a");
+    expect(coerceFieldValue(select, "c")).toBe("");
+  });
+
+  it("maps well-formed props and drops malformed fields", () => {
+    const mapped = mapActionForm(
+      widget({
+        kind: "builtin:action-form",
+        props: {
+          template: "{a}",
+          fields: [
+            { name: "a", label: "A", type: "text" },
+            { name: "bad", label: "B", type: "select" }, // select without options → dropped
+          ],
+          buttonLabel: "Go",
+        },
+      }),
+    );
+    expect(mapped.fields.map((f) => f.name)).toEqual(["a"]);
+    expect(mapped.buttonLabel).toBe("Go");
+  });
+});
+
+describe("preview viewport", () => {
+  it("honors props.defaultViewport, defaulting to desktop for missing/invalid", () => {
+    expect(mapPreviewViewport(widget({ props: { defaultViewport: "mobile" } }))).toBe("mobile");
+    expect(mapPreviewViewport(widget({ props: { defaultViewport: "bogus" } }))).toBe("desktop");
+    expect(mapPreviewViewport(widget())).toBe("desktop");
+  });
+});
+
+describe("agent-status mapping", () => {
+  it("reuses sessions.list rows for busy/idle + objective + budget progress", () => {
+    const model = mapAgentStatus(widget(), {
+      sessions: [
+        {
+          key: "main:1",
+          displayName: "Builder",
+          hasActiveRun: true,
+          goal: { objective: "Ship the widget", tokensUsed: 50, tokenBudget: 200 },
+        },
+        { key: "main:2", label: "Idler", status: "done" },
+        { key: "" }, // dropped: no key
+      ],
+    });
+    expect(model.rows.map((r) => r.key)).toEqual(["main:1", "main:2"]);
+    expect(model.rows[0]).toMatchObject({ active: true, task: "Ship the widget", progress: 0.25 });
+    expect(model.rows[1]).toMatchObject({ active: false, task: null, progress: null });
+    expect(model.activeCount).toBe(1);
+    expect(model.total).toBe(2);
+  });
+});
+
+describe("approvals mapping", () => {
+  function workspace(registry: DashboardWorkspace["widgetsRegistry"] = {}): DashboardWorkspace {
+    return {
+      schemaVersion: 1,
+      workspaceVersion: 1,
+      tabs: [],
+      prefs: { tabOrder: [] },
+      widgetsRegistry: registry,
+    };
+  }
+
+  it("derives only pending widget approvals from the registry, with agent provenance", () => {
+    const source = buildWidgetApprovalsSource(
+      workspace({
+        chart: { status: "pending", createdBy: "agent:main" },
+        notes: { status: "approved", createdBy: "agent:main" },
+        old: { status: "rejected" },
+      }),
+      () => {},
+    );
+    expect(source.pending).toEqual([
+      { id: "chart", kind: "widget", title: "chart", requestedBy: "main" },
+    ]);
+  });
+
+  it("maps decisions to the registry vocabulary and limits the row count", () => {
+    expect(toWidgetApprovalDecision("approve")).toBe("approved");
+    expect(toWidgetApprovalDecision("reject")).toBe("rejected");
+    const source = buildWidgetApprovalsSource(
+      workspace({
+        a: { status: "pending" },
+        b: { status: "pending" },
+        c: { status: "pending" },
+      }),
+      () => {},
+    );
+    const model = mapApprovals(widget({ props: { limit: 2 } }), source);
+    expect(model.total).toBe(3);
+    expect(model.items).toHaveLength(2);
+  });
+
+  it("routes onDecide through the resolver with the mapped decision", () => {
+    const calls: Array<[string, string]> = [];
+    const source = buildWidgetApprovalsSource(
+      workspace({ chart: { status: "pending", createdBy: "agent:main" } }),
+      (name, decision) => calls.push([name, decision]),
+    );
+    source.onDecide(source.pending[0]!, "approve");
+    source.onDecide(source.pending[0]!, "reject");
+    expect(calls).toEqual([
+      ["chart", "approved"],
+      ["chart", "rejected"],
+    ]);
   });
 });
