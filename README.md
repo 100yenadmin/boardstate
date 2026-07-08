@@ -2,6 +2,10 @@
 
 > **Your dashboard is data. Any AI can build it; any human can edit it.**
 
+**[▶ Live demo](https://100yenadmin.github.io/boardstate/)** — press “Simulate agent” and watch an AI compose the board, then drag things around yourself.
+
+![An agent builds a dashboard: creates a tab, adds a chart, scaffolds a sandboxed widget, and it renders live the moment you approve it](docs/media/hero.gif)
+
 Boardstate is a protocol and runtime for **agent-composable dashboards**. The entire dashboard — tabs, widgets, layout, data bindings, even the registry of agent-authored custom widgets — is one validated JSON document: the _board state_. An AI agent composes it through tools, a human rearranges it with drag & drop, a script edits it over RPC — **all through the same guarded control plane**, with no privileged path. Agent-authored widgets render live inside a sandbox strict enough that foreign code is safe _by construction_, behind an explicit operator approval gate.
 
 - 📄 **The document is the API** — diffable, undoable, exportable, importable, templatable, time-travelable.
@@ -61,13 +65,15 @@ sequenceDiagram
 
 ## Quick start
 
+Zero-install: open the **[live demo](https://100yenadmin.github.io/boardstate/)**. Locally:
+
 ```sh
 git clone https://github.com/100yenadmin/boardstate && cd boardstate
 pnpm install && pnpm build
 pnpm --filter boardstate-example-standalone dev   # the 60-second demo
 ```
 
-Open the example, press **“simulate agent”**, and watch: a tab appears, charts bind, a custom widget lands as a pending card, you approve it, the sandboxed iframe mounts. Then drag things around — you and the agent are editing the same document.
+Either way, press **“simulate agent”**, and watch: a tab appears, charts bind, a custom widget lands as a pending card, you approve it, the sandboxed iframe mounts and renders live. Then drag things around — you and the agent are editing the same document.
 
 To give an AI the tools directly:
 
@@ -100,9 +106,14 @@ import "@boardstate/lit/styles.css"; // the Graphite default — light + dark
   token or author a whole theme. See **[THEME.md](packages/lit/THEME.md)** for the
   token table and a build-your-own guide.
 
-The standalone example has a live theme switcher + light/dark toggle — the fastest
-way to see all three. _(A hosted, clickable demo and hero media are tracked in
-[#2](https://github.com/100yenadmin/boardstate/issues/2).)_
+![Switching themes live: Graphite light and dark, then Aurora, then Vibrancy](docs/media/themes.gif)
+
+|                    Graphite (default, light)                    |                        Aurora                        |                         Vibrancy                         |
+| :-------------------------------------------------------------: | :--------------------------------------------------: | :------------------------------------------------------: |
+| ![Graphite light theme](docs/media/graphite-light-overview.png) | ![Aurora theme](docs/media/aurora-dark-overview.png) | ![Vibrancy theme](docs/media/vibrancy-dark-overview.png) |
+
+The **[live demo](https://100yenadmin.github.io/boardstate/)** has the theme
+switcher + light/dark toggle in its header — the fastest way to see all three.
 
 ## Learn more
 
