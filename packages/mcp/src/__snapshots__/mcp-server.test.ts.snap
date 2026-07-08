@@ -1,0 +1,676 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`@boardstate/mcp server > emits a standard JSON Schema inputSchema for every tool 1`] = `
+{
+  "boardstate_data_read": {
+    "additionalProperties": false,
+    "properties": {
+      "binding": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "description": "Allowlisted read method.",
+                "type": "string",
+              },
+              "source": {
+                "const": "rpc",
+                "type": "string",
+              },
+            },
+            "required": [
+              "source",
+              "method",
+            ],
+            "type": "object",
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "description": "Relative path under dashboard/data.",
+                "type": "string",
+              },
+              "pointer": {
+                "description": "Optional JSON pointer.",
+                "type": "string",
+              },
+              "source": {
+                "const": "file",
+                "type": "string",
+              },
+            },
+            "required": [
+              "source",
+              "path",
+            ],
+            "type": "object",
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "const": "static",
+                "type": "string",
+              },
+              "value": {
+                "description": "JSON-compatible value.",
+              },
+            },
+            "required": [
+              "source",
+              "value",
+            ],
+            "type": "object",
+          },
+        ],
+      },
+    },
+    "required": [
+      "binding",
+    ],
+    "type": "object",
+  },
+  "boardstate_layout_set": {
+    "additionalProperties": false,
+    "properties": {
+      "layout": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "grid": {
+              "additionalProperties": false,
+              "properties": {
+                "h": {
+                  "description": "Grid height, 1-20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "type": "integer",
+                },
+                "w": {
+                  "description": "Grid width, 1-12.",
+                  "maximum": 12,
+                  "minimum": 1,
+                  "type": "integer",
+                },
+                "x": {
+                  "description": "Grid x column, 0-11.",
+                  "maximum": 11,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "y": {
+                  "description": "Grid row, 0-499.",
+                  "maximum": 499,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+              },
+              "required": [
+                "x",
+                "y",
+                "w",
+                "h",
+              ],
+              "type": "object",
+            },
+            "id": {
+              "description": "Widget id.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+            "grid",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "tab": {
+        "description": "Tab slug.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "tab",
+      "layout",
+    ],
+    "type": "object",
+  },
+  "boardstate_tab_create": {
+    "additionalProperties": false,
+    "properties": {
+      "icon": {
+        "description": "Optional icon name.",
+        "type": "string",
+      },
+      "slug": {
+        "description": "Optional tab slug.",
+        "type": "string",
+      },
+      "title": {
+        "description": "Tab title, 1-80 chars.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "title",
+    ],
+    "type": "object",
+  },
+  "boardstate_tab_delete": {
+    "additionalProperties": false,
+    "properties": {
+      "slug": {
+        "description": "Tab slug.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "slug",
+    ],
+    "type": "object",
+  },
+  "boardstate_tab_update": {
+    "additionalProperties": false,
+    "properties": {
+      "hidden": {
+        "description": "Hide or show the tab.",
+        "type": "boolean",
+      },
+      "icon": {
+        "description": "New icon.",
+        "type": "string",
+      },
+      "layout": {
+        "anyOf": [
+          {
+            "const": "grid",
+            "type": "string",
+          },
+          {
+            "const": "full",
+            "type": "string",
+          },
+        ],
+        "description": "Content layout: "grid" (default) or "full" (single full-bleed widget).",
+      },
+      "slug": {
+        "description": "Tab slug.",
+        "type": "string",
+      },
+      "title": {
+        "description": "New title.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "slug",
+    ],
+    "type": "object",
+  },
+  "boardstate_tabs_reorder": {
+    "additionalProperties": false,
+    "properties": {
+      "order": {
+        "items": {
+          "description": "Tab slug.",
+          "type": "string",
+        },
+        "type": "array",
+      },
+    },
+    "required": [
+      "order",
+    ],
+    "type": "object",
+  },
+  "boardstate_undo": {
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object",
+  },
+  "boardstate_widget_add": {
+    "additionalProperties": false,
+    "properties": {
+      "bindings": {
+        "description": "Widget binding map keyed by binding id.",
+        "patternProperties": {
+          "^.*$": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "method": {
+                    "description": "Allowlisted read method.",
+                    "type": "string",
+                  },
+                  "source": {
+                    "const": "rpc",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "source",
+                  "method",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "description": "Relative path under dashboard/data.",
+                    "type": "string",
+                  },
+                  "pointer": {
+                    "description": "Optional JSON pointer.",
+                    "type": "string",
+                  },
+                  "source": {
+                    "const": "file",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "source",
+                  "path",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "const": "static",
+                    "type": "string",
+                  },
+                  "value": {
+                    "description": "JSON-compatible value.",
+                  },
+                },
+                "required": [
+                  "source",
+                  "value",
+                ],
+                "type": "object",
+              },
+            ],
+          },
+        },
+        "type": "object",
+      },
+      "collapsed": {
+        "description": "Initial collapsed state.",
+        "type": "boolean",
+      },
+      "ephemeral": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAt": {
+            "description": "ISO 8601 expiry timestamp (auto-swept when past).",
+            "type": "string",
+          },
+        },
+        "required": [
+          "expiresAt",
+        ],
+        "type": "object",
+      },
+      "grid": {
+        "additionalProperties": false,
+        "properties": {
+          "h": {
+            "description": "Grid height, 1-20.",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "w": {
+            "description": "Grid width, 1-12.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "x": {
+            "description": "Grid x column, 0-11.",
+            "maximum": 11,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "y": {
+            "description": "Grid row, 0-499.",
+            "maximum": 499,
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h",
+        ],
+        "type": "object",
+      },
+      "hidden": {
+        "description": "Initial hidden state.",
+        "type": "boolean",
+      },
+      "id": {
+        "description": "Optional unique widget id.",
+        "type": "string",
+      },
+      "kind": {
+        "description": "builtin:<name> or custom:<name>.",
+        "type": "string",
+      },
+      "props": {
+        "description": "JSON-compatible value.",
+      },
+      "tab": {
+        "description": "Target tab slug.",
+        "type": "string",
+      },
+      "title": {
+        "description": "Widget title.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "tab",
+      "kind",
+      "grid",
+    ],
+    "type": "object",
+  },
+  "boardstate_widget_approve": {
+    "additionalProperties": false,
+    "properties": {
+      "decision": {
+        "description": "Approval decision for the pending widget.",
+        "enum": [
+          "approved",
+          "rejected",
+        ],
+        "type": "string",
+      },
+      "name": {
+        "description": "Custom widget name to approve or reject.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "name",
+      "decision",
+    ],
+    "type": "object",
+  },
+  "boardstate_widget_move": {
+    "additionalProperties": false,
+    "properties": {
+      "grid": {
+        "additionalProperties": false,
+        "properties": {
+          "h": {
+            "description": "Grid height, 1-20.",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "w": {
+            "description": "Grid width, 1-12.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "x": {
+            "description": "Grid x column, 0-11.",
+            "maximum": 11,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "y": {
+            "description": "Grid row, 0-499.",
+            "maximum": 499,
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h",
+        ],
+        "type": "object",
+      },
+      "id": {
+        "description": "Widget id.",
+        "type": "string",
+      },
+      "tab": {
+        "description": "Current tab slug for grid moves.",
+        "type": "string",
+      },
+      "toTab": {
+        "description": "Destination tab slug.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+    ],
+    "type": "object",
+  },
+  "boardstate_widget_remove": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "description": "Widget id.",
+        "type": "string",
+      },
+      "tab": {
+        "description": "Tab slug.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "tab",
+      "id",
+    ],
+    "type": "object",
+  },
+  "boardstate_widget_scaffold": {
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "description": "Custom widget name, A-Z a-z 0-9 . _ - only.",
+        "type": "string",
+      },
+      "title": {
+        "description": "Widget display title.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "name",
+    ],
+    "type": "object",
+  },
+  "boardstate_widget_update": {
+    "additionalProperties": false,
+    "properties": {
+      "bindings": {
+        "description": "Widget binding map keyed by binding id.",
+        "patternProperties": {
+          "^.*$": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "method": {
+                    "description": "Allowlisted read method.",
+                    "type": "string",
+                  },
+                  "source": {
+                    "const": "rpc",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "source",
+                  "method",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "description": "Relative path under dashboard/data.",
+                    "type": "string",
+                  },
+                  "pointer": {
+                    "description": "Optional JSON pointer.",
+                    "type": "string",
+                  },
+                  "source": {
+                    "const": "file",
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "source",
+                  "path",
+                ],
+                "type": "object",
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "const": "static",
+                    "type": "string",
+                  },
+                  "value": {
+                    "description": "JSON-compatible value.",
+                  },
+                },
+                "required": [
+                  "source",
+                  "value",
+                ],
+                "type": "object",
+              },
+            ],
+          },
+        },
+        "type": "object",
+      },
+      "collapsed": {
+        "description": "Collapse widget body.",
+        "type": "boolean",
+      },
+      "ephemeral": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "expiresAt": {
+                "description": "ISO 8601 expiry timestamp (auto-swept when past).",
+                "type": "string",
+              },
+            },
+            "required": [
+              "expiresAt",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+        "description": "Set an auto-expiry, or null to pin (clear the flag).",
+      },
+      "grid": {
+        "additionalProperties": false,
+        "properties": {
+          "h": {
+            "description": "Grid height, 1-20.",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "w": {
+            "description": "Grid width, 1-12.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer",
+          },
+          "x": {
+            "description": "Grid x column, 0-11.",
+            "maximum": 11,
+            "minimum": 0,
+            "type": "integer",
+          },
+          "y": {
+            "description": "Grid row, 0-499.",
+            "maximum": 499,
+            "minimum": 0,
+            "type": "integer",
+          },
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h",
+        ],
+        "type": "object",
+      },
+      "hidden": {
+        "description": "Hide widget.",
+        "type": "boolean",
+      },
+      "id": {
+        "description": "Widget id.",
+        "type": "string",
+      },
+      "props": {
+        "description": "JSON-compatible value.",
+      },
+      "tab": {
+        "description": "Tab slug.",
+        "type": "string",
+      },
+      "title": {
+        "description": "Widget title, 80 chars max.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "tab",
+      "id",
+    ],
+    "type": "object",
+  },
+  "boardstate_workspace_get": {
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object",
+  },
+  "boardstate_workspace_replace": {
+    "additionalProperties": false,
+    "properties": {
+      "doc": {},
+    },
+    "required": [
+      "doc",
+    ],
+    "type": "object",
+  },
+}
+`;
