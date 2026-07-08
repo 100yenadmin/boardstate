@@ -8,11 +8,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./styles.css": "./src/styles/boardstate.css"
+    "./styles.css": "./src/styles/boardstate.css",
+    "./themes/aurora.css": "./src/styles/themes/aurora.css",
+    "./themes/vibrancy.css": "./src/styles/themes/vibrancy.css"
   },
   "files": [
     "dist",
     "src/styles/boardstate.css",
+    "src/styles/themes",
     "THEME.md"
   ],
   "scripts": {

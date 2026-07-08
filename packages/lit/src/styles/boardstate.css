@@ -3,9 +3,114 @@
  *
  * Every themeable value is read as `var(--bs-<token>, <default>)` so the stylesheet
  * renders standalone yet is fully overridable: set the `--bs-*` custom properties on
- * any ancestor to theme it. See THEME.md for the full token table. The defaults form
- * a neutral light palette; supply a dark set of tokens for dark mode.
+ * any ancestor to theme it. See THEME.md for the full token table.
+ *
+ * The `:root` block below is the shipped default theme — "Graphite", a Linear/Vercel/
+ * Codex-family palette that looks world-class light AND dark out of the box. Dark mode
+ * activates two ways so either the OS preference or an explicit toggle drives it:
+ *   - `<html data-theme="dark">` / `data-theme="light">` — explicit, always wins.
+ *   - `prefers-color-scheme: dark` — used only when no explicit `data-theme="light"`.
+ * Drop in an alternate theme (e.g. `@boardstate/lit/themes/aurora.css`) after this file
+ * to fully re-skin, or override any `--bs-*` token on an ancestor.
  */
+
+:root {
+  /* Typography */
+  --bs-font-sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --bs-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Surfaces */
+  --bs-bg: #fbfbfd;
+  --bs-card: #ffffff;
+  --bs-card-highlight: #f6f6fa;
+  --bs-input: #ffffff;
+  --bs-bg-hover: #f2f2f7;
+  --bs-bg-muted: rgba(16, 16, 24, 0.03);
+
+  /* Borders */
+  --bs-border: #e7e7ee;
+  --bs-border-strong: #d9d9e2;
+
+  /* Text */
+  --bs-text: #15151b;
+  --bs-text-strong: #000000;
+  --bs-text-muted: #6b6b77;
+  --bs-text-dim: #9a9aa6;
+  --bs-muted: #6b6b77;
+
+  /* Accent / semantic */
+  --bs-accent: #7c6cff;
+  --bs-accent-foreground: #ffffff;
+  --bs-ring: rgba(124, 108, 255, 0.5);
+  --bs-focus-ring: 0 0 0 2px rgba(124, 108, 255, 0.45);
+  --bs-success: #2e9d47;
+  --bs-warning: #b6820f;
+  --bs-danger: #d92c25;
+  --bs-danger-subtle: rgba(217, 44, 37, 0.1);
+
+  /* Radii */
+  --bs-radius-sm: 6px;
+  --bs-radius-md: 9px;
+  --bs-radius-lg: 12px;
+  --bs-radius-full: 999px;
+
+  /* Elevation / motion */
+  --bs-shadow-md: 0 1px 2px rgba(16, 16, 24, 0.06), 0 6px 20px rgba(16, 16, 24, 0.08);
+  --bs-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --bs-duration-fast: 120ms;
+}
+
+:root[data-theme="dark"] {
+  --bs-bg: #0b0b0f;
+  --bs-card: #131318;
+  --bs-card-highlight: #17171e;
+  --bs-input: #17171e;
+  --bs-bg-hover: rgba(255, 255, 255, 0.04);
+  --bs-bg-muted: rgba(255, 255, 255, 0.02);
+  --bs-border: #23232b;
+  --bs-border-strong: #30303a;
+  --bs-text: #ededf2;
+  --bs-text-strong: #ffffff;
+  --bs-text-muted: #9a9aa6;
+  --bs-text-dim: #63636e;
+  --bs-muted: #9a9aa6;
+  --bs-accent: #7c6cff;
+  --bs-accent-foreground: #ffffff;
+  --bs-ring: rgba(124, 108, 255, 0.5);
+  --bs-focus-ring: 0 0 0 2px rgba(124, 108, 255, 0.45);
+  --bs-success: #3fb950;
+  --bs-warning: #d29922;
+  --bs-danger: #f85149;
+  --bs-danger-subtle: rgba(248, 81, 73, 0.14);
+  --bs-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bs-bg: #0b0b0f;
+    --bs-card: #131318;
+    --bs-card-highlight: #17171e;
+    --bs-input: #17171e;
+    --bs-bg-hover: rgba(255, 255, 255, 0.04);
+    --bs-bg-muted: rgba(255, 255, 255, 0.02);
+    --bs-border: #23232b;
+    --bs-border-strong: #30303a;
+    --bs-text: #ededf2;
+    --bs-text-strong: #ffffff;
+    --bs-text-muted: #9a9aa6;
+    --bs-text-dim: #63636e;
+    --bs-muted: #9a9aa6;
+    --bs-accent: #7c6cff;
+    --bs-accent-foreground: #ffffff;
+    --bs-ring: rgba(124, 108, 255, 0.5);
+    --bs-focus-ring: 0 0 0 2px rgba(124, 108, 255, 0.45);
+    --bs-success: #3fb950;
+    --bs-warning: #d29922;
+    --bs-danger: #f85149;
+    --bs-danger-subtle: rgba(248, 81, 73, 0.14);
+    --bs-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+}
 
 .dashboard {
   display: flex;
@@ -1437,4 +1542,134 @@ select.bs-dialog__input {
 .dashboard-widget__blame-link svg {
   width: 12px;
   height: 12px;
+}
+
+/* ==========================================================================
+ * Default theme polish — "Graphite".
+ * Surfaces/color/type/spacing/radius/shadow only; no layout or structural
+ * changes. These refine the existing selectors above into a world-class
+ * default. An alternate theme layered after this file overrides them freely.
+ * ========================================================================== */
+
+.page-title {
+  letter-spacing: -0.01em;
+}
+.card {
+  padding: 14px 16px;
+  border-color: var(--bs-border);
+  box-shadow: var(--bs-shadow-md);
+  background: var(--bs-card);
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: var(--bs-text-muted);
+}
+
+/* Widgets read as the same crisp surface as .card. */
+.dashboard-widget {
+  background: var(--bs-card);
+  box-shadow: var(--bs-shadow-md);
+}
+.dashboard-widget__bar {
+  background: var(--bs-card-highlight);
+}
+.dashboard-widget__title {
+  font-weight: 600;
+  color: var(--bs-text);
+}
+
+/* Tab strip: crisp segmented-control pill. */
+.dashboard-tabs {
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--bs-border);
+  border-bottom: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-bg-muted);
+  width: fit-content;
+}
+.dashboard-tab {
+  height: 28px;
+  font-size: 0.86em;
+  font-weight: 500;
+  border-radius: calc(var(--bs-radius-md) - 3px);
+  transition:
+    background var(--bs-duration-fast) var(--bs-ease-out),
+    color var(--bs-duration-fast) var(--bs-ease-out),
+    box-shadow var(--bs-duration-fast) var(--bs-ease-out);
+}
+.dashboard-tab:hover {
+  background: var(--bs-bg-hover);
+}
+.dashboard-tab--active {
+  background: var(--bs-card);
+  border-color: var(--bs-border-strong);
+  color: var(--bs-text-strong);
+  font-weight: 600;
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.dashboard-tab:focus-visible,
+.dashboard-tabs__hidden-item:focus-visible,
+.bs-btn:focus-visible,
+.dashboard-widget__collapse:focus-visible,
+.dashboard-widget__menu-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--bs-focus-ring);
+}
+
+/* Toolbar buttons. */
+.bs-btn {
+  font-size: 0.86em;
+  font-weight: 500;
+  border-color: var(--bs-border);
+  background: var(--bs-card);
+  transition:
+    background var(--bs-duration-fast) var(--bs-ease-out),
+    border-color var(--bs-duration-fast) var(--bs-ease-out);
+}
+.bs-btn:hover {
+  border-color: var(--bs-border-strong);
+  background: var(--bs-bg-hover);
+}
+.bs-btn--primary {
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(124, 108, 255, 0.25);
+}
+.bs-btn--primary:hover {
+  background: color-mix(in srgb, var(--bs-accent) 88%, #000);
+  border-color: color-mix(in srgb, var(--bs-accent) 88%, #000);
+}
+
+/* Chart: accent-driven line/area/gauge. */
+.dashboard-chart__line {
+  stroke: var(--bs-accent);
+  stroke-width: 1.75;
+}
+.dashboard-chart__area {
+  fill: color-mix(in srgb, var(--bs-accent) 18%, transparent);
+}
+.dashboard-chart__gauge-fill {
+  stroke: var(--bs-accent);
+}
+.dashboard-chart__gauge-track {
+  stroke: var(--bs-bg-muted);
+}
+
+/* Badges / status dots. */
+.dashboard-badge {
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 2px 7px;
+}
+.dashboard-badge--error {
+  background: var(--bs-danger-subtle);
+}
+.dashboard-dot--live {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bs-success) 25%, transparent);
 }

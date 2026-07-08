@@ -4,3 +4,6 @@ dist/
 .DS_Store
 .artifacts/
 coverage/
+
+# Local editor / preview config
+.claude/

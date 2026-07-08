@@ -1,0 +1,227 @@
+/*
+ * Boardstate — "Vibrancy" theme (macOS-native frosted glass, light + dark)
+ *
+ * LAYER THIS AFTER packages/lit/src/styles/boardstate.css — it only sets the
+ * --bs-* custom-property contract plus a handful of targeted polish rules for
+ * surfaces boardstate.css doesn't yet expose a background/blur on (the
+ * workspaces header + toolbar). No layout, spacing-model, or grid changes.
+ *
+ * Dark mode: set <html data-theme="dark"> (or data-theme="light" to force
+ * light under a dark OS) — or omit the attribute and let
+ * prefers-color-scheme drive it automatically.
+ */
+
+/* ============================================================ *
+ * 1. LIGHT tokens (default) — full --bs-* contract
+ * ============================================================ */
+:root {
+  /* surfaces */
+  --bs-bg: #f7f8fc;
+  --bs-card: rgba(255, 255, 255, 0.7);
+  --bs-card-highlight: rgba(255, 255, 255, 0.9);
+  --bs-bg-hover: rgba(10, 10, 20, 0.045);
+  --bs-bg-muted: rgba(10, 10, 20, 0.05);
+
+  /* text */
+  --bs-text: #14141b;
+  --bs-text-strong: #05050a;
+  --bs-text-muted: #5b5b68;
+  --bs-text-dim: #8c8c98;
+  --bs-muted: #5b5b68;
+
+  /* borders */
+  --bs-border: rgba(0, 0, 0, 0.06);
+  --bs-border-strong: rgba(0, 0, 0, 0.12);
+  --bs-input: rgba(0, 0, 0, 0.07);
+
+  /* accent + semantic (macOS system colors) */
+  --bs-accent: #007aff;
+  --bs-accent-foreground: #ffffff;
+  --bs-ring: rgba(0, 122, 255, 0.45);
+  --bs-focus-ring: 0 0 0 3px rgba(0, 122, 255, 0.45);
+  --bs-success: #34c759;
+  --bs-warning: #ff9500;
+  --bs-danger: #ff3b30;
+  --bs-danger-subtle: rgba(255, 59, 48, 0.12); /* invented: subtle danger wash for error surfaces */
+
+  /* shape */
+  --bs-radius-sm: 8px;
+  --bs-radius-md: 12px;
+  --bs-radius-lg: 16px;
+  --bs-radius-full: 999px;
+
+  /* elevation + motion */
+  --bs-shadow-md: 0 8px 24px rgba(20, 20, 30, 0.1), 0 2px 6px rgba(20, 20, 30, 0.06);
+  --bs-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* type */
+  --bs-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --bs-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* invented: reusable glass recipe consumed by the polish rules below */
+  --bs-glass-blur: blur(20px) saturate(1.4);
+}
+
+body {
+  background: linear-gradient(180deg, #f7f8fc, #eef0f6) fixed;
+  min-height: 100vh;
+}
+
+/* ============================================================ *
+ * 2. DARK tokens — explicit :root[data-theme="dark"] + OS preference
+ * ============================================================ */
+:root[data-theme="dark"] {
+  --bs-bg: #0a0a10;
+  --bs-card: rgba(255, 255, 255, 0.045);
+  --bs-card-highlight: rgba(255, 255, 255, 0.07);
+  --bs-bg-hover: rgba(255, 255, 255, 0.06);
+  --bs-bg-muted: rgba(255, 255, 255, 0.05);
+
+  --bs-text: #f0f0f6;
+  --bs-text-strong: #ffffff;
+  --bs-text-muted: #a2a2b0;
+  --bs-text-dim: #6d6d7c;
+  --bs-muted: #a2a2b0;
+
+  --bs-border: rgba(255, 255, 255, 0.08);
+  --bs-border-strong: rgba(255, 255, 255, 0.14);
+  --bs-input: rgba(255, 255, 255, 0.06);
+
+  --bs-accent: #5e9bff;
+  --bs-accent-foreground: #ffffff;
+  --bs-ring: rgba(94, 155, 255, 0.55);
+  --bs-focus-ring: 0 0 0 3px rgba(94, 155, 255, 0.55);
+  --bs-success: #32d74b;
+  --bs-warning: #ffd60a;
+  --bs-danger: #ff453a;
+  --bs-danger-subtle: rgba(255, 69, 58, 0.15);
+
+  --bs-shadow-md: 0 8px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme="dark"] body {
+  background: linear-gradient(180deg, #10101a, #0a0a10) fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bs-bg: #0a0a10;
+    --bs-card: rgba(255, 255, 255, 0.045);
+    --bs-card-highlight: rgba(255, 255, 255, 0.07);
+    --bs-bg-hover: rgba(255, 255, 255, 0.06);
+    --bs-bg-muted: rgba(255, 255, 255, 0.05);
+
+    --bs-text: #f0f0f6;
+    --bs-text-strong: #ffffff;
+    --bs-text-muted: #a2a2b0;
+    --bs-text-dim: #6d6d7c;
+    --bs-muted: #a2a2b0;
+
+    --bs-border: rgba(255, 255, 255, 0.08);
+    --bs-border-strong: rgba(255, 255, 255, 0.14);
+    --bs-input: rgba(255, 255, 255, 0.06);
+
+    --bs-accent: #5e9bff;
+    --bs-accent-foreground: #ffffff;
+    --bs-ring: rgba(94, 155, 255, 0.55);
+    --bs-focus-ring: 0 0 0 3px rgba(94, 155, 255, 0.55);
+    --bs-success: #32d74b;
+    --bs-warning: #ffd60a;
+    --bs-danger: #ff453a;
+    --bs-danger-subtle: rgba(255, 69, 58, 0.15);
+
+    --bs-shadow-md: 0 8px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  :root:not([data-theme="light"]) body {
+    background: linear-gradient(180deg, #10101a, #0a0a10) fixed;
+  }
+}
+
+/* ============================================================ *
+ * 3. Component polish — glass surfaces, keyed to existing selectors
+ *    (surfaces / color / type / spacing / radius / shadow only)
+ * ============================================================ */
+
+/* Frosted-glass cards, widgets, menus, and modal — background/border
+   already thread through --bs-card/--bs-border via the base stylesheet's
+   token fallbacks; this adds the blur + inner highlight glass wants. */
+.card,
+.dashboard-widget,
+.bs-modal__card,
+.dashboard-tabs__hidden-menu,
+.dashboard-widget__menu,
+.dashboard-fullbleed,
+.dashboard-empty--tab {
+  -webkit-backdrop-filter: var(--bs-glass-blur);
+  backdrop-filter: var(--bs-glass-blur);
+  box-shadow:
+    inset 0 1px 0 var(--bs-card-highlight),
+    var(--bs-shadow-md);
+}
+
+/* Workspaces header + toolbar: boardstate.css gives these layout only, no
+   surface — make them a blurred translucent chrome bar. */
+.dashboard-header,
+.dashboard-page-header {
+  padding: 10px 14px;
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-card);
+  border: 1px solid var(--bs-border);
+  -webkit-backdrop-filter: var(--bs-glass-blur);
+  backdrop-filter: var(--bs-glass-blur);
+}
+.dashboard-toolbar {
+  padding: 4px;
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-card);
+  -webkit-backdrop-filter: var(--bs-glass-blur);
+  backdrop-filter: var(--bs-glass-blur);
+}
+
+/* Buttons: glassy chrome with an accent-tinted focus ring. */
+.bs-btn {
+  -webkit-backdrop-filter: var(--bs-glass-blur);
+  backdrop-filter: var(--bs-glass-blur);
+  box-shadow: inset 0 1px 0 var(--bs-card-highlight);
+}
+.bs-btn--primary {
+  box-shadow: var(--bs-shadow-md);
+}
+.bs-btn--primary:hover {
+  box-shadow:
+    0 0 0 3px var(--bs-ring),
+    var(--bs-shadow-md);
+}
+.bs-btn:focus-visible,
+.dashboard-tab:focus-visible,
+.bs-dialog__input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bs-ring);
+}
+
+/* Active tab: accent glass wash instead of a flat tint. */
+.dashboard-tab--active {
+  background: color-mix(in srgb, var(--bs-accent) 20%, var(--bs-card));
+  -webkit-backdrop-filter: var(--bs-glass-blur);
+  backdrop-filter: var(--bs-glass-blur);
+}
+
+/* Inputs: recessed glass well, a touch darker/lighter than the card itself. */
+.bs-dialog__input,
+.dashboard-notes__pad,
+.dashboard-action-form__control {
+  background: color-mix(in srgb, var(--bs-input) 55%, var(--bs-card));
+  border-color: var(--bs-input);
+}
+
+/* Widget error state: use the danger-subtle wash instead of the base
+   stylesheet's ad-hoc color-mix so it stays legible on translucent glass. */
+.dashboard-widget__error {
+  background: var(--bs-danger-subtle);
+}
+
+/* Gauge track reads better against glass with the stronger border tone. */
+.dashboard-chart__gauge-track {
+  stroke: var(--bs-border-strong);
+}

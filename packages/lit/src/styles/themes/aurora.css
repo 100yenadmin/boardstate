@@ -1,0 +1,280 @@
+/*
+ * @boardstate/lit — "Aurora" theme (alternate).
+ * ------------------------------------------------------------------------
+ * Layer this AFTER `@boardstate/lit/styles.css`:
+ *   import "@boardstate/lit/styles.css";
+ *   import "@boardstate/lit/themes/aurora.css";
+ * The base stylesheet ships the default "Graphite" tokens on :root; this file
+ * redefines every --bs-* token (and adds a handful of targeted refinements) to
+ * fully re-skin the view. No structural or layout changes.
+ *
+ * Dark is the primary, "whoa" surface (a near-black card grid over a fixed,
+ * very faint violet/cyan aurora wash); light is a clean near-white counterpart
+ * with the same wash turned down to a whisper. Dark activates two ways:
+ *   - <html data-theme="dark"> / <html data-theme="light"> — explicit, wins.
+ *   - prefers-color-scheme: dark — used only when no explicit data-theme="light".
+ * Selectors mirror the base's canonical structure (:root / :root[data-theme=
+ * "dark"] / media :root:not([data-theme="light"])) so that — because this file
+ * loads after the base — source order decides and Aurora's tokens win.
+ *
+ * Glow is intentionally rationed: only `.bs-btn--primary` and
+ * `.dashboard-tab--active` carry the accent glow (via --bs-glow). Everything
+ * else stays flat/matte so the glow reads as signal, not noise.
+ * ------------------------------------------------------------------------
+ */
+
+:root {
+  /* --- Typography ---------------------------------------------------- */
+  --bs-font-sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --bs-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* --- Surfaces (light) ------------------------------------------------ */
+  --bs-bg: #fbfcff;
+  --bs-card: #ffffff;
+  --bs-card-highlight: #f5f6fc;
+  --bs-input: #ffffff;
+  --bs-bg-hover: rgba(23, 23, 60, 0.045);
+  --bs-bg-muted: #f1f2f9;
+
+  /* --- Borders ----------------------------------------------------------- */
+  --bs-border: #e7e8f2;
+  --bs-border-strong: #d3d5e8;
+
+  /* --- Text ------------------------------------------------------------ */
+  --bs-text: #14141c;
+  --bs-text-strong: #05050a;
+  --bs-text-muted: #5f6172;
+  --bs-text-dim: #9496ab;
+  --bs-muted: #5f6172;
+
+  /* --- Accent / semantic colors ------------------------------------------ */
+  --bs-accent: #0891b2; /* darker cyan — keeps AA contrast on white */
+  --bs-accent-foreground: #ffffff;
+  --bs-ring: rgba(8, 145, 178, 0.4);
+  --bs-focus-ring: 0 0 0 2px rgba(8, 145, 178, 0.4);
+  --bs-success: #059669;
+  --bs-warning: #b45309;
+  --bs-danger: #e11d48;
+  --bs-danger-subtle: rgba(225, 29, 72, 0.1);
+
+  /* Restrained glow token — softened to a thin ring in light mode. */
+  --bs-glow: 0 0 0 1px rgba(8, 145, 178, 0.3);
+
+  /* --- Radii -------------------------------------------------------------- */
+  --bs-radius-sm: 5px;
+  --bs-radius-md: 8px;
+  --bs-radius-lg: 11px;
+  --bs-radius-full: 999px;
+
+  /* --- Elevation / motion ------------------------------------------------- */
+  --bs-shadow-md: 0 1px 2px rgba(20, 20, 40, 0.05), 0 8px 24px rgba(20, 20, 40, 0.08);
+  --bs-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --bs-duration-fast: 140ms;
+}
+
+/* Fixed, barely-there wash — a hint of violet top-left, cyan top-right. */
+body {
+  background:
+    var(--bs-bg, #fbfcff) radial-gradient(60% 40% at 12% 0%, rgba(124, 108, 255, 0.05), transparent),
+    radial-gradient(50% 35% at 88% 0%, rgba(6, 182, 212, 0.05), transparent);
+  background-attachment: fixed;
+}
+
+:root[data-theme="dark"] {
+  --bs-bg: #07070d;
+  --bs-card: #0e0e17;
+  --bs-card-highlight: #14141f;
+  --bs-input: #12121c;
+  --bs-bg-hover: rgba(124, 108, 255, 0.08);
+  --bs-bg-muted: rgba(124, 108, 255, 0.06);
+
+  --bs-border: rgba(124, 108, 255, 0.14);
+  --bs-border-strong: rgba(124, 108, 255, 0.24);
+
+  --bs-text: #eaeaf4;
+  --bs-text-strong: #ffffff;
+  --bs-text-muted: #9898ab;
+  --bs-text-dim: #5f5f74;
+  --bs-muted: #9898ab;
+
+  --bs-accent: #22d3ee;
+  --bs-accent-foreground: #04121a;
+  --bs-ring: rgba(34, 211, 238, 0.5);
+  --bs-focus-ring: 0 0 0 2px rgba(34, 211, 238, 0.5);
+  --bs-success: #34d399;
+  --bs-warning: #fbbf24;
+  --bs-danger: #fb7185;
+  --bs-danger-subtle: rgba(251, 113, 133, 0.14);
+
+  /* Full-strength glow — the one place this theme allows a halo. */
+  --bs-glow: 0 0 0 1px rgba(34, 211, 238, 0.5), 0 0 18px -6px rgba(34, 211, 238, 0.55);
+
+  --bs-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(4, 6, 20, 0.4);
+}
+
+:root[data-theme="dark"] body {
+  background:
+    var(--bs-bg, #07070d)
+      radial-gradient(60% 50% at 15% 0%, rgba(109, 40, 217, 0.1), transparent 60%),
+    radial-gradient(50% 45% at 85% 0%, rgba(6, 182, 212, 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bs-bg: #07070d;
+    --bs-card: #0e0e17;
+    --bs-card-highlight: #14141f;
+    --bs-input: #12121c;
+    --bs-bg-hover: rgba(124, 108, 255, 0.08);
+    --bs-bg-muted: rgba(124, 108, 255, 0.06);
+
+    --bs-border: rgba(124, 108, 255, 0.14);
+    --bs-border-strong: rgba(124, 108, 255, 0.24);
+
+    --bs-text: #eaeaf4;
+    --bs-text-strong: #ffffff;
+    --bs-text-muted: #9898ab;
+    --bs-text-dim: #5f5f74;
+    --bs-muted: #9898ab;
+
+    --bs-accent: #22d3ee;
+    --bs-accent-foreground: #04121a;
+    --bs-ring: rgba(34, 211, 238, 0.5);
+    --bs-focus-ring: 0 0 0 2px rgba(34, 211, 238, 0.5);
+    --bs-success: #34d399;
+    --bs-warning: #fbbf24;
+    --bs-danger: #fb7185;
+    --bs-danger-subtle: rgba(251, 113, 133, 0.14);
+
+    --bs-glow: 0 0 0 1px rgba(34, 211, 238, 0.5), 0 0 18px -6px rgba(34, 211, 238, 0.55);
+
+    --bs-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(4, 6, 20, 0.4);
+  }
+
+  :root:not([data-theme="light"]) body {
+    background:
+      var(--bs-bg, #07070d)
+        radial-gradient(60% 50% at 15% 0%, rgba(109, 40, 217, 0.1), transparent 60%),
+      radial-gradient(50% 45% at 85% 0%, rgba(6, 182, 212, 0.08), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+/* ==========================================================================
+ * Component polish — surfaces/color/type/spacing/radius/shadow only.
+ * No layout or structural changes; selectors match boardstate.css exactly.
+ * ========================================================================== */
+
+/* Section/widget titles read as tracked labels, not headlines. */
+.card-title,
+.dashboard-widget__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--bs-text-muted);
+}
+
+/* Branding moment: a faint aurora gradient on the page title only. */
+.page-title {
+  background: linear-gradient(135deg, var(--bs-text-strong) 25%, var(--bs-accent) 145%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Widget chrome + floating menus sit one shade brighter than the card body. */
+.dashboard-widget__bar,
+.dashboard-widget__menu,
+.dashboard-tabs__hidden-menu {
+  background: var(--bs-card-highlight);
+}
+
+.dashboard-widget {
+  transition:
+    border-color var(--bs-duration-fast) var(--bs-ease-out),
+    box-shadow var(--bs-duration-fast) var(--bs-ease-out);
+}
+.dashboard-widget:hover,
+.dashboard-widget:focus-within {
+  border-color: var(--bs-border-strong);
+  box-shadow: var(--bs-shadow-md);
+}
+
+/* --- Restrained glow: primary actions + the active tab only -------------- */
+.bs-btn--primary {
+  box-shadow: var(--bs-glow, none);
+  transition:
+    box-shadow var(--bs-duration-fast) var(--bs-ease-out),
+    background var(--bs-duration-fast) var(--bs-ease-out);
+}
+.dashboard-tab--active {
+  box-shadow: var(--bs-glow, none);
+  font-weight: 600;
+}
+.dashboard-tab {
+  transition:
+    background var(--bs-duration-fast) var(--bs-ease-out),
+    color var(--bs-duration-fast) var(--bs-ease-out),
+    box-shadow var(--bs-duration-fast) var(--bs-ease-out);
+}
+
+/* Shared focus ring — reuses --bs-ring, no extra token needed. */
+.bs-btn:focus-visible,
+.dashboard-tab:focus-visible,
+.dashboard-tabs__hidden-item:focus-visible,
+.dashboard-widget__collapse:focus-visible,
+.dashboard-widget__menu-toggle:focus-visible,
+.dashboard-history__item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bs-ring);
+}
+
+/* Metadata/timestamps/durations read as data, not prose. */
+.dashboard-list__meta,
+.dashboard-feed__time,
+.dashboard-history__time,
+.dashboard-history__latest,
+.dashboard-widget__ephemeral,
+.dashboard-usage__label,
+.dashboard-widget__provenance {
+  font-family: var(--bs-font-mono);
+}
+
+/* Big numbers get a HUD-style tabular-figure treatment. */
+.dashboard-stat__value,
+.dashboard-usage__value {
+  font-family: var(--bs-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Danger surfaces use a flat aurora-tuned tint (color-mix drifts oddly
+   against a cyan accent, since the base tint no longer implies the danger
+   hue the way it did against an indigo default). */
+.callout.danger,
+.dashboard-widget__error {
+  background: var(--bs-danger-subtle);
+}
+
+/* --- Chart: accent-driven line/area/gauge -------------------------------- */
+.dashboard-chart__line {
+  stroke: var(--bs-accent);
+  stroke-width: 1.75;
+}
+.dashboard-chart__area {
+  fill: color-mix(in srgb, var(--bs-accent) 16%, transparent);
+}
+.dashboard-chart__gauge-fill {
+  stroke: var(--bs-accent);
+}
+
+/* --- Badges / status dots -------------------------------------------------- */
+.dashboard-badge {
+  letter-spacing: 0.01em;
+}
+.dashboard-badge--error {
+  background: var(--bs-danger-subtle);
+}
+.dashboard-dot--live {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bs-success) 25%, transparent);
+}

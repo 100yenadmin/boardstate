@@ -12,7 +12,12 @@ import { DashboardStore, MemoryStorageAdapter, type WorkspaceDoc } from "@boards
 import { createInProcessHost, registerBoardstateRpc } from "@boardstate/server";
 import "@boardstate/lit";
 // The view renders to light DOM, so its stylesheet (grid, cells, tokens) loads here.
+// This ships the default "Graphite" theme (light + dark) out of the box.
 import "@boardstate/lit/styles.css";
+// Alternate themes layer over the base — imported as URLs so the switcher can
+// attach/detach them at runtime (the same drop-in a consumer would ship).
+import auroraThemeUrl from "@boardstate/lit/themes/aurora.css?url";
+import vibrancyThemeUrl from "@boardstate/lit/themes/vibrancy.css?url";
 import agentHq from "../../../templates/agent-hq.json";
 import { ensureWidgetLoaderReady, publishWidgetFiles } from "./widget-loader.js";
 import {
@@ -27,7 +32,55 @@ import {
 const SIM_AGENT = "agent:sales-bot";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// "Graphite" is the shipped default (baked into @boardstate/lit/styles.css), so
+// it needs no extra sheet. The alternates layer over the base as drop-in URLs —
+// exactly the trick a consumer uses to ship a brand theme.
+const THEME_URLS: Record<string, string | null> = {
+  graphite: null,
+  aurora: auroraThemeUrl,
+  vibrancy: vibrancyThemeUrl,
+};
+
+/** Swap the active theme stylesheet (Graphite = base default / Aurora / Vibrancy). */
+function applyTheme(name: string): void {
+  const url = THEME_URLS[name] ?? null;
+  let link = document.getElementById("theme-link") as HTMLLinkElement | null;
+  if (!url) {
+    // Back to the built-in Graphite default: detach any alternate sheet.
+    link?.remove();
+    return;
+  }
+  if (!link) {
+    link = document.createElement("link");
+    link.id = "theme-link";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
+/** Flip the whole page between light and dark (drives the `data-theme` tokens). */
+function applyMode(mode: "light" | "dark"): void {
+  document.documentElement.dataset.theme = mode;
+  const btn = document.getElementById("mode");
+  if (btn) btn.textContent = mode === "dark" ? "🌙 Dark" : "☀️ Light";
+}
+
+function wireThemeControls(): void {
+  const select = document.getElementById("theme") as HTMLSelectElement | null;
+  const mode = document.getElementById("mode") as HTMLButtonElement | null;
+  applyTheme(select?.value ?? "graphite");
+  applyMode("dark");
+  select?.addEventListener("change", () => applyTheme(select.value));
+  mode?.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyMode(next);
+  });
+}
+
 async function main(): Promise<void> {
+  wireThemeControls();
+
   const storage = new MemoryStorageAdapter();
   const store = new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
@@ -90,6 +143,9 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
       await sleep(700);
 
       say("🤖 scaffolding a custom widget… (it lands PENDING — needs your approval)");
+      // Ensure the widget-asset loader (SW) is live + controlling before publishing,
+      // so the sandboxed iframe's fetches resolve the moment it mounts.
+      await ensureWidgetLoaderReady();
       await publishWidgetFiles([
         {
           pathname: `/widgets/${DEMO_WIDGET_NAME}/widget.json`,

@@ -1,29 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Boardstate — standalone example</title>
     <style>
+      /* Fallback tokens so the page is legible before a theme stylesheet loads.
+         A theme file (themes/theme-*.css) redefines these on :root. */
       :root {
-        --bs-bg: #fbfbfd;
-        --bs-text: #1d1d21;
-        --bs-text-muted: #6b6b76;
-        --bs-accent: #4f46e5;
-        --bs-card: #ffffff;
-        --bs-border: #e6e6ec;
+        --bs-bg: #0b0b0f;
+        --bs-card: #131318;
+        --bs-border: #23232b;
+        --bs-border-strong: #30303a;
+        --bs-text: #ededf2;
+        --bs-text-strong: #fff;
+        --bs-text-muted: #9a9aa6;
+        --bs-accent: #7c6cff;
+        --bs-accent-foreground: #fff;
+        --bs-radius-md: 9px;
+        --bs-font-sans: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
       }
       * {
         box-sizing: border-box;
       }
       body {
         margin: 0;
-        font-family:
-          system-ui,
-          -apple-system,
-          sans-serif;
+        font-family: var(--bs-font-sans);
         color: var(--bs-text);
         background: var(--bs-bg);
+        transition:
+          background 180ms ease,
+          color 180ms ease;
       }
       header {
         display: flex;
@@ -37,20 +44,50 @@
         font-size: 1rem;
         margin: 0;
         font-weight: 650;
+        color: var(--bs-text-strong);
+        letter-spacing: -0.01em;
       }
       header p {
-        margin: 0;
+        margin: 0.1rem 0 0;
         color: var(--bs-text-muted);
         font-size: 0.85rem;
       }
       .spacer {
         flex: 1;
       }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .controls label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--bs-text-muted);
+      }
+      select,
+      .ghost-btn {
+        appearance: none;
+        border: 1px solid var(--bs-border-strong);
+        border-radius: 8px;
+        background: var(--bs-card);
+        color: var(--bs-text);
+        font-family: inherit;
+        font-size: 0.82rem;
+        font-weight: 500;
+        padding: 0.4rem 0.7rem;
+        cursor: pointer;
+      }
+      .ghost-btn:hover {
+        border-color: var(--bs-accent);
+      }
       #simulate {
         border: 0;
         border-radius: 8px;
         background: var(--bs-accent);
-        color: #fff;
+        color: var(--bs-accent-foreground);
         font-weight: 600;
         font-size: 0.85rem;
         padding: 0.55rem 0.95rem;
@@ -79,6 +116,15 @@
         <p>Your dashboard is data. Any AI can build it; any human can edit it.</p>
       </div>
       <div class="spacer"></div>
+      <div class="controls">
+        <label for="theme">Theme</label>
+        <select id="theme">
+          <option value="graphite">Graphite</option>
+          <option value="vibrancy">Vibrancy</option>
+          <option value="aurora">Aurora</option>
+        </select>
+        <button id="mode" class="ghost-btn" title="Toggle light / dark">🌙 Dark</button>
+      </div>
       <button id="simulate">🤖 Simulate agent</button>
     </header>
     <div id="status">
