@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BOARDSTATE_PACKAGE } from "./index.js";
+import { BoardstateView } from "./index.js";
 
 describe("@boardstate/react", () => {
-  it("exports the package name placeholder", () => {
-    expect(BOARDSTATE_PACKAGE).toBe("@boardstate/react");
+  it("exports the BoardstateView component", () => {
+    expect(typeof BoardstateView).toBe("function");
   });
 });
