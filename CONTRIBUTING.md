@@ -11,7 +11,7 @@ pnpm test         # vitest, all packages
 pnpm lint         # oxlint + prettier
 ```
 
-Node ≥ 20, pnpm 11. Each package also runs standalone: `pnpm --filter @boardstate/core test`.
+Node ≥ 22, pnpm 11. Each package also runs standalone: `pnpm --filter @boardstate/core test`.
 
 ## The rules that matter here
 
