@@ -135,6 +135,7 @@ The live demo's **Lang** menu switches all 20 at runtime.
 
 ## Learn more
 
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** — where this is going: substrate → the agent layer (plug in a provider — GLM, Anthropic, any OpenAI-compatible endpoint — and the AI builds the board live), the streaming spec, and phased milestones. Pickup-ready for any contributor.
 - **[SPEC.md](packages/schema/SPEC.md)** — the protocol: document format, `dashboard.*` methods, bridge protocol v1, capability & approval model, the security invariants.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the implementation: package graph, the three seams (storage / transport / server-host), the request lifecycle, and how to build your own host.
 - **[docs/composition-patterns.md](docs/composition-patterns.md)** — the agent's field guide: which builtin for which job, when to scaffold a custom widget, composition rules of thumb.
