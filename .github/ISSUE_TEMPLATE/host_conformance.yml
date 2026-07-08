@@ -1,0 +1,33 @@
+name: 🔌 Host conformance
+description: You're building a Boardstate host and the conformance suite fails (or the spec is ambiguous)
+labels: [conformance]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Building a host is the whole point — thanks! Run `runTransportConformance` from `@boardstate/conformance` against your transport and tell us what broke.
+  - type: textarea
+    id: failure
+    attributes:
+      label: Failing assertion(s)
+      description: Paste the failing test names + output from the conformance suite.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: host
+    attributes:
+      label: Your host
+      description: Transport (HTTP/WS/in-process), storage, language/runtime — and a repo link if public.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of issue is this?
+      options:
+        - My host is wrong (need help understanding the contract)
+        - The suite is wrong (asserts something the SPEC doesn't say)
+        - The SPEC is ambiguous (two readings both seem valid)
+    validations:
+      required: true

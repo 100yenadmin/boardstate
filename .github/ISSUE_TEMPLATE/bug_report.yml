@@ -1,0 +1,30 @@
+name: 🐛 Bug report
+description: Something doesn't behave the way the spec says it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a **security invariant violation** (SPEC §11 — sandbox, approval gate, containment, prompt gate), please use the private [security advisory form](https://github.com/100yenadmin/boardstate/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect (cite the SPEC section if you know it), what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: The fastest fix comes from a minimal `workspace.json` (+ widget dir if relevant) and the exact calls you made. Paste or link them here.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Package + runtime versions
+      placeholder: "@boardstate/core 0.1.0 · node 22.12 · host: standalone example"
+    validations:
+      required: true

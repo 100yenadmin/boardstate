@@ -1,0 +1,28 @@
+name: ✨ Feature request
+description: A new widget, binding kind, capability, or protocol surface
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you (or your agent) do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: Sketch the API/document/protocol change. Note which package it lands in and whether SPEC.md needs a change (schema fields must stay additive — see CONTRIBUTING).
+    validations:
+      required: true
+  - type: dropdown
+    id: spec-impact
+    attributes:
+      label: Spec impact
+      options:
+        - No protocol change (implementation only)
+        - Additive schema/protocol change (SPEC edit in same PR)
+        - Breaking change (needs strong justification)
+    validations:
+      required: true

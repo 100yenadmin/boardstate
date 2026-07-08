@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🔒 Security vulnerability (sandbox escape, approval bypass, containment break)
+    url: https://github.com/100yenadmin/boardstate/security/advisories/new
+    about: Please report violations of the SPEC §11 security invariants privately, never as a public issue.
