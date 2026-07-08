@@ -75,6 +75,35 @@ To give an AI the tools directly:
 npx @boardstate/mcp --serve 4400    # MCP stdio server + a live host page
 ```
 
+## Theming
+
+`@boardstate/lit` ships a complete, world-class default theme — **Graphite** (a
+Linear / Vercel / Codex-family palette) — that looks great in **light and dark**
+out of the box. Import it once; nothing else to configure.
+
+```ts
+import "@boardstate/lit";
+import "@boardstate/lit/styles.css"; // the Graphite default — light + dark
+```
+
+- **Dark mode, free** — `prefers-color-scheme` is honored automatically; pin it
+  with `data-theme="dark"` / `"light"` on `<html>` when you want a toggle.
+- **Drop-in alternate themes** — layer one after `styles.css` to fully re-skin
+  (each ships its own light + dark):
+
+  ```ts
+  import "@boardstate/lit/themes/aurora.css"; // futuristic — cyan accent + aurora wash
+  import "@boardstate/lit/themes/vibrancy.css"; // macOS-native frosted glass
+  ```
+
+- **Total control** — every value is a `--bs-*` custom property; override one
+  token or author a whole theme. See **[THEME.md](packages/lit/THEME.md)** for the
+  token table and a build-your-own guide.
+
+The standalone example has a live theme switcher + light/dark toggle — the fastest
+way to see all three. _(A hosted, clickable demo and hero media are tracked in
+[#2](https://github.com/100yenadmin/boardstate/issues/2).)_
+
 ## Learn more
 
 - **[SPEC.md](packages/schema/SPEC.md)** — the protocol: document format, `dashboard.*` methods, bridge protocol v1, capability & approval model, the security invariants.
