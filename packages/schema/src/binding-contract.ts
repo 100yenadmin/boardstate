@@ -1,6 +1,5 @@
 // Leaf contract shared by write-time schema validation and resolve-time data reads.
 // Kept dependency-free so schema.ts and data-read.ts never import each other.
-import path from "node:path";
 
 export const DATA_READ_RPC_ALLOWLIST = [
   "health",
@@ -78,12 +77,11 @@ function hasControlCharacter(value: string): boolean {
 }
 
 export function normalizeDashboardDataLogicalPath(value: string): string {
-  if (
-    value.startsWith("/") ||
-    path.isAbsolute(value) ||
-    path.win32.isAbsolute(value) ||
-    hasControlCharacter(value)
-  ) {
+  // Reject absolute paths (POSIX `/…`, Windows `C:\…`/`C:/…`, or a leading
+  // slash/backslash) with a pure check so this module stays browser-safe (no
+  // `node:path`). The `:` and traversal checks below cover the rest.
+  const isAbsolute = value.startsWith("/") || /^([a-zA-Z]:[\\/]|[\\/])/.test(value);
+  if (isAbsolute || hasControlCharacter(value)) {
     throw new DashboardBindingResolutionError("binding_invalid", "file binding path is invalid");
   }
   const normalized = value.replaceAll("\\", "/");
