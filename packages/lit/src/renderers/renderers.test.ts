@@ -294,6 +294,29 @@ describe("action-form render (wave-m1)", () => {
     );
   });
 
+  it("surfaces a rejected dispatch on the shared toast via onActionError", async () => {
+    const onActionError = vi.fn();
+    const dispatchPrompt = vi.fn(async () => {
+      throw new Error("Not connected.");
+    });
+    const container = renderToContainer(
+      renderActionForm(
+        widget({
+          kind: "builtin:action-form",
+          props: { template: "say {msg}", fields: [{ name: "msg", label: "Msg", type: "text" }] },
+        }),
+        null,
+        { ...STRICT_EMBED, dispatchPrompt, onActionError },
+      ),
+    );
+    const form = container.querySelector<HTMLFormElement>('[data-test-id="dashboard-action-form"]');
+    form!.querySelector<HTMLInputElement>('input[name="msg"]')!.value = "hi";
+    form!.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    // Let the dispatch promise reject and the .catch run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onActionError).toHaveBeenCalledWith("Not connected.");
+  });
+
   it("marks submit inert when no dispatch gate is injected", () => {
     const container = renderToContainer(
       renderActionForm(

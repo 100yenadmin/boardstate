@@ -144,6 +144,7 @@ function wireLanguageControl(): void {
   const select = document.getElementById("lang") as HTMLSelectElement | null;
   select?.addEventListener("change", () => {
     if (activeView) activeView.strings = LOCALE_TABLES[select.value];
+    document.documentElement.dir = ["ar", "fa"].includes(select.value) ? "rtl" : "ltr";
   });
 }
 
@@ -186,6 +187,21 @@ async function main(): Promise<void> {
       return { doc: result.doc };
     },
   });
+
+  // The action-form / custom-widget prompt dispatch (`chat.send`) has no handler in
+  // this no-backend demo — register a stub that acks and reports what happened. A real
+  // host wires this to its chat runtime, routing the prompt to the operator's agent.
+  host.registerRpc(
+    "chat.send",
+    ({ respond }) => {
+      respond(true, { ok: true });
+      const status = document.getElementById("status");
+      if (status) {
+        status.textContent = "🤖 (demo) prompt delivered — a live host routes this to your agent.";
+      }
+    },
+    { scope: "write" },
+  );
 
   // Point the widget gallery at the demo's own registry (public/registry/) so
   // Browse → Install works out of the box. Only seeded when the operator hasn't
@@ -258,6 +274,23 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
+      // Replayable: a prior run leaves a "sales" tab + the pending demo widget in
+      // the doc, so a 2nd click would die on "tab already exists". Reset that slice
+      // first (filter the tab, drop the widget registration), then replay unchanged.
+      const current = ((await host.request("dashboard.workspace.get")) as { doc: WorkspaceDoc })
+        .doc;
+      if (current.tabs.some((tab) => tab.slug === "sales")) {
+        say("🧹 resetting the previous run…");
+        current.tabs = current.tabs.filter((tab) => tab.slug !== "sales");
+        delete current.widgetsRegistry[DEMO_WIDGET_NAME];
+        // Every slug reference must go too — prefs.tabOrder still naming the
+        // removed tab fails workspace validation.
+        if (current.prefs?.tabOrder) {
+          current.prefs.tabOrder = current.prefs.tabOrder.filter((slug) => slug !== "sales");
+        }
+        await host.request("dashboard.workspace.replace", { doc: current, actor: "user" });
+      }
+
       say("🤖 creating a “Sales” tab…");
       await host.request("dashboard.tab.create", {
         slug: "sales",
@@ -274,7 +307,7 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
           id: "sales-trend",
           kind: "builtin:chart",
           title: "Weekly revenue",
-          grid: { x: 0, y: 0, w: 6, h: 3 },
+          grid: { x: 0, y: 0, w: 6, h: 5 },
           props: { type: "area" },
           bindings: { value: { source: "static", value: [12, 18, 15, 24, 30, 28, 36] } },
         },
@@ -291,7 +324,7 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
         id: "insight-1",
         kind: `custom:${DEMO_WIDGET_NAME}`,
         title: DEMO_WIDGET_TITLE,
-        grid: { x: 6, y: 0, w: 6, h: 3 },
+        grid: { x: 6, y: 0, w: 6, h: 5 },
         collapsed: false,
         hidden: false,
         bindings: { [DEMO_WIDGET_BINDING_ID]: { source: "static", value: DEMO_WIDGET_VALUE } },
@@ -301,7 +334,7 @@ function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void 
       say("👤 a pending-approval card appeared — approving it (as the operator)…");
       await sleep(1600);
 
-      say("✅ approved — the sandboxed widget mounts and renders live.");
+      say("✅ Approved — the sandboxed widget is now live on the Sales tab.");
       await host.request("dashboard.widget.approve", {
         name: DEMO_WIDGET_NAME,
         decision: "approved",

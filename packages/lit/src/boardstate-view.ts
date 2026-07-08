@@ -937,6 +937,12 @@ function buildBuiltinContext(
   const context: BuiltinWidgetContext = {
     embed: embedContext(props.embed),
     dispatchPrompt: makeBuiltinDispatchPrompt(props),
+    // A rejected action-form dispatch surfaces on the same shared toast as
+    // export/import failures (the `state.actionError` banner).
+    onActionError: (message) => {
+      state.actionError = message;
+      props.onRequestUpdate?.();
+    },
     // The approvals builtin resolves pending widget approvals through the same
     // `dashboard.widget.approve` path the custom-widget pending card uses.
     approvals: buildWidgetApprovalsSource(

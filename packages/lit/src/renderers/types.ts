@@ -46,6 +46,12 @@ export type BuiltinWidgetContext = {
    * Absent in isolated unit renders; the form then treats submit as inert.
    */
   dispatchPrompt?: (params: { widgetKey: string; text: string }) => Promise<PromptDispatchOutcome>;
+  /**
+   * Surface a widget-action failure on the view's shared toast (`state.actionError`,
+   * the SAME banner export/import failures use). The action-form widget calls this
+   * when a prompt dispatch rejects. Absent in isolated unit renders.
+   */
+  onActionError?: (message: string) => void;
   /** Pending-approvals slice — only the `approvals` widget consumes it. */
   approvals?: ApprovalsWidgetSource;
 };

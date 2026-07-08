@@ -72,8 +72,9 @@ export function renderActionForm(
           form.reset();
         }
       })
-      .catch(() => {
-        // Dispatch failures surface via the shared toast; the form stays usable.
+      .catch((err: unknown) => {
+        // Surface the failure on the view's shared toast; the form stays usable.
+        ctx.onActionError?.(err instanceof Error ? err.message : String(err));
       });
   };
   return html`

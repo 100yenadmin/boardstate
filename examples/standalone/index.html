@@ -182,6 +182,12 @@
       #app {
         padding: 1rem 1.25rem;
       }
+      /* RTL languages: let each English/Arabic run keep its own direction. */
+      [dir="rtl"] header p,
+      [dir="rtl"] #status,
+      [dir="rtl"] .tour button {
+        unicode-bidi: plaintext;
+      }
       @media (max-width: 760px) {
         .brand p {
           display: none;

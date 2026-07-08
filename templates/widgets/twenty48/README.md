@@ -1,9 +1,10 @@
 # twenty48
 
-A compact 2048 tile game — slide the numbered tiles, merge matching pairs,
-and try to reach the 2048 tile. It's the one starter widget that exercises
-the `state:persist` capability, so your **best score survives a reload** (and
-an in-progress board is restored too).
+A compact 2048 tile game showing off `state:persist` — best score and board
+survive a reload.
+
+Slide the numbered tiles, merge matching pairs, and try to reach the 2048 tile.
+It's the one starter widget that exercises the write-back capability end to end.
 
 ## Controls
 

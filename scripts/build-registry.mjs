@@ -38,7 +38,11 @@ function readmeDescription(dir) {
     }
     const joined = para.join(" ").replaceAll(/[*_`]/g, "");
     if (!joined) return null;
-    return joined.length > 180 ? `${joined.slice(0, 177).trimEnd()}…` : joined;
+    if (joined.length <= 180) return joined;
+    // Truncate on a word boundary: cut at the last space before 177 (never mid-word).
+    const head = joined.slice(0, 177);
+    const lastSpace = head.lastIndexOf(" ");
+    return `${(lastSpace > 0 ? head.slice(0, lastSpace) : head).trimEnd()}…`;
   } catch {
     /* no README — fall through */
   }

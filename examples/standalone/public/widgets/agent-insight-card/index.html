@@ -6,7 +6,7 @@
     <title>Agent Insight Card</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: dark;
         --wg-bg: Canvas;
         --wg-card: Canvas;
         --wg-text: CanvasText;
@@ -18,7 +18,7 @@
       }
       body {
         margin: 0;
-        padding: 16px;
+        padding: 12px;
         font-family: var(--font-sans, system-ui, sans-serif);
         background: var(--wg-bg);
         color: var(--wg-text);
@@ -56,7 +56,7 @@
         line-height: 1.4;
       }
       .count {
-        margin-top: 12px;
+        margin-top: 6px;
         font-size: 1.6rem;
         font-weight: 700;
         color: var(--wg-accent);
@@ -97,6 +97,18 @@
         badgeNode.textContent = "Live";
       }
 
+      // Relative luminance (0..1) of a #rgb / #rrggbb color; null for anything non-hex.
+      function hexLuminance(value) {
+        if (typeof value !== "string" || value.charAt(0) !== "#") return null;
+        var hex = value.slice(1);
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+        var r = parseInt(hex.slice(0, 2), 16);
+        var g = parseInt(hex.slice(2, 4), 16);
+        var b = parseInt(hex.slice(4, 6), 16);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      }
+
       function applyTheme(tokens) {
         var root = document.documentElement.style;
         if (tokens["--bg"]) root.setProperty("--wg-bg", tokens["--bg"]);
@@ -104,6 +116,10 @@
         if (tokens["--text"]) root.setProperty("--wg-text", tokens["--text"]);
         if (tokens["--accent"]) root.setProperty("--wg-accent", tokens["--accent"]);
         if (tokens["--border"]) root.setProperty("--wg-border", tokens["--border"]);
+        // Follow the pushed background's luminance so native UI (scrollbars, form
+        // controls) picks the matching scheme; skip when --bg isn't a hex color.
+        var lum = hexLuminance(tokens["--bg"]);
+        if (lum !== null) root.colorScheme = lum < 0.5 ? "dark" : "light";
       }
 
       window.addEventListener("message", function (event) {

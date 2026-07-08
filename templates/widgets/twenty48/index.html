@@ -16,15 +16,16 @@
     <title>Twenty48</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: dark;
         /* Theme tokens: default to system Canvas/CanvasText, overridden by the
-           parent's dashboard:theme reply (--bg/--card/--text/--accent/--border). */
+           parent's dashboard:theme reply (--bg/--card/--text/--accent/--border).
+           The derived tokens read from --text so the pushed theme drives them. */
         --bg: Canvas;
-        --card: color-mix(in srgb, CanvasText 8%, Canvas);
+        --card: color-mix(in srgb, var(--text) 8%, Canvas);
         --text: CanvasText;
         --accent: #edc22e;
-        --border: color-mix(in srgb, CanvasText 22%, transparent);
-        --cell: color-mix(in srgb, CanvasText 14%, transparent);
+        --border: color-mix(in srgb, var(--text) 22%, transparent);
+        --cell: color-mix(in srgb, var(--text) 14%, transparent);
       }
       * {
         box-sizing: border-box;
@@ -532,12 +533,28 @@
       }
 
       // ---- theme ----
+      // Relative luminance (0..1) of a #rgb / #rrggbb color; null for anything non-hex.
+      function hexLuminance(value) {
+        if (typeof value !== "string" || value.charAt(0) !== "#") return null;
+        var hex = value.slice(1);
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+        var r = parseInt(hex.slice(0, 2), 16);
+        var g = parseInt(hex.slice(2, 4), 16);
+        var b = parseInt(hex.slice(4, 6), 16);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      }
+
       function applyTheme(tokens) {
         if (!tokens) return;
         var root = document.documentElement.style;
         ["--bg", "--card", "--text", "--accent", "--border"].forEach(function (k) {
           if (tokens[k]) root.setProperty(k, tokens[k]);
         });
+        // Follow the pushed background's luminance so native UI (scrollbars, form
+        // controls) picks the matching scheme; skip when --bg isn't a hex color.
+        var lum = hexLuminance(tokens["--bg"]);
+        if (lum !== null) root.colorScheme = lum < 0.5 ? "dark" : "light";
       }
 
       // ---- inbound messages (ignore anything without the v:1 envelope) ----
