@@ -7,12 +7,7 @@ import {
 } from "./binding-contract.js";
 
 export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export type DashboardActor = "user" | "system" | `agent:${string}`;
 /** Tab visibility: `shared` (default) is visible to every operator; a
