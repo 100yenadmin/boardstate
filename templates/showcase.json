@@ -1,0 +1,490 @@
+{
+  "schemaVersion": 1,
+  "workspaceVersion": 1,
+  "tabs": [
+    {
+      "slug": "data",
+      "title": "Data",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "data-mrr",
+          "kind": "builtin:stat-card",
+          "title": "MRR",
+          "grid": { "x": 0, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 42318, "format": "usd", "label": "MRR" }
+        },
+        {
+          "id": "data-requests-total",
+          "kind": "builtin:stat-card",
+          "title": "Total Requests",
+          "grid": { "x": 3, "y": 0, "w": 3, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 128412, "format": "int", "label": "Total Requests" }
+        },
+        {
+          "id": "data-error-budget",
+          "kind": "builtin:chart",
+          "title": "Error budget",
+          "grid": { "x": 6, "y": 0, "w": 6, "h": 4 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": { "source": "static", "value": [96, 95, 94, 92, 90, 89, 88] }
+          },
+          "props": { "type": "gauge", "min": 0, "max": 100 }
+        },
+        {
+          "id": "data-recent-requests",
+          "kind": "builtin:table",
+          "title": "Recent Requests",
+          "grid": { "x": 0, "y": 2, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["timestamp", "endpoint", "status", "latencyMs"],
+            "limit": 8,
+            "rows": [
+              {
+                "timestamp": "14:02:11",
+                "endpoint": "/v1/agents/run",
+                "status": 200,
+                "latencyMs": 142
+              },
+              {
+                "timestamp": "14:02:04",
+                "endpoint": "/v1/sessions",
+                "status": 200,
+                "latencyMs": 61
+              },
+              {
+                "timestamp": "14:01:58",
+                "endpoint": "/v1/agents/run",
+                "status": 429,
+                "latencyMs": 8
+              },
+              {
+                "timestamp": "14:01:47",
+                "endpoint": "/v1/cron/trigger",
+                "status": 200,
+                "latencyMs": 205
+              },
+              { "timestamp": "14:01:33", "endpoint": "/v1/usage", "status": 200, "latencyMs": 39 },
+              {
+                "timestamp": "14:01:20",
+                "endpoint": "/v1/agents/run",
+                "status": 500,
+                "latencyMs": 3012
+              },
+              {
+                "timestamp": "14:01:09",
+                "endpoint": "/v1/approvals",
+                "status": 200,
+                "latencyMs": 54
+              },
+              {
+                "timestamp": "14:00:58",
+                "endpoint": "/v1/sessions",
+                "status": 200,
+                "latencyMs": 47
+              }
+            ]
+          }
+        },
+        {
+          "id": "data-requests-14d",
+          "kind": "builtin:chart",
+          "title": "Requests, 14d",
+          "grid": { "x": 6, "y": 4, "w": 6, "h": 4 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [
+                820, 940, 905, 1010, 1120, 1080, 1240, 1310, 1275, 1390, 1460, 1425, 1510, 1580
+              ]
+            }
+          },
+          "props": { "type": "area" }
+        },
+        {
+          "id": "data-tasks-by-agent",
+          "kind": "builtin:chart",
+          "title": "Tasks by agent",
+          "grid": { "x": 0, "y": 8, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": { "source": "static", "value": [1842, 6210, 934, 512, 288, 341] }
+          },
+          "props": { "type": "bar" }
+        },
+        {
+          "id": "data-latency-p95",
+          "kind": "builtin:chart",
+          "title": "Latency p95, ms",
+          "grid": { "x": 6, "y": 8, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [182, 175, 190, 168, 201, 176, 164, 158, 171, 160]
+            }
+          },
+          "props": { "type": "line" }
+        }
+      ]
+    },
+    {
+      "slug": "ops",
+      "title": "Operations",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "ops-usage",
+          "kind": "builtin:usage",
+          "title": "Usage (30d)",
+          "grid": { "x": 0, "y": 0, "w": 4, "h": 3 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": { "totals": { "totalCost": 8412.55, "totalTokens": 18400000 }, "days": 30 }
+            }
+          }
+        },
+        {
+          "id": "ops-instances",
+          "kind": "builtin:instances",
+          "title": "Connected Instances",
+          "grid": { "x": 4, "y": 0, "w": 4, "h": 3 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "presence": [
+                  {
+                    "instanceId": "gw-us-east-1",
+                    "platform": "macos",
+                    "version": "1.14.2",
+                    "lastInputSeconds": 8
+                  },
+                  {
+                    "instanceId": "gw-eu-west-1",
+                    "platform": "linux",
+                    "version": "1.14.2",
+                    "lastInputSeconds": 45
+                  },
+                  {
+                    "instanceId": "gw-mobile-ios",
+                    "platform": "ios",
+                    "version": "1.13.0",
+                    "lastInputSeconds": 640
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "ops-cron",
+          "kind": "builtin:cron",
+          "title": "Cron Jobs",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 3 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "jobs": [
+                  {
+                    "id": "cron-nightly-sweep",
+                    "name": "Nightly log sweep",
+                    "enabled": true,
+                    "state": { "nextRunAtMs": 1783546292000, "lastRunStatus": "ok" }
+                  },
+                  {
+                    "id": "cron-invoice-match",
+                    "name": "Vendor invoice match",
+                    "enabled": true,
+                    "state": { "nextRunAtMs": 1783528292000, "lastRunStatus": "error" }
+                  },
+                  {
+                    "id": "cron-weekly-digest",
+                    "name": "Weekly growth digest",
+                    "enabled": true,
+                    "state": { "nextRunAtMs": 1783611092000, "lastRunStatus": "ok" }
+                  },
+                  {
+                    "id": "cron-cve-scan",
+                    "name": "Dependency CVE scan",
+                    "enabled": false,
+                    "state": { "nextRunAtMs": 1783525592000, "lastRunStatus": "error" }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "ops-sessions",
+          "kind": "builtin:sessions",
+          "title": "Sessions",
+          "grid": { "x": 0, "y": 3, "w": 4, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": [
+                {
+                  "key": "sess-finance-1",
+                  "label": "agent:finance — Q3 rollup",
+                  "status": "running",
+                  "hasActiveRun": true,
+                  "updatedAt": 1783524572000
+                },
+                {
+                  "key": "sess-support-1",
+                  "label": "agent:support — ticket triage",
+                  "status": "done",
+                  "hasActiveRun": false,
+                  "updatedAt": 1783521092000
+                },
+                {
+                  "key": "sess-ops-1",
+                  "label": "agent:ops — nightly sweep",
+                  "status": "pending review",
+                  "hasActiveRun": false,
+                  "updatedAt": 1783517492000
+                },
+                {
+                  "key": "sess-growth-1",
+                  "label": "agent:growth — digest draft",
+                  "status": "running",
+                  "hasActiveRun": true,
+                  "updatedAt": 1783524632000
+                },
+                {
+                  "key": "sess-security-1",
+                  "label": "agent:security — CVE scan",
+                  "status": "failed",
+                  "hasActiveRun": false,
+                  "updatedAt": 1783510292000
+                }
+              ]
+            }
+          },
+          "props": { "limit": 5 }
+        },
+        {
+          "id": "ops-agent-status",
+          "kind": "builtin:agent-status",
+          "title": "Agent Status",
+          "grid": { "x": 4, "y": 3, "w": 4, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "sessions": [
+                  {
+                    "key": "as-finance",
+                    "label": "agent:finance",
+                    "status": "running",
+                    "hasActiveRun": true,
+                    "goal": {
+                      "objective": "Close Q3 revenue rollup and post to #finance-reports",
+                      "tokensUsed": 184000,
+                      "tokenBudget": 250000
+                    }
+                  },
+                  {
+                    "key": "as-support",
+                    "label": "agent:support",
+                    "status": "done",
+                    "hasActiveRun": false
+                  },
+                  {
+                    "key": "as-growth",
+                    "label": "agent:growth",
+                    "status": "running",
+                    "hasActiveRun": true,
+                    "goal": {
+                      "objective": "Draft weekly growth digest for leadership review",
+                      "tokensUsed": 52000,
+                      "tokenBudget": 120000
+                    }
+                  },
+                  {
+                    "key": "as-security",
+                    "label": "agent:security",
+                    "status": "failed",
+                    "hasActiveRun": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "ops-activity",
+          "kind": "builtin:activity",
+          "title": "Activity",
+          "grid": { "x": 8, "y": 3, "w": 4, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": {
+              "source": "static",
+              "value": {
+                "entries": [
+                  {
+                    "ts": 1783524572000,
+                    "jobName": "agent:finance",
+                    "status": "ok",
+                    "summary": "Q3 revenue rollup posted to #finance-reports"
+                  },
+                  {
+                    "ts": 1783521092000,
+                    "jobName": "agent:support",
+                    "status": "ok",
+                    "summary": "Auto-triaged 22 tickets, 3 escalated"
+                  },
+                  {
+                    "ts": 1783517492000,
+                    "jobName": "agent:ops",
+                    "status": "pending",
+                    "summary": "Nightly sweep awaiting operator review"
+                  },
+                  {
+                    "ts": 1783510292000,
+                    "jobName": "agent:security",
+                    "status": "error",
+                    "summary": "CVE scan failed: registry timeout"
+                  },
+                  {
+                    "ts": 1783503092000,
+                    "jobName": "cron",
+                    "status": "ok",
+                    "summary": "Weekly digest draft generated"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "ops-approvals",
+          "kind": "builtin:approvals",
+          "title": "Pending approvals",
+          "grid": { "x": 0, "y": 8, "w": 8, "h": 5 },
+          "collapsed": false,
+          "hidden": false
+        },
+        {
+          "id": "ops-live-note",
+          "kind": "builtin:markdown",
+          "title": "About this widget",
+          "grid": { "x": 8, "y": 8, "w": 4, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "**This widget is live** — install a widget from the gallery and the pending approval appears here.\n\nApprovals here read the workspace's live in-memory queue, not a static binding."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "content",
+      "title": "Content",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "content-markdown",
+          "kind": "builtin:markdown",
+          "title": "What does Boardstate HQ track?",
+          "grid": { "x": 0, "y": 0, "w": 12, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "# What does Boardstate HQ track?\n\n**agent:growth** · answered 2h ago · sourced from `usage.cost` + `sessions.list`\n\nBoardstate HQ is a single JSON workspace document that fans every builtin widget kind across four tabs — **Data**, **Operations**, **Content**, and **Embeds**. Every binding on this template is `static`, so the whole thing renders identically with no live backend wired up.\n\n| Tab | Purpose |\n| --- | --- |\n| Data | Stat cards, a table, and every chart type (area/bar/line/gauge) |\n| Operations | Sessions, usage, cron, instances, agent status, activity, approvals |\n| Content | Markdown, notes, and the action-form prompt pattern |\n| Embeds | A sandboxed preview frame and a raw iframe embed |\n\nSwap any `static` binding for an `rpc`, `file`, or `stream` source to wire it to real data — the widget renderers don't change."
+          }
+        },
+        {
+          "id": "content-ask",
+          "kind": "builtin:action-form",
+          "title": "Ask the Agent",
+          "grid": { "x": 0, "y": 6, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "template": "Draft a {tone} summary about {topic}.",
+            "fields": [
+              { "name": "topic", "label": "Topic", "type": "text", "maxLength": 80 },
+              {
+                "name": "tone",
+                "label": "Tone",
+                "type": "select",
+                "options": ["concise", "friendly", "formal"]
+              }
+            ],
+            "buttonLabel": "Ask the agent"
+          }
+        },
+        {
+          "id": "content-notes",
+          "kind": "builtin:notes",
+          "title": "Scratchpad",
+          "grid": { "x": 6, "y": 6, "w": 6, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "text": "Starter note — this pad is agent- and human-editable and persists via write-back state. Jot follow-ups from the Data and Operations tabs here."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "embeds",
+      "title": "Embeds",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "embeds-preview",
+          "kind": "builtin:preview",
+          "title": "Live Preview",
+          "grid": { "x": 0, "y": 0, "w": 6, "h": 8 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "url": "./embed/sample.html", "defaultViewport": "desktop" }
+        },
+        {
+          "id": "embeds-iframe",
+          "kind": "builtin:iframe-embed",
+          "title": "Raw Embed",
+          "grid": { "x": 6, "y": 0, "w": 6, "h": 8 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "url": "./embed/sample.html" }
+        }
+      ]
+    }
+  ],
+  "widgetsRegistry": {},
+  "prefs": { "tabOrder": ["data", "ops", "content", "embeds"] }
+}

@@ -2,18 +2,23 @@
   "widgets": [
     {
       "name": "calculator",
-      "description": "A small self-contained calculator — no bindings, no capabilities; shows the minimal sandboxed widget.",
+      "description": "A pure, fully self-contained widget: no bindings, no capabilities, no data",
       "manifestUrl": "./calculator.bundle.json"
     },
     {
       "name": "hello-data",
-      "description": "The data-binding starter — reads a bound value over the v1 bridge and renders it.",
+      "description": "Minimal example: requests one static binding (greeting) with",
       "manifestUrl": "./hello-data.bundle.json"
     },
     {
       "name": "notes",
-      "description": "A notes pad that persists via the widget-state write-back capability.",
+      "description": "A scratchpad widget — and a deliberately honest example of the current",
       "manifestUrl": "./notes.bundle.json"
+    },
+    {
+      "name": "twenty48",
+      "description": "A compact 2048 tile game — slide the numbered tiles, merge matching pairs,",
+      "manifestUrl": "./twenty48.bundle.json"
     }
   ]
 }

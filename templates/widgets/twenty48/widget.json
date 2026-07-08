@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "twenty48",
+  "title": "Twenty48",
+  "entrypoint": "index.html",
+  "bindings": [],
+  "capabilities": ["state:persist"],
+  "preferredSize": { "w": 4, "h": 5 }
+}

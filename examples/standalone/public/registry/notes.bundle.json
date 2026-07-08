@@ -5,7 +5,9 @@
     "title": "Notes",
     "entrypoint": "index.html",
     "bindings": [],
-    "capabilities": ["data:read"],
+    "capabilities": [
+      "data:read"
+    ],
     "preferredSize": {
       "w": 4,
       "h": 4

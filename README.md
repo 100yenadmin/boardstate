@@ -137,10 +137,11 @@ The live demo's **Lang** menu switches all 20 at runtime.
 
 - **[SPEC.md](packages/schema/SPEC.md)** — the protocol: document format, `dashboard.*` methods, bridge protocol v1, capability & approval model, the security invariants.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the implementation: package graph, the three seams (storage / transport / server-host), the request lifecycle, and how to build your own host.
+- **[docs/composition-patterns.md](docs/composition-patterns.md)** — the agent's field guide: which builtin for which job, when to scaffold a custom widget, composition rules of thumb.
 - **[docs/authoring.md](docs/authoring.md)** — write a widget (builtin renderer or sandboxed custom).
 - **[docs/living-answers.md](docs/living-answers.md)** — the agent convention: answer visual questions with live widgets, not prose.
 - **[docs/design-review.md](docs/design-review.md)** — the agent workflow for reviewing and refining a layout it built.
-- **[templates/](templates)** — workspace templates (Agent HQ, small-business, OSS-maintainer), starter custom widgets, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
+- **[templates/](templates)** — workspace templates (Agent HQ, the all-15-builtins Showcase, small-business, OSS-maintainer), starter custom widgets — including **twenty48**, a sandboxed game you can install from the demo's gallery, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
 - **[docs/demo-script.md](docs/demo-script.md)** — the acceptance walkthrough: a scripted Do/Observe tour proving every feature, for maintainers and PR reviewers.
 
 ## Status

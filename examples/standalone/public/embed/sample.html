@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embedded page</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+        background: light-dark(#fbfbfd, #0b0b0f);
+        color: light-dark(#15151b, #ededf2);
+      }
+      main {
+        max-width: 34rem;
+        padding: 2rem;
+        text-align: center;
+      }
+      .chip {
+        display: inline-block;
+        padding: 0.25rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #fff;
+        background: #6c5bfa;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0.8rem 0 0.4rem;
+      }
+      p {
+        margin: 0;
+        opacity: 0.75;
+        line-height: 1.5;
+      }
+      code {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.85em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="chip">Embedded</span>
+      <h1>Any page, in a widget</h1>
+      <p>
+        This is a plain static page shown by the <code>builtin:preview</code> and
+        <code>builtin:iframe-embed</code> widgets. Same-origin and relative URLs embed freely;
+        cross-origin URLs are blocked unless the host opts in.
+      </p>
+    </main>
+  </body>
+</html>

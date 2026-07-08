@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "name": "notes",
-  "title": "Notes",
+  "name": "twenty48",
+  "title": "Twenty48",
   "entrypoint": "index.html",
   "bindings": [],
   "capabilities": [
-    "data:read"
+    "state:persist"
   ],
   "preferredSize": {
     "w": 4,
-    "h": 4
+    "h": 5
   }
 }

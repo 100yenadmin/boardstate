@@ -21,6 +21,9 @@ import "@boardstate/lit/styles.css";
 import auroraThemeUrl from "@boardstate/lit/themes/aurora.css?url";
 import vibrancyThemeUrl from "@boardstate/lit/themes/vibrancy.css?url";
 import agentHq from "../../../templates/agent-hq.json";
+import showcase from "../../../templates/showcase.json";
+import smallbiz from "../../../templates/smallbiz.json";
+import maintainer from "../../../templates/maintainer.json";
 import {
   DEMO_WIDGET_BINDING_ID,
   DEMO_WIDGET_NAME,
@@ -116,6 +119,27 @@ function applyMode(mode: "light" | "dark"): void {
 /** The mounted view, so the language control can push `strings` into it. */
 let activeView: (HTMLElement & { strings?: BoardstateStrings }) | null = null;
 
+// Every template ships in templates/ — the picker swaps the whole workspace
+// document live through the same `workspace.replace` the agent and Import use.
+const BOARDS: Record<string, unknown> = {
+  "agent-hq": agentHq,
+  showcase,
+  smallbiz,
+  maintainer,
+};
+
+function wireBoardPicker(host: ReturnType<typeof createInProcessHost>): void {
+  const select = document.getElementById("board") as HTMLSelectElement | null;
+  select?.addEventListener("change", async () => {
+    const doc = BOARDS[select.value];
+    if (!doc) return;
+    await host.request("dashboard.workspace.replace", {
+      doc: doc as WorkspaceDoc,
+      actor: "user",
+    });
+  });
+}
+
 function wireLanguageControl(): void {
   const select = document.getElementById("lang") as HTMLSelectElement | null;
   select?.addEventListener("change", () => {
@@ -194,6 +218,7 @@ async function main(): Promise<void> {
   view.basePath = import.meta.env.BASE_URL.replace(/\/+$/, "");
   document.getElementById("app")!.appendChild(view);
 
+  wireBoardPicker(host);
   wireSimulateButton(host);
 }
 
