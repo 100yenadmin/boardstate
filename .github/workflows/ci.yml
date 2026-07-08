@@ -22,9 +22,12 @@ jobs:
 
       - run: pnpm install --no-frozen-lockfile
 
-      - run: pnpm typecheck
-
+      # Build first: packages resolve each other via their published `dist`
+      # entrypoints (including subpaths like `@boardstate/server/node`), so the
+      # `.d.ts` must exist before typecheck runs.
       - run: pnpm build
+
+      - run: pnpm typecheck
 
       - run: pnpm test
 
