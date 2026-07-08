@@ -23,6 +23,7 @@ function noopCallbacks(): DashboardWidgetCellCallbacks {
     onRemove: vi.fn(),
     onEditTitle: vi.fn(),
     onMoveToTab: vi.fn(),
+    onPin: vi.fn(),
     onMovePointerDown: vi.fn(),
     onResizePointerDown: vi.fn(),
     onKeyboardNudge: vi.fn(),

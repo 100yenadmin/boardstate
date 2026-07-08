@@ -29,6 +29,8 @@ export type DashboardWidgetCellCallbacks = {
   onRemove: (widget: DashboardWidget) => void;
   onEditTitle: (widget: DashboardWidget) => void;
   onMoveToTab: (widget: DashboardWidget) => void;
+  /** Pin a temporary (ephemeral) widget so the TTL sweep keeps it. */
+  onPin: (widget: DashboardWidget) => void;
   onMovePointerDown: (widget: DashboardWidget, event: PointerEvent) => void;
   onResizePointerDown: (widget: DashboardWidget, event: PointerEvent) => void;
   onKeyboardNudge: (
@@ -52,10 +54,25 @@ export type DashboardCustomWidgetContext = {
   onReject: (widget: DashboardWidget) => void;
 };
 
+/**
+ * Blame metadata for the cell menu (M2): who authored the widget, the version it
+ * first appeared (when recoverable from loaded history), and a logbook deep link
+ * when the author is an agent and the link is derivable. `agentId` is non-null iff
+ * the author is `agent:<id>`.
+ */
+export type DashboardWidgetBlame = {
+  actor: string;
+  agentId: string | null;
+  firstSeenVersion?: number;
+  logbookHref?: string | null;
+};
+
 export type DashboardWidgetCellProps = {
   widget: DashboardWidget;
   /** Resolved binding value for the primary binding, or an error to surface. */
   binding: DashboardBindingResult | null;
+  /** Provenance/blame line for the menu; present when the widget carries a `createdBy`. */
+  blame?: DashboardWidgetBlame;
   menuOpen: boolean;
   pending: boolean;
   /** When set, this cell is the live drag/resize ghost source. */
@@ -89,12 +106,73 @@ function renderProvenanceChip(widget: DashboardWidget): TemplateResult | typeof 
   >`;
 }
 
+/** Subtle badge marking a temporary (ephemeral) Living Answer; pinning clears it. */
+function renderEphemeralBadge(widget: DashboardWidget): TemplateResult | typeof nothing {
+  if (!widget.ephemeral) {
+    return nothing;
+  }
+  return html`<span
+    class="dashboard-widget__ephemeral"
+    data-test-id="dashboard-widget-ephemeral"
+    title=${t("dashboard.widget.ephemeralTooltip")}
+    >${t("dashboard.widget.ephemeralBadge")}</span
+  >`;
+}
+
+/**
+ * Blame line shown at the top of the cell menu (M2): "Created by {actor} · v{n}",
+ * with a logbook deep link when the author is an agent and the link is derivable.
+ * When the logbook seam yields no link, the provenance line renders on its own.
+ */
+function renderBlame(blame: DashboardWidgetBlame): TemplateResult {
+  const label =
+    blame.firstSeenVersion !== undefined
+      ? t("dashboard.widget.blame.createdByVersion", {
+          actor: blame.actor,
+          version: String(blame.firstSeenVersion),
+        })
+      : t("dashboard.widget.blame.createdBy", { actor: blame.actor });
+  const showLink = blame.agentId !== null && Boolean(blame.logbookHref);
+  return html`
+    <div class="dashboard-widget__blame" role="note" data-test-id="dashboard-widget-blame">
+      <span class="dashboard-widget__blame-text">${label}</span>
+      ${
+        showLink
+          ? html`<a
+              class="dashboard-widget__blame-link"
+              href=${blame.logbookHref!}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-test-id="dashboard-widget-blame-link"
+              >${icons.externalLink} ${t("dashboard.widget.blame.logbookLink")}</a
+            >`
+          : nothing
+      }
+    </div>
+  `;
+}
+
 function renderMenu(
   widget: DashboardWidget,
   callbacks: DashboardWidgetCellCallbacks,
+  blame: DashboardWidgetBlame | undefined,
 ): TemplateResult {
   return html`
     <div class="dashboard-widget__menu" role="menu">
+      ${blame ? renderBlame(blame) : nothing}
+      ${
+        widget.ephemeral
+          ? html`<button
+              class="dashboard-widget__menu-item"
+              type="button"
+              role="menuitem"
+              data-test-id="dashboard-widget-pin"
+              @click=${() => callbacks.onPin(widget)}
+            >
+              ${t("dashboard.widget.menu.pin")}
+            </button>`
+          : nothing
+      }
       <button
         class="dashboard-widget__menu-item"
         type="button"
@@ -305,7 +383,7 @@ export function renderWidgetCell(props: DashboardWidgetCellProps): TemplateResul
         <span class="dashboard-widget__title" title=${widget.title}
           >${displayWidgetTitle(widget.title)}</span
         >
-        ${renderProvenanceChip(widget)}
+        ${renderProvenanceChip(widget)} ${renderEphemeralBadge(widget)}
         <span
           class="dashboard-widget__handle"
           role="button"
@@ -325,7 +403,7 @@ export function renderWidgetCell(props: DashboardWidgetCellProps): TemplateResul
         >
           ${icons.moreHorizontal}
         </button>
-        ${props.menuOpen ? renderMenu(widget, callbacks) : nothing}
+        ${props.menuOpen ? renderMenu(widget, callbacks, props.blame) : nothing}
       </header>
       ${
         widget.collapsed

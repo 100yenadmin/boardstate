@@ -11,12 +11,18 @@ import {
   DASHBOARD_GRID_GAP,
   DASHBOARD_ROW_HEIGHT,
   beginDrag,
+  buildWidgetApprovalsSource,
   collides,
+  computeWorkspaceDiff,
   customWidgetName,
   customWidgetStatus,
+  dashboardAgentProvenance,
   findTab,
+  firstSeenVersion,
   gridPlacementStyle,
   gridRowCount,
+  groupDiffByActor,
+  groupTabsByActor,
   hiddenTabs,
   nudgeRect,
   orderedTabs,
@@ -26,6 +32,9 @@ import {
   visibleTabs,
   type DashboardBinding,
   type DashboardDragState,
+  type DashboardGridRect,
+  type DashboardHistoryEntry,
+  type DashboardHistorySnapshot,
   type DashboardTab,
   type DashboardWidget,
   type DashboardWorkspace,
@@ -35,26 +44,46 @@ import {
 import {
   approveWidget,
   clearActiveDrag,
+  dispatchRateLimitedPrompt,
+  exportWorkspace,
+  fetchGalleryIndex,
+  fetchWidgetBundle,
   getDashboardState,
   hideWidget,
+  importWorkspace,
+  installGalleryWidget,
+  loadHistoryList,
+  loadHistorySnapshot,
   loadWidgetManifestView,
   loadWorkspace,
   moveWidget,
   moveWidgetToTab,
+  pinWidget,
+  pingPresence,
+  presenceForTab,
   registerActiveDrag,
   removeWidgetFromTab,
   resolveBinding,
+  resolveComputedBinding,
+  setTabLayout,
   setWidgetCollapsed,
   startBindingPolling,
   stopDashboard,
   subscribeToDashboardEvents,
+  subscribeToStreamBinding,
+  undoWorkspace,
   updateWidgetTitle,
+  type ClientBinding,
   type DashboardBindingResult,
   type DashboardUiState,
+  type GalleryBundle,
+  type GalleryEntry,
 } from "@boardstate/host";
 import {
+  renderWidgetBody,
   renderWidgetCell,
   type DashboardCustomWidgetContext,
+  type DashboardWidgetBlame,
   type DashboardWidgetCellCallbacks,
 } from "./boardstate-widget-cell.js";
 import { icons } from "./icons.js";
@@ -98,6 +127,12 @@ export type BoardstateViewProps = {
   initialTab?: string | null;
   /** Session key for custom-widget prompt dispatch. */
   sessionKey?: string;
+  /**
+   * Deep link to an external logbook/history surface, or null when unavailable
+   * (m2 blame). The blame line links here for agent-authored widgets only; the
+   * embedder resolves the URL.
+   */
+  logbookHref?: string | null;
 };
 
 const DEFAULT_EMBED: BuiltinWidgetContext["embed"] = {
@@ -120,12 +155,103 @@ type DashboardViewState = {
   bindingResults: Map<string, DashboardBindingResult>;
   bindingLoads: Set<string>;
   bindingVersion: number;
+  /**
+   * Live `stream`-binding subscriptions keyed by widgetId. Reconciled against the
+   * active tab by `workspaceVersion` (NOT the poll counter — a poll tick must never
+   * churn a live subscription), torn down on tab-leave/disconnect/stop.
+   */
+  streamSubs: Map<string, StreamSubscription>;
+  /** Last value pushed by each stream subscription; survives poll-tick cache clears. */
+  streamValues: Map<string, DashboardBindingResult>;
   manifestCache: Map<string, WidgetManifestView>;
   manifestLoads: Set<string>;
   dataVersion: number;
   dialog: DashboardDialogState | null;
   onboardingDismissed: boolean;
+  /** Collapsed per-agent tab groups (w4), keyed by group key. Transient. */
+  collapsedTabGroups: Set<string>;
+  /** Last tab slug a presence heartbeat was sent for (w4); dedupes pings. */
+  lastPresenceSlug: string | null;
+  /** Workspace time-travel panel state (m2). */
+  history: DashboardHistoryViewState;
+  /** Widget-gallery browse/install surface state (w3), or null when closed. */
+  gallery: DashboardGalleryState | null;
 };
+
+/** Bookkeeping for one live `stream`-binding subscription (see DashboardViewState). */
+type StreamSubscription = {
+  workspaceVersion: number;
+  event: string;
+  pointer?: string;
+  unsubscribe: () => void;
+};
+
+/**
+ * Time-travel panel state (m2). Read-only: `entries` is the ring metadata and
+ * `snapshots` caches loaded snapshot bodies by version (shared with the blame
+ * line's first-seen lookup). Restore reuses the existing undo write path.
+ */
+type DashboardHistoryViewState = {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  entries: DashboardHistoryEntry[];
+  snapshots: Map<number, DashboardWorkspace>;
+  selectedVersion: number | null;
+  confirmRestore: boolean;
+  restoring: boolean;
+};
+
+function initialHistoryViewState(): DashboardHistoryViewState {
+  return {
+    open: false,
+    loading: false,
+    error: null,
+    entries: [],
+    snapshots: new Map(),
+    selectedVersion: null,
+    confirmRestore: false,
+    restoring: false,
+  };
+}
+
+/**
+ * Widget-gallery dialog state (w3). The registry URL is operator-entered (persisted
+ * in the injected storage; never a hardcoded remote). `entries` holds the browsed
+ * index; `selected` is a client-fetched bundle awaiting the operator's install
+ * confirmation (which surfaces the requested capabilities first).
+ */
+type DashboardGalleryState = {
+  indexUrl: string;
+  entries: GalleryEntry[] | null;
+  selected: GalleryBundle | null;
+  busy: boolean;
+  error: string | null;
+};
+
+/** Storage key remembering the operator's last registry index URL (w3). */
+const GALLERY_URL_KEY = "boardstate:gallery-url:v1";
+
+function readGalleryUrl(storage: BoardstateStorage | undefined): string {
+  try {
+    return storage?.getItem(GALLERY_URL_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function persistGalleryUrl(storage: BoardstateStorage | undefined, url: string): void {
+  try {
+    storage?.setItem(GALLERY_URL_KEY, url);
+  } catch {
+    // Best effort — remembering the URL is a convenience, not a product failure.
+  }
+}
+
+/** Shape one gallery fetch/install error into a display string. */
+function formatGalleryError(err: unknown): string {
+  return err instanceof Error && err.message.trim() ? err.message.trim() : "Widget gallery error.";
+}
 
 /** localStorage flag so the first-visit onboarding banner stays dismissed across reloads. */
 const ONBOARDING_DISMISS_KEY = "boardstate:onboarding-dismissed:v1";
@@ -214,9 +340,22 @@ function syncMenuDismiss(
   dashboardMenuDismiss.set(host, { onPointerDown, onKeyDown });
 }
 
-/** View-level teardown: drop any menu-dismiss listeners. */
+/** View-level teardown: drop menu-dismiss listeners + live stream subscriptions. */
 export function stopBoardstateView(host: object): void {
   teardownMenuDismiss(host);
+  teardownStreamSubscriptions(host);
+}
+
+/** Unsubscribe every live `stream` binding for `host` (tab-leave / disconnect / stop). */
+function teardownStreamSubscriptions(host: object): void {
+  const viewState = dashboardViewStates.get(host);
+  if (!viewState) {
+    return;
+  }
+  for (const sub of viewState.streamSubs.values()) {
+    sub.unsubscribe();
+  }
+  viewState.streamSubs.clear();
 }
 
 function getViewState(host: object, storage: BoardstateStorage | undefined): DashboardViewState {
@@ -228,11 +367,17 @@ function getViewState(host: object, storage: BoardstateStorage | undefined): Das
       bindingResults: new Map(),
       bindingLoads: new Set(),
       bindingVersion: -1,
+      streamSubs: new Map(),
+      streamValues: new Map(),
       manifestCache: new Map(),
       manifestLoads: new Set(),
       dataVersion: 0,
       dialog: null,
       onboardingDismissed: isOnboardingDismissed(storage),
+      collapsedTabGroups: new Set(),
+      lastPresenceSlug: null,
+      history: initialHistoryViewState(),
+      gallery: null,
     };
     dashboardViewStates.set(host, state);
   }
@@ -270,6 +415,94 @@ function bindingCacheKey(workspace: DashboardWorkspace, viewState: DashboardView
   return workspace.workspaceVersion * 1_000_003 + viewState.dataVersion;
 }
 
+/**
+ * Reconcile live `stream`-binding subscriptions against the active tab's widgets.
+ * Keyed by `workspaceVersion` so a poll tick never churns subscriptions; a doc
+ * change (or an event/pointer change) re-subscribes. A null transport (disconnect)
+ * tears every subscription down. Each pushed value lands in both `streamValues`
+ * (survives poll-tick cache clears) and `bindingResults` (the render cache).
+ */
+function reconcileStreamSubscriptions(
+  viewState: DashboardViewState,
+  transport: Transport | null,
+  workspace: DashboardWorkspace,
+  tab: DashboardTab,
+  requestUpdate: (() => void) | null,
+): void {
+  if (!transport) {
+    for (const sub of viewState.streamSubs.values()) {
+      sub.unsubscribe();
+    }
+    viewState.streamSubs.clear();
+    return;
+  }
+  const wanted = new Map<string, ClientBinding>();
+  for (const widget of tab.widgets) {
+    const binding = primaryBinding(widget) as ClientBinding | null;
+    if (binding?.source === "stream" && binding.event) {
+      wanted.set(widget.id, binding);
+    }
+  }
+  // Drop subscriptions no longer wanted, or whose channel/doc-version changed.
+  for (const [widgetId, sub] of viewState.streamSubs) {
+    const binding = wanted.get(widgetId);
+    if (
+      !binding ||
+      sub.workspaceVersion !== workspace.workspaceVersion ||
+      sub.event !== binding.event ||
+      sub.pointer !== binding.pointer
+    ) {
+      sub.unsubscribe();
+      viewState.streamSubs.delete(widgetId);
+      viewState.streamValues.delete(widgetId);
+    }
+  }
+  // Establish subscriptions for newly-wanted stream widgets.
+  for (const [widgetId, binding] of wanted) {
+    if (viewState.streamSubs.has(widgetId)) {
+      continue;
+    }
+    const unsubscribe = subscribeToStreamBinding(transport, binding, (result) => {
+      viewState.streamValues.set(widgetId, result);
+      viewState.bindingResults.set(widgetId, result);
+      requestUpdate?.();
+    });
+    viewState.streamSubs.set(widgetId, {
+      workspaceVersion: workspace.workspaceVersion,
+      event: binding.event as string,
+      ...(binding.pointer !== undefined ? { pointer: binding.pointer } : {}),
+      unsubscribe,
+    });
+  }
+}
+
+/**
+ * Resolve a `computed` primary binding from its sibling `inputs`: resolve each
+ * named input (leaf bindings only — the schema forbids computed→computed) then
+ * derive the value via the whitelisted op. Stream inputs are not one-shot
+ * resolvable and surface an error (computed reads settled values, not live pushes).
+ */
+async function resolveComputedForWidget(
+  transport: Transport | null,
+  widget: DashboardWidget,
+  binding: ClientBinding,
+): Promise<DashboardBindingResult> {
+  const siblings = widget.bindings ?? {};
+  const values: unknown[] = [];
+  for (const name of binding.inputs ?? []) {
+    const input = siblings[name];
+    if (!input) {
+      return { error: `Computed input not found: ${name}` };
+    }
+    const result = await resolveBinding(transport, input);
+    if ("error" in result) {
+      return { error: result.error };
+    }
+    values.push(result.value);
+  }
+  return resolveComputedBinding(binding.op ?? "", values, binding.arg);
+}
+
 /** Kick off binding resolution for widgets on the active tab; cache per version. */
 function ensureBindings(
   viewState: DashboardViewState,
@@ -284,8 +517,11 @@ function ensureBindings(
     viewState.bindingLoads.clear();
     viewState.bindingVersion = key;
   }
+  // Live stream subscriptions are managed out-of-band from the poll cache above.
+  reconcileStreamSubscriptions(viewState, transport, workspace, tab, requestUpdate);
+
   for (const widget of tab.widgets) {
-    const binding = primaryBinding(widget);
+    const binding = primaryBinding(widget) as ClientBinding | null;
     if (
       !binding ||
       viewState.bindingResults.has(widget.id) ||
@@ -293,8 +529,21 @@ function ensureBindings(
     ) {
       continue;
     }
+    if (binding.source === "stream") {
+      // Push-driven: seed the render cache with the last streamed value (if any);
+      // the subscription reconciled above refreshes it on each pushed event.
+      const streamed = viewState.streamValues.get(widget.id);
+      if (streamed) {
+        viewState.bindingResults.set(widget.id, streamed);
+      }
+      continue;
+    }
     viewState.bindingLoads.add(widget.id);
-    void resolveBinding(transport, binding).then((result) => {
+    const pending =
+      binding.source === "computed"
+        ? resolveComputedForWidget(transport, widget, binding)
+        : resolveBinding(transport, binding);
+    void pending.then((result) => {
       viewState.bindingResults.set(widget.id, result);
       viewState.bindingLoads.delete(widget.id);
       requestUpdate?.();
@@ -393,38 +642,182 @@ function selectTab(
   props.onRequestUpdate?.();
 }
 
-function renderTabStrip(
+/** Inline lock glyph for the private-tab marker (w4); icons.ts carries no lock. */
+function lockGlyph(): TemplateResult {
+  return html`<svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>`;
+}
+
+/**
+ * "Who's viewing this tab" indicator (w4): a live dot plus a count when more than
+ * one other operator is present. Rendered only when someone else is viewing — a
+ * solo operator sees no presence chrome.
+ */
+function renderTabPresence(viewers: number): TemplateResult | typeof nothing {
+  if (viewers <= 0) {
+    return nothing;
+  }
+  const label = t("dashboard.tabs.presence", { count: String(viewers) });
+  return html`
+    <span
+      class="dashboard-tab__presence"
+      data-test-id="dashboard-tab-presence"
+      title=${label}
+      aria-label=${label}
+    >
+      <span class="dashboard-tab__presence-dot" aria-hidden="true"></span>
+      ${viewers > 1 ? html`<span class="dashboard-tab__presence-count">${viewers}</span>` : nothing}
+    </span>
+  `;
+}
+
+/** One tab button in the strip. */
+function renderTabButton(
   props: BoardstateViewProps,
   state: DashboardUiState,
   workspace: DashboardWorkspace,
+  tab: DashboardTab,
+  active: boolean,
+  viewers = 0,
 ): TemplateResult {
+  return html`
+    <button
+      class="dashboard-tab ${active ? "dashboard-tab--active" : ""}"
+      type="button"
+      role="tab"
+      aria-selected=${active ? "true" : "false"}
+      data-test-id="dashboard-tab"
+      data-ws=${tab.slug}
+      @click=${() => selectTab(props, state, workspace, tab.slug)}
+    >
+      ${
+        tab.icon && Object.hasOwn(icons, tab.icon)
+          ? html`<span class="dashboard-tab__icon" aria-hidden="true"
+              >${icons[tab.icon as keyof typeof icons]}</span
+            >`
+          : nothing
+      }
+      <span class="dashboard-tab__label">${tab.title}</span>
+      ${
+        tab.visibility === "private"
+          ? html`<span
+              class="dashboard-tab__private"
+              data-test-id="dashboard-tab-private"
+              title=${t("dashboard.tabs.private")}
+              aria-label=${t("dashboard.tabs.private")}
+              >${lockGlyph()}</span
+            >`
+          : nothing
+      }
+      ${renderTabPresence(viewers)}
+    </button>
+  `;
+}
+
+/** Human label for an actor group header (w4). */
+function tabGroupLabel(group: ReturnType<typeof groupTabsByActor>[number]): string {
+  if (group.kind === "agent") {
+    return t("dashboard.tabs.groupAgent", { agent: group.agentId ?? "agent" });
+  }
+  return group.kind === "system" ? t("dashboard.tabs.groupSystem") : t("dashboard.tabs.groupUser");
+}
+
+/**
+ * Per-agent nesting (w4): render the visible tabs grouped by their `createdBy`
+ * provenance, each group foldable via a collapse toggle. When every visible tab
+ * shares one actor (the common case) the strip stays flat with no group chrome,
+ * preserving the single-workspace UX. Presence dots come from the host's presence
+ * store.
+ */
+function renderTabStrip(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+  workspace: DashboardWorkspace,
+): TemplateResult {
+  const requestUpdate = () => props.onRequestUpdate?.();
   const tabs = visibleTabs(workspace);
+  const groups = groupTabsByActor(tabs);
   const hidden = hiddenTabs(workspace);
+  const grouped = groups.length > 1;
+  const viewersOf = (slug: string): number => presenceForTab(props.host, slug).length;
   return html`
     <nav class="dashboard-tabs" role="tablist" aria-label=${t("dashboard.tabs.label")}>
-      ${tabs.map((tab) => {
-        const active = tab.slug === state.activeSlug;
-        return html`
-          <button
-            class="dashboard-tab ${active ? "dashboard-tab--active" : ""}"
-            type="button"
-            role="tab"
-            aria-selected=${active ? "true" : "false"}
-            data-test-id="dashboard-tab"
-            data-ws=${tab.slug}
-            @click=${() => selectTab(props, state, workspace, tab.slug)}
-          >
-            ${
-              tab.icon && Object.hasOwn(icons, tab.icon)
-                ? html`<span class="dashboard-tab__icon" aria-hidden="true"
-                    >${icons[tab.icon as keyof typeof icons]}</span
-                  >`
-                : nothing
-            }
-            <span class="dashboard-tab__label">${tab.title}</span>
-          </button>
-        `;
-      })}
+      ${
+        grouped
+          ? groups.map((group) => {
+              const collapsed = viewState.collapsedTabGroups.has(group.key);
+              const toggle = () => {
+                if (collapsed) {
+                  viewState.collapsedTabGroups.delete(group.key);
+                } else {
+                  viewState.collapsedTabGroups.add(group.key);
+                }
+                requestUpdate();
+              };
+              const label = tabGroupLabel(group);
+              return html`
+                <div
+                  class="dashboard-tab-group ${collapsed ? "dashboard-tab-group--collapsed" : ""}"
+                  data-test-id="dashboard-tab-group"
+                  data-group=${group.key}
+                >
+                  <button
+                    class="dashboard-tab-group__toggle"
+                    type="button"
+                    data-test-id="dashboard-tab-group-toggle"
+                    aria-expanded=${collapsed ? "false" : "true"}
+                    aria-label=${
+                      collapsed
+                        ? t("dashboard.tabs.expandGroup", { group: label })
+                        : t("dashboard.tabs.collapseGroup", { group: label })
+                    }
+                    @click=${toggle}
+                  >
+                    <span class="dashboard-tab-group__chevron" aria-hidden="true"
+                      >${collapsed ? icons.chevronRight : icons.chevronDown}</span
+                    >
+                    <span class="dashboard-tab-group__label">${label}</span>
+                    <span class="dashboard-tab-group__count">${group.tabs.length}</span>
+                  </button>
+                  ${
+                    collapsed
+                      ? nothing
+                      : group.tabs.map((tab) =>
+                          renderTabButton(
+                            props,
+                            state,
+                            workspace,
+                            tab,
+                            tab.slug === state.activeSlug,
+                            viewersOf(tab.slug),
+                          ),
+                        )
+                  }
+                </div>
+              `;
+            })
+          : tabs.map((tab) =>
+              renderTabButton(
+                props,
+                state,
+                workspace,
+                tab,
+                tab.slug === state.activeSlug,
+                viewersOf(tab.slug),
+              ),
+            )
+      }
       ${
         hidden.length > 0
           ? html`
@@ -490,6 +883,84 @@ function ensureManifests(
   }
 }
 
+/**
+ * Wire the action-form builtin's prompt dispatch to the shared confirm + rate-limit
+ * gate — the SAME `dispatchRateLimitedPrompt` the custom-widget bridge uses, with the
+ * same `confirm` fallback and the same `chat.send` path. No new privilege.
+ */
+function makeBuiltinDispatchPrompt(
+  props: BoardstateViewProps,
+): NonNullable<BuiltinWidgetContext["dispatchPrompt"]> {
+  const transport = props.transport;
+  const sessionKey = props.sessionKey ?? "main";
+  return ({ widgetKey, text }) =>
+    dispatchRateLimitedPrompt({
+      widgetKey,
+      text,
+      confirmPrompt: async (prompt) => {
+        if (props.confirm) {
+          return await props.confirm(prompt);
+        }
+        return typeof window !== "undefined" ? window.confirm(prompt) : false;
+      },
+      sendPrompt: async (prompt) => {
+        if (!transport) {
+          throw new Error("Not connected.");
+        }
+        await transport.request("chat.send", { sessionKey, message: prompt, deliver: false });
+      },
+    });
+}
+
+/**
+ * Builds the builtin-widget context for ONE widget. The write-back `state` accessor
+ * is bound to THIS widget's own `widget.id` (host-tracked, never child-supplied), so
+ * a stateful builtin (notes) can only read/write its own state; it is present only
+ * when a transport exists. `dispatchPrompt` (action-form) and `approvals` are the
+ * shared, workspace-scoped seams.
+ */
+function buildBuiltinContext(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  workspace: DashboardWorkspace,
+  widget: DashboardWidget,
+): BuiltinWidgetContext {
+  const transport = props.transport;
+  const context: BuiltinWidgetContext = {
+    embed: embedContext(props.embed),
+    dispatchPrompt: makeBuiltinDispatchPrompt(props),
+    // The approvals builtin resolves pending widget approvals through the same
+    // `dashboard.widget.approve` path the custom-widget pending card uses.
+    approvals: buildWidgetApprovalsSource(
+      workspace,
+      (name, decision) => void approveWidget(state, transport, { name, decision }),
+    ),
+  };
+  if (transport) {
+    context.state = createBuiltinStateAccessor(transport, widget.id);
+  }
+  return context;
+}
+
+/** Widget-id-bound write-back accessor over the transport (notes builtin). */
+function createBuiltinStateAccessor(
+  transport: Transport,
+  widgetId: string,
+): NonNullable<BuiltinWidgetContext["state"]> {
+  return {
+    get: () =>
+      transport.request("dashboard.widget.state.get", { widgetId }) as Promise<{
+        state: unknown;
+        version?: number;
+      }>,
+    set: (blob) =>
+      transport.request("dashboard.widget.state.set", {
+        widgetId,
+        state: blob,
+      }) as Promise<{ version: number }>,
+  };
+}
+
 /** Builds the custom-widget context for one `custom:<name>` widget, or null. */
 function buildCustomContext(
   props: BoardstateViewProps,
@@ -497,6 +968,7 @@ function buildCustomContext(
   viewState: DashboardViewState,
   workspace: DashboardWorkspace,
   widget: DashboardWidget,
+  tabSlug: string,
 ): DashboardCustomWidgetContext | null {
   const name = customWidgetName(widget.kind);
   if (!name) {
@@ -509,11 +981,142 @@ function buildCustomContext(
       transport: props.transport,
       basePath: props.basePath ?? "",
       sessionKey: props.sessionKey ?? "main",
+      // Tab identity for the pub/sub broker: scopes this widget's publishes and
+      // subscriptions to its own tab. Host-tracked, never child-supplied.
+      tabSlug,
       ...(props.confirm ? { confirmPrompt: props.confirm } : {}),
     },
     onApprove: () => void approveWidget(state, props.transport, { name, decision: "approved" }),
     onReject: () => void approveWidget(state, props.transport, { name, decision: "rejected" }),
   };
+}
+
+/** Loaded snapshot bodies as an ordered list, for the blame first-seen lookup (m2). */
+function loadedHistorySnapshots(viewState: DashboardViewState): DashboardHistorySnapshot[] {
+  return [...viewState.history.snapshots.entries()].map(([version, workspace]) => ({
+    version,
+    workspace,
+  }));
+}
+
+/**
+ * Build the blame line for a widget (m2), or undefined when it carries no
+ * provenance. The first-seen version is recovered from whatever history snapshots
+ * are already loaded (the panel loads them); the logbook link is offered only for
+ * agent authors when a link is derivable.
+ */
+function computeWidgetBlame(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+  widget: DashboardWidget,
+): DashboardWidgetBlame | undefined {
+  const actor = widget.createdBy;
+  if (!actor) {
+    return undefined;
+  }
+  const agentId = dashboardAgentProvenance(actor);
+  const seen = firstSeenVersion(widget.id, loadedHistorySnapshots(viewState));
+  return {
+    actor,
+    agentId,
+    ...(seen !== undefined ? { firstSeenVersion: seen } : {}),
+    ...(agentId ? { logbookHref: props.logbookHref ?? null } : {}),
+  };
+}
+
+/** Fetch (or refetch) the ring metadata and auto-select the newest snapshot (m2). */
+async function refreshHistoryList(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+): Promise<void> {
+  const requestUpdate = () => props.onRequestUpdate?.();
+  const history = viewState.history;
+  history.loading = true;
+  history.error = null;
+  requestUpdate();
+  try {
+    const entries = await loadHistoryList(props.transport);
+    history.entries = entries;
+    if (entries.length > 0 && history.selectedVersion === null) {
+      history.selectedVersion = entries[0]!.version;
+    }
+    history.error = null;
+  } catch (err) {
+    history.error = err instanceof Error ? err.message : String(err);
+  } finally {
+    history.loading = false;
+    requestUpdate();
+  }
+  if (history.selectedVersion !== null) {
+    await ensureHistorySnapshot(props, viewState, history.selectedVersion);
+  }
+}
+
+/** Lazily load one snapshot body into the per-host cache (m2). */
+async function ensureHistorySnapshot(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+  version: number,
+): Promise<void> {
+  const history = viewState.history;
+  if (history.snapshots.has(version)) {
+    return;
+  }
+  try {
+    const workspace = await loadHistorySnapshot(props.transport, version);
+    if (workspace) {
+      history.snapshots.set(version, workspace);
+      props.onRequestUpdate?.();
+    }
+  } catch (err) {
+    history.error = err instanceof Error ? err.message : String(err);
+    props.onRequestUpdate?.();
+  }
+}
+
+/** Open the time-travel panel and load the ring (m2). */
+function openHistory(props: BoardstateViewProps, viewState: DashboardViewState): void {
+  viewState.history.open = true;
+  viewState.history.confirmRestore = false;
+  void refreshHistoryList(props, viewState);
+  props.onRequestUpdate?.();
+}
+
+/** Close the time-travel panel; loaded snapshots stay cached for the blame line (m2). */
+function closeHistory(props: BoardstateViewProps, viewState: DashboardViewState): void {
+  viewState.history.open = false;
+  viewState.history.confirmRestore = false;
+  props.onRequestUpdate?.();
+}
+
+/** Select a history version, loading its body on demand (m2). */
+function selectHistoryVersion(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+  version: number,
+): void {
+  viewState.history.selectedVersion = version;
+  void ensureHistorySnapshot(props, viewState, version);
+  props.onRequestUpdate?.();
+}
+
+/** Grid rect for a freshly-installed widget: a default cell below existing rows (w3). */
+function installPlacementGrid(
+  tab: DashboardTab | undefined,
+  bundle: GalleryBundle,
+): DashboardGridRect {
+  const manifest = bundle.manifest as { preferredSize?: unknown };
+  const preferred =
+    manifest.preferredSize && typeof manifest.preferredSize === "object"
+      ? (manifest.preferredSize as { w?: unknown; h?: unknown })
+      : {};
+  const w = Math.min(12, Math.max(1, Number(preferred.w) || 6));
+  const h = Math.max(1, Number(preferred.h) || 4);
+  const y = (tab?.widgets ?? []).reduce((max, widget) => {
+    const bottom = widget.grid.y + widget.grid.h;
+    return bottom > max ? bottom : max;
+  }, 0);
+  return { x: 0, y, w, h };
 }
 
 function renderGrid(
@@ -534,26 +1137,60 @@ function renderGrid(
       </div>
     `;
   }
+  if (tab.layout === "full") {
+    return renderFullBleed(props, state, viewState, workspace, tab);
+  }
   const callbacks = makeCallbacks(props, state, viewState, tab);
-  const builtinContext: BuiltinWidgetContext = { embed: embedContext(props.embed) };
   const rows = gridRowCount(tab.widgets);
   const minHeight = rows * DASHBOARD_ROW_HEIGHT + Math.max(0, rows - 1) * DASHBOARD_GRID_GAP;
   return html`
     <div class="dashboard-grid" style="min-height: ${minHeight}px" data-test-id="dashboard-grid">
       ${tab.widgets.map((widget) => {
-        const custom = buildCustomContext(props, state, viewState, workspace, widget);
+        const custom = buildCustomContext(props, state, viewState, workspace, widget, tab.slug);
+        const blame = computeWidgetBlame(props, viewState, widget);
         return renderWidgetCell({
           widget,
           binding: viewState.bindingResults.get(widget.id) ?? null,
+          ...(blame ? { blame } : {}),
           menuOpen: viewState.openMenuWidgetId === widget.id,
           pending: state.pendingWidgetIds.has(widget.id),
           dragging: viewState.drag?.widgetId === widget.id,
-          builtinContext,
+          builtinContext: buildBuiltinContext(props, state, workspace, widget),
           callbacks,
           ...(custom ? { custom } : {}),
         });
       })}
       ${renderDragGhost(viewState, tab)}
+    </div>
+  `;
+}
+
+/**
+ * Full-bleed layout (w3): render the tab's FIRST widget filling the whole content
+ * area with no grid chrome (no placement styles, no drag/resize handles). The
+ * widget body reuses the same builtin/custom render path (and per-cell error
+ * boundary) as the grid, so bindings, the sandboxed iframe host, and the approval
+ * gate all behave identically — only the surrounding layout differs.
+ */
+function renderFullBleed(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+  workspace: DashboardWorkspace,
+  tab: DashboardTab,
+): TemplateResult {
+  const widget = tab.widgets[0]!;
+  const callbacks = makeCallbacks(props, state, viewState, tab);
+  const custom = buildCustomContext(props, state, viewState, workspace, widget, tab.slug);
+  return html`
+    <div class="dashboard-fullbleed" data-test-id="dashboard-fullbleed" data-widget-id=${widget.id}>
+      ${renderWidgetBody(
+        widget,
+        viewState.bindingResults.get(widget.id) ?? null,
+        buildBuiltinContext(props, state, workspace, widget),
+        callbacks,
+        custom ?? undefined,
+      )}
     </div>
   `;
 }
@@ -685,6 +1322,11 @@ function makeCallbacks(
       viewState.openMenuWidgetId = null;
       viewState.dialog = { kind: "moveToTab", slug: tab.slug, widgetId: widget.id };
       requestUpdate();
+    },
+    onPin: (widget) => {
+      viewState.openMenuWidgetId = null;
+      // Clearing the ephemeral flag makes a temporary Living Answer permanent (pin).
+      void pinWidget(state, props.transport, { slug: tab.slug, widgetId: widget.id });
     },
     onMovePointerDown: (widget, event) => {
       if (event.button !== 0) {
@@ -864,10 +1506,22 @@ export function renderBoardstateView(props: BoardstateViewProps): TemplateResult
   subscribeToDashboardEvents(props.host, state, active ? props.transport : null);
   startBindingPolling(props.host, active ? props.transport : null, () => {
     bumpBoardstateDataVersion(props.host);
+    // Presence heartbeat (w4): re-announce the tab in view each tick so a still-
+    // present operator doesn't age out of others' indicators.
+    if (active && state.activeSlug) {
+      pingPresence(props.host, props.transport, state.activeSlug);
+    }
     props.onRequestUpdate?.();
   });
   if (active && !state.loaded && !state.loading && !state.error) {
     void loadWorkspace(state, props.transport, { requestedSlug: props.initialTab ?? null });
+  }
+
+  // Announce the tab in view once per activation (w4); the poll tick keeps the
+  // heartbeat alive thereafter.
+  if (active && state.activeSlug && viewState.lastPresenceSlug !== state.activeSlug) {
+    viewState.lastPresenceSlug = state.activeSlug;
+    pingPresence(props.host, props.transport, state.activeSlug);
   }
 
   return html`
@@ -880,6 +1534,7 @@ export function renderBoardstateView(props: BoardstateViewProps): TemplateResult
           : nothing
       }
       ${renderBody(props, state, viewState)} ${renderDialog(props, state, viewState)}
+      ${renderHistoryPanel(props, state, viewState)} ${renderGalleryDialog(props, state, viewState)}
     </section>
   `;
 }
@@ -932,19 +1587,679 @@ function renderBody(
     </div>`;
   }
   return html`
-    ${renderWorkspacesHeader(tab)}
+    ${renderWorkspacesHeader(props, state, viewState, tab)}
     ${renderOnboardingBanner(props, viewState, () => props.onRequestUpdate?.())}
-    ${renderTabStrip(props, state, workspace)}
+    ${renderTabStrip(props, state, viewState, workspace)}
     ${renderGrid(props, state, viewState, workspace, tab)}
   `;
 }
 
-/** Page-header treatment for the active workspace tab. */
-function renderWorkspacesHeader(tab: DashboardTab): TemplateResult {
+/** Trigger a browser download of `json` under `filename` (no-op outside a document). */
+function downloadWorkspaceJson(filename: string, json: string): void {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") {
+    return;
+  }
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Export the full workspace to a downloadable JSON file; a failure surfaces a toast (w5). */
+function runWorkspaceExport(props: BoardstateViewProps, state: DashboardUiState): void {
+  void exportWorkspace(props.transport)
+    .then((file) => downloadWorkspaceJson(file.filename, file.json))
+    .catch((err: unknown) => {
+      state.actionError = err instanceof Error ? err.message : String(err);
+      props.onRequestUpdate?.();
+    });
+}
+
+/** Read the chosen file and apply it via importWorkspace (custom widgets → pending) (w5). */
+function onWorkspaceImportChange(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  event: Event,
+): void {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  // Reset so re-selecting the same file re-fires change.
+  input.value = "";
+  if (!file) {
+    return;
+  }
+  void file.text().then((text) => importWorkspace(state, props.transport, text));
+}
+
+/** Open the widget gallery dialog seeded with the remembered registry URL (w3). */
+function openGallery(props: BoardstateViewProps, viewState: DashboardViewState): void {
+  viewState.gallery = {
+    indexUrl: readGalleryUrl(props.storage),
+    entries: null,
+    selected: null,
+    busy: false,
+    error: null,
+  };
+  props.onRequestUpdate?.();
+}
+
+/**
+ * Page-header treatment for the active workspace tab. Carries the tab-level actions:
+ * the widget-gallery opener + full-bleed toggle (w3), the time-travel toggle (m2),
+ * and the export/import distribution controls (w5).
+ */
+function renderWorkspacesHeader(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+  tab: DashboardTab,
+): TemplateResult {
+  const isFull = tab.layout === "full";
+  const toggleLayout = () =>
+    void setTabLayout(state, props.transport, {
+      slug: tab.slug,
+      layout: isFull ? "grid" : "full",
+    });
   return html`
     <div class="dashboard-page-header" data-test-id="dashboard-page-header">
-      <div class="page-title">${tab.title}</div>
-      <div class="page-sub">${t("dashboard.header.subtitle")}</div>
+      <div class="dashboard-page-header__titles">
+        <div class="page-title">${tab.title}</div>
+        <div class="page-sub">${t("dashboard.header.subtitle")}</div>
+      </div>
+      <div
+        class="dashboard-page-header__actions dashboard-toolbar"
+        data-test-id="dashboard-toolbar"
+      >
+        <button
+          class="bs-btn bs-btn--small"
+          type="button"
+          data-test-id="dashboard-gallery-open"
+          title=${t("dashboard.gallery.open")}
+          @click=${() => openGallery(props, viewState)}
+        >
+          <span class="dashboard-page-header__action-icon" aria-hidden="true">${icons.puzzle}</span>
+          ${t("dashboard.gallery.open")}
+        </button>
+        <button
+          class="bs-btn bs-btn--small ${isFull ? "bs-btn--primary" : ""}"
+          type="button"
+          data-test-id="dashboard-fullbleed-toggle"
+          aria-pressed=${isFull ? "true" : "false"}
+          title=${isFull ? t("dashboard.header.fullBleedExit") : t("dashboard.header.fullBleedEnter")}
+          @click=${toggleLayout}
+        >
+          <span class="dashboard-page-header__action-icon" aria-hidden="true"
+            >${isFull ? icons.minimize : icons.maximize}</span
+          >
+          ${isFull ? t("dashboard.header.fullBleedExit") : t("dashboard.header.fullBleedEnter")}
+        </button>
+        <button
+          class="bs-btn bs-btn--small dashboard-history__toggle"
+          type="button"
+          data-test-id="dashboard-history-toggle"
+          @click=${() => openHistory(props, viewState)}
+        >
+          ${icons.clock} ${t("dashboard.history.open")}
+        </button>
+        <button
+          class="bs-btn bs-btn--small"
+          type="button"
+          data-test-id="dashboard-export"
+          title=${t("dashboard.distribution.exportTitle")}
+          @click=${() => runWorkspaceExport(props, state)}
+        >
+          ${t("dashboard.distribution.export")}
+        </button>
+        <button
+          class="bs-btn bs-btn--small"
+          type="button"
+          data-test-id="dashboard-import"
+          title=${t("dashboard.distribution.importTitle")}
+          @click=${(event: Event) =>
+            (event.currentTarget as HTMLElement).parentElement
+              ?.querySelector<HTMLInputElement>('input[type="file"]')
+              ?.click()}
+        >
+          ${t("dashboard.distribution.import")}
+        </button>
+        <input
+          type="file"
+          accept="application/json,.json"
+          hidden
+          data-test-id="dashboard-import-input"
+          @change=${(event: Event) => onWorkspaceImportChange(props, state, event)}
+        />
+      </div>
+    </div>
+  `;
+}
+
+/** Compact relative time for a history entry's ISO timestamp (m2, view-local). */
+function formatRelativeTimestamp(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) {
+    return iso;
+  }
+  const seconds = Math.round((Date.now() - ms) / 1000);
+  if (seconds < 60) {
+    return "just now";
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+  const days = Math.round(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+  try {
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
+      new Date(ms),
+    );
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Read-only time-travel panel (m2): the version list on the left, a selected
+ * snapshot's preview + diff-vs-current + restore on the right. Restore reuses the
+ * existing single-step undo, so it is offered only for the newest snapshot.
+ */
+function renderHistoryPanel(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+): TemplateResult | typeof nothing {
+  const history = viewState.history;
+  if (!history.open) {
+    return nothing;
+  }
+  const title = t("dashboard.history.title");
+  const selected =
+    history.selectedVersion !== null ? history.snapshots.get(history.selectedVersion) : undefined;
+  const newestVersion = history.entries[0]?.version ?? null;
+  return renderModal(
+    title,
+    () => closeHistory(props, viewState),
+    html`
+      <div class="dashboard-history" data-test-id="dashboard-history">
+        <div class="dashboard-history__header">
+          <div class="card-title">${title}</div>
+          <div class="card-sub">${t("dashboard.history.subtitle")}</div>
+        </div>
+        ${
+          history.error
+            ? html`<div class="callout danger" role="alert">${history.error}</div>`
+            : nothing
+        }
+        <div class="dashboard-history__body">
+          ${renderHistoryList(props, viewState, newestVersion)}
+          <div class="dashboard-history__detail">
+            ${
+              history.selectedVersion === null
+                ? html`<div class="card-sub">${t("dashboard.history.emptyDetail")}</div>`
+                : renderHistoryDetail(props, state, viewState, history.selectedVersion, selected)
+            }
+          </div>
+        </div>
+        <div class="bs-dialog__actions">
+          <button class="bs-btn" type="button" @click=${() => closeHistory(props, viewState)}>
+            ${t("common.close")}
+          </button>
+        </div>
+      </div>
+    `,
+  );
+}
+
+function renderHistoryList(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+  newestVersion: number | null,
+): TemplateResult {
+  const history = viewState.history;
+  if (history.loading && history.entries.length === 0) {
+    return html`<div class="dashboard-history__list">
+      <div class="card-sub">${t("common.loading")}</div>
+    </div>`;
+  }
+  if (history.entries.length === 0) {
+    return html`<div class="dashboard-history__list">
+      <div class="card-sub">${t("dashboard.history.empty")}</div>
+    </div>`;
+  }
+  return html`
+    <ul class="dashboard-history__list" role="listbox" aria-label=${t("dashboard.history.title")}>
+      ${history.entries.map((entry) => {
+        const active = entry.version === history.selectedVersion;
+        return html`
+          <li>
+            <button
+              class="dashboard-history__item ${active ? "dashboard-history__item--active" : ""}"
+              type="button"
+              role="option"
+              aria-selected=${active ? "true" : "false"}
+              data-test-id="dashboard-history-item"
+              @click=${() => selectHistoryVersion(props, viewState, entry.version)}
+            >
+              <span class="dashboard-history__version"
+                >${t("dashboard.history.version", { version: String(entry.version) })}</span
+              >
+              <span class="dashboard-history__time">${formatRelativeTimestamp(entry.savedAt)}</span>
+              ${
+                entry.version === newestVersion
+                  ? html`<span class="dashboard-history__latest"
+                      >${t("dashboard.history.latest")}</span
+                    >`
+                  : nothing
+              }
+            </button>
+          </li>
+        `;
+      })}
+    </ul>
+  `;
+}
+
+function renderHistoryDetail(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+  version: number,
+  snapshot: DashboardWorkspace | undefined,
+): TemplateResult {
+  const history = viewState.history;
+  const current = state.workspace;
+  const isNewest = version === (history.entries[0]?.version ?? null);
+  if (!snapshot) {
+    return html`<div class="card-sub" data-test-id="dashboard-history-loading">
+      ${t("common.loading")}
+    </div>`;
+  }
+  return html`
+    <div class="dashboard-history__preview-wrap">
+      <div class="dashboard-history__section-title">${t("dashboard.history.previewTitle")}</div>
+      ${renderHistoryPreview(snapshot, state.activeSlug)}
+    </div>
+    <div class="dashboard-history__diff">
+      <div class="dashboard-history__section-title">${t("dashboard.history.diffTitle")}</div>
+      ${current ? renderHistoryDiff(snapshot, current) : nothing}
+    </div>
+    <div class="dashboard-history__restore">
+      ${
+        isNewest
+          ? history.confirmRestore
+            ? html`
+                <span class="dashboard-history__confirm"
+                  >${t("dashboard.history.restoreConfirm")}</span
+                >
+                <button
+                  class="bs-btn bs-btn--small bs-btn--primary"
+                  type="button"
+                  ?disabled=${history.restoring}
+                  data-test-id="dashboard-history-restore-confirm"
+                  @click=${async () => {
+                    history.restoring = true;
+                    props.onRequestUpdate?.();
+                    await undoWorkspace(state, props.transport);
+                    history.restoring = false;
+                    history.confirmRestore = false;
+                    closeHistory(props, viewState);
+                  }}
+                >
+                  ${t("dashboard.history.restore")}
+                </button>
+                <button
+                  class="bs-btn bs-btn--small"
+                  type="button"
+                  @click=${() => {
+                    history.confirmRestore = false;
+                    props.onRequestUpdate?.();
+                  }}
+                >
+                  ${t("common.cancel")}
+                </button>
+              `
+            : html`<button
+                class="bs-btn bs-btn--small"
+                type="button"
+                data-test-id="dashboard-history-restore"
+                @click=${() => {
+                  history.confirmRestore = true;
+                  props.onRequestUpdate?.();
+                }}
+              >
+                ${t("dashboard.history.restore")}
+              </button>`
+          : html`<span class="card-sub">${t("dashboard.history.restoreOnlyNewest")}</span>`
+      }
+    </div>
+  `;
+}
+
+/**
+ * Static read-only preview of a snapshot's active tab: reuses the grid placement
+ * math but strips every interaction (no drag/resize handles, menus, or live
+ * bindings) so a past state renders without any write affordance.
+ */
+function renderHistoryPreview(
+  snapshot: DashboardWorkspace,
+  activeSlug: string | null,
+): TemplateResult {
+  const tab =
+    (activeSlug ? snapshot.tabs.find((entry) => entry.slug === activeSlug) : undefined) ??
+    visibleTabs(snapshot)[0] ??
+    snapshot.tabs[0];
+  if (!tab || tab.widgets.length === 0) {
+    return html`<div class="dashboard-history__preview dashboard-history__preview--empty">
+      ${t("dashboard.history.previewEmpty")}
+    </div>`;
+  }
+  const rows = gridRowCount(tab.widgets);
+  const minHeight = rows * DASHBOARD_ROW_HEIGHT + Math.max(0, rows - 1) * DASHBOARD_GRID_GAP;
+  return html`
+    <div
+      class="dashboard-history__preview dashboard-grid dashboard-grid--readonly"
+      style="min-height: ${minHeight}px"
+      data-test-id="dashboard-history-preview"
+      aria-hidden="true"
+    >
+      ${tab.widgets.map((widget) => {
+        const agent = dashboardAgentProvenance(widget.createdBy);
+        return html`
+          <div class="dashboard-history__cell" style=${gridPlacementStyle(widget.grid)}>
+            <span class="dashboard-history__cell-title">${widget.title || widget.kind}</span>
+            ${
+              agent
+                ? html`<span class="dashboard-widget__provenance"
+                    >${t("dashboard.widget.provenanceChip")}</span
+                  >`
+                : nothing
+            }
+          </div>
+        `;
+      })}
+    </div>
+  `;
+}
+
+/** Compact changelist (added/removed/moved/retitled) grouped by author (m2). */
+function renderHistoryDiff(
+  snapshot: DashboardWorkspace,
+  current: DashboardWorkspace,
+): TemplateResult {
+  const diff = computeWorkspaceDiff(snapshot, current);
+  if (diff.length === 0) {
+    return html`<div class="card-sub" data-test-id="dashboard-history-diff-empty">
+      ${t("dashboard.history.diffEmpty")}
+    </div>`;
+  }
+  const groups = groupDiffByActor(diff);
+  return html`
+    <div class="dashboard-history__diff-groups" data-test-id="dashboard-history-diff">
+      ${groups.map(
+        (group) => html`
+          <div class="dashboard-history__diff-group">
+            <div class="dashboard-history__diff-actor">
+              ${group.actor ?? t("dashboard.history.actorUnknown")}
+            </div>
+            <ul class="dashboard-history__diff-list">
+              ${group.entries.map(
+                (entry) => html`
+                  <li class="dashboard-history__diff-item">
+                    <span class="dashboard-history__diff-kind"
+                      >${t(`dashboard.history.kind.${entry.kind}`)}</span
+                    >
+                    <span class="dashboard-history__diff-label">${entry.label}</span>
+                    ${
+                      entry.detail
+                        ? html`<span class="dashboard-history__diff-detail">${entry.detail}</span>`
+                        : nothing
+                    }
+                  </li>
+                `,
+              )}
+            </ul>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
+/**
+ * Widget-gallery dialog (w3): browse an operator-entered registry index, then
+ * install a bundle. SECURITY — the browse/fetch happens CLIENT-SIDE (the operator's
+ * browser); the host only receives already-fetched bytes and writes a `pending`
+ * widget behind the approval gate. The requested capabilities are surfaced BEFORE
+ * the operator installs (and therefore before they approve).
+ */
+function renderGalleryDialog(
+  props: BoardstateViewProps,
+  state: DashboardUiState,
+  viewState: DashboardViewState,
+): TemplateResult | typeof nothing {
+  const gallery = viewState.gallery;
+  if (!gallery) {
+    return nothing;
+  }
+  const requestUpdate = () => props.onRequestUpdate?.();
+  const close = () => {
+    viewState.gallery = null;
+    requestUpdate();
+  };
+  const onUrlInput = (event: Event) => {
+    gallery.indexUrl = (event.currentTarget as HTMLInputElement).value;
+  };
+  const browse = async () => {
+    const url = gallery.indexUrl.trim();
+    if (!url) {
+      return;
+    }
+    gallery.busy = true;
+    gallery.error = null;
+    gallery.selected = null;
+    requestUpdate();
+    try {
+      const entries = await fetchGalleryIndex(url);
+      gallery.entries = entries;
+      persistGalleryUrl(props.storage, url);
+    } catch (err) {
+      gallery.error = formatGalleryError(err);
+    } finally {
+      gallery.busy = false;
+      requestUpdate();
+    }
+  };
+  const preview = async (entry: GalleryEntry) => {
+    gallery.busy = true;
+    gallery.error = null;
+    requestUpdate();
+    try {
+      gallery.selected = await fetchWidgetBundle(entry.manifestUrl);
+    } catch (err) {
+      gallery.error = formatGalleryError(err);
+    } finally {
+      gallery.busy = false;
+      requestUpdate();
+    }
+  };
+  const install = async () => {
+    const bundle = gallery.selected;
+    if (!bundle) {
+      return;
+    }
+    gallery.busy = true;
+    gallery.error = null;
+    requestUpdate();
+    try {
+      // Client-fetched bytes → the host writes a `pending` registry entry (never
+      // approved). Placing the widget on the active tab surfaces the existing
+      // approval card, so the operator still approves before it mounts.
+      await installGalleryWidget(props.transport, bundle);
+      const activeTab = state.workspace ? findTab(state.workspace, state.activeSlug) : undefined;
+      if (props.transport && activeTab) {
+        await props.transport.request("dashboard.widget.add", {
+          tab: activeTab.slug,
+          widget: {
+            kind: `custom:${bundle.name}`,
+            title: bundle.title,
+            grid: installPlacementGrid(activeTab, bundle),
+          },
+        });
+      }
+      await loadWorkspace(state, props.transport, { silent: true });
+      viewState.gallery = null;
+      requestUpdate();
+    } catch (err) {
+      gallery.error = formatGalleryError(err);
+      gallery.busy = false;
+      requestUpdate();
+    }
+  };
+  return renderModal(
+    t("dashboard.gallery.title"),
+    close,
+    html`
+      <div class="dashboard-gallery" data-test-id="dashboard-gallery">
+        <div class="dashboard-gallery__header">
+          <div class="card-title">${t("dashboard.gallery.title")}</div>
+          <div class="card-sub">${t("dashboard.gallery.subtitle")}</div>
+        </div>
+        <div class="dashboard-gallery__browse">
+          <input
+            class="bs-dialog__input"
+            type="url"
+            inputmode="url"
+            data-test-id="dashboard-gallery-url"
+            placeholder=${t("dashboard.gallery.urlPlaceholder")}
+            aria-label=${t("dashboard.gallery.urlLabel")}
+            .value=${gallery.indexUrl}
+            @input=${onUrlInput}
+          />
+          <button
+            class="bs-btn bs-btn--small bs-btn--primary"
+            type="button"
+            data-test-id="dashboard-gallery-browse"
+            ?disabled=${gallery.busy}
+            @click=${() => void browse()}
+          >
+            ${t("dashboard.gallery.browse")}
+          </button>
+        </div>
+        ${
+          gallery.error
+            ? html`<div class="callout danger" role="alert" data-test-id="dashboard-gallery-error">
+                ${gallery.error}
+              </div>`
+            : nothing
+        }
+        ${
+          gallery.selected
+            ? renderGalleryDetail(
+                gallery.selected,
+                () => {
+                  gallery.selected = null;
+                  requestUpdate();
+                },
+                () => void install(),
+                gallery.busy,
+              )
+            : renderGalleryList(gallery, (entry) => void preview(entry))
+        }
+      </div>
+    `,
+  );
+}
+
+/** Browse results: one row per registry entry. */
+function renderGalleryList(
+  gallery: DashboardGalleryState,
+  onSelect: (entry: GalleryEntry) => void,
+): TemplateResult | typeof nothing {
+  if (gallery.entries === null) {
+    return nothing;
+  }
+  if (gallery.entries.length === 0) {
+    return html`<div class="dashboard-gallery__empty">${t("dashboard.gallery.empty")}</div>`;
+  }
+  return html`
+    <ul class="dashboard-gallery__list" data-test-id="dashboard-gallery-list">
+      ${gallery.entries.map(
+        (entry) => html`
+          <li class="dashboard-gallery__item">
+            <div class="dashboard-gallery__item-body">
+              <div class="dashboard-gallery__item-name">${entry.name}</div>
+              ${
+                entry.description
+                  ? html`<div class="dashboard-gallery__item-desc">${entry.description}</div>`
+                  : nothing
+              }
+            </div>
+            <button
+              class="bs-btn bs-btn--small"
+              type="button"
+              data-test-id="dashboard-gallery-select"
+              ?disabled=${gallery.busy}
+              @click=${() => onSelect(entry)}
+            >
+              ${t("dashboard.gallery.view")}
+            </button>
+          </li>
+        `,
+      )}
+    </ul>
+  `;
+}
+
+/** Selected-bundle detail: surfaces the REQUESTED CAPABILITIES before installing. */
+function renderGalleryDetail(
+  bundle: GalleryBundle,
+  onBack: () => void,
+  onInstall: () => void,
+  busy: boolean,
+): TemplateResult {
+  return html`
+    <div class="dashboard-gallery__detail" data-test-id="dashboard-gallery-detail">
+      <div class="dashboard-gallery__item-name">${bundle.title}</div>
+      <div class="dashboard-gallery__caps">
+        <div class="dashboard-gallery__caps-label">${t("dashboard.gallery.capabilities")}</div>
+        ${
+          bundle.capabilities.length === 0
+            ? html`<span class="dashboard-gallery__cap"
+                >${t("dashboard.gallery.noCapabilities")}</span
+              >`
+            : bundle.capabilities.map(
+                (cap) =>
+                  html`<span class="dashboard-gallery__cap" data-test-id="dashboard-gallery-cap"
+                    >${cap}</span
+                  >`,
+              )
+        }
+      </div>
+      <div class="dashboard-gallery__pending-note">${t("dashboard.gallery.pendingNote")}</div>
+      <div class="bs-dialog__actions">
+        <button
+          class="bs-btn bs-btn--primary"
+          type="button"
+          data-test-id="dashboard-gallery-install"
+          ?disabled=${busy}
+          @click=${onInstall}
+        >
+          ${t("dashboard.gallery.install")}
+        </button>
+        <button class="bs-btn" type="button" @click=${onBack}>${t("common.back")}</button>
+      </div>
     </div>
   `;
 }
@@ -970,6 +2285,7 @@ export class BoardstateViewElement extends LitElement {
   basePath?: string;
   initialTab?: string | null;
   sessionKey?: string;
+  logbookHref?: string | null;
 
   static override properties = {
     transport: { attribute: false },
@@ -982,6 +2298,7 @@ export class BoardstateViewElement extends LitElement {
     basePath: { type: String },
     initialTab: { type: String },
     sessionKey: { type: String },
+    logbookHref: { type: String },
   };
 
   override render(): unknown {
@@ -998,6 +2315,7 @@ export class BoardstateViewElement extends LitElement {
       ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
       ...(this.initialTab !== undefined ? { initialTab: this.initialTab } : {}),
       ...(this.sessionKey !== undefined ? { sessionKey: this.sessionKey } : {}),
+      ...(this.logbookHref !== undefined ? { logbookHref: this.logbookHref } : {}),
     });
   }
 

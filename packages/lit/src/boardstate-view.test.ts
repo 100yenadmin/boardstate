@@ -219,3 +219,148 @@ describe("mid-drag tab-switch cancellation", () => {
     }
   });
 });
+
+describe("ephemeral pin (wave-m1)", () => {
+  it("renders the temporary badge and a Pin menu item for an ephemeral widget", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = {
+      schemaVersion: 1,
+      workspaceVersion: 1,
+      tabs: [
+        {
+          slug: "main",
+          title: "Main",
+          hidden: false,
+          widgets: [
+            {
+              id: "w1",
+              kind: "builtin:markdown",
+              title: "Answer",
+              grid: { x: 0, y: 0, w: 6, h: 2 },
+              collapsed: false,
+              ephemeral: { expiresAt: "2999-01-01T00:00:00.000Z" },
+              props: { markdown: "hi" },
+            },
+          ],
+        },
+      ],
+      widgetsRegistry: {},
+      prefs: { tabOrder: ["main"] },
+    } as never;
+    state.activeSlug = "main";
+    const container = renderView(host);
+    expect(container.querySelector('[data-test-id="dashboard-widget-ephemeral"]')).not.toBeNull();
+  });
+});
+
+describe("full-bleed layout (wave-w3)", () => {
+  it("renders the first widget full-bleed when the tab layout is full", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = {
+      schemaVersion: 1,
+      workspaceVersion: 1,
+      tabs: [
+        {
+          slug: "main",
+          title: "Main",
+          hidden: false,
+          layout: "full",
+          widgets: [
+            {
+              id: "w1",
+              kind: "builtin:markdown",
+              title: "Report",
+              grid: { x: 0, y: 0, w: 12, h: 8 },
+              collapsed: false,
+              props: { markdown: "hi" },
+            },
+          ],
+        },
+      ],
+      widgetsRegistry: {},
+      prefs: { tabOrder: ["main"] },
+    } as never;
+    state.activeSlug = "main";
+    const container = renderView(host);
+    expect(container.querySelector('[data-test-id="dashboard-fullbleed"]')).not.toBeNull();
+    expect(container.querySelector('[data-test-id="dashboard-grid"]')).toBeNull();
+  });
+});
+
+describe("private tab + grouping (wave-w4)", () => {
+  it("marks a private tab and groups tabs by authoring actor", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = {
+      schemaVersion: 1,
+      workspaceVersion: 1,
+      tabs: [
+        { slug: "mine", title: "Mine", hidden: false, createdBy: "user", widgets: [] },
+        {
+          slug: "agentic",
+          title: "Agentic",
+          hidden: false,
+          visibility: "private",
+          createdBy: "agent:bot",
+          widgets: [],
+        },
+      ],
+      widgetsRegistry: {},
+      prefs: { tabOrder: ["mine", "agentic"] },
+    } as never;
+    state.activeSlug = "mine";
+    const container = renderView(host);
+    expect(container.querySelector('[data-test-id="dashboard-tab-private"]')).not.toBeNull();
+    expect(
+      container.querySelectorAll('[data-test-id="dashboard-tab-group"]').length,
+    ).toBeGreaterThan(1);
+  });
+});
+
+describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
+  it("opens the history panel from the toggle", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc;
+    state.activeSlug = "main";
+    const container = document.createElement("div");
+    const transport = stubTransport();
+    render(renderBoardstateView(baseProps(host, { transport, connected: true })), container);
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-history-toggle"]')
+      ?.click();
+    render(renderBoardstateView(baseProps(host, { transport, connected: true })), container);
+    expect(container.querySelector('[data-test-id="dashboard-history"]')).not.toBeNull();
+    stopDashboard(host);
+  });
+
+  it("opens the widget gallery from the toggle", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc;
+    state.activeSlug = "main";
+    const container = document.createElement("div");
+    render(renderBoardstateView(baseProps(host)), container);
+    container.querySelector<HTMLButtonElement>('[data-test-id="dashboard-gallery-open"]')?.click();
+    render(renderBoardstateView(baseProps(host)), container);
+    expect(container.querySelector('[data-test-id="dashboard-gallery"]')).not.toBeNull();
+  });
+
+  it("exposes the export/import distribution controls", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc;
+    state.activeSlug = "main";
+    const container = renderView(host);
+    expect(container.querySelector('[data-test-id="dashboard-export"]')).not.toBeNull();
+    expect(container.querySelector('[data-test-id="dashboard-import-input"]')).not.toBeNull();
+  });
+});

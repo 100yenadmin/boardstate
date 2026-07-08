@@ -14,6 +14,7 @@ import { html, type TemplateResult } from "lit";
 import { AsyncDirective } from "lit/async-directive.js";
 import { directive } from "lit/directive.js";
 import {
+  createWidgetStateAccessor,
   isRpcMethodAllowed,
   isStreamEventAllowed,
   mountCustomWidget,
@@ -22,11 +23,15 @@ import {
   widgetAssetUrl,
   type ClientBinding,
 } from "@boardstate/host";
-import type {
-  DashboardBinding,
-  DashboardWidget,
-  Transport,
-  WidgetManifestView,
+import {
+  nextSubscriberId,
+  publish as busPublish,
+  subscribe as busSubscribe,
+  unsubscribeAll as busUnsubscribeAll,
+  type DashboardBinding,
+  type DashboardWidget,
+  type Transport,
+  type WidgetManifestView,
 } from "@boardstate/core";
 
 export type CustomWidgetHostContext = {
@@ -35,6 +40,13 @@ export type CustomWidgetHostContext = {
   basePath: string;
   /** Session key for prompt dispatch via chat.send. */
   sessionKey: string;
+  /**
+   * Slug of the tab this widget belongs to. The pub/sub broker keys delivery off
+   * this HOST-tracked value (never anything in a child message), so a widget can
+   * only ever reach same-tab peers and cannot spoof its way onto another tab.
+   * Defaults to a single implicit tab when the host omits it.
+   */
+  tabSlug?: string;
   /** Operator confirm dialog quoting the prompt text; resolves true to send. */
   confirmPrompt?: (text: string) => Promise<boolean> | boolean;
   /** Read theme tokens; defaults to computed styles of the document root. */
@@ -56,8 +68,36 @@ function attachWidgetBridge(params: {
   context: CustomWidgetHostContext;
 }): () => void {
   const { iframe, widget, manifest, context } = params;
-  return mountCustomWidget(iframe, {
+  // Pub/sub identity is minted and tracked HERE, in the trusted parent: the tab
+  // slug comes from the host context and the subscriber id is a fresh opaque token
+  // the child never sees. Every broker call closes over these, so a child message
+  // can only carry an (opaque) channel + payload and can never address a tab or a
+  // peer it was not assigned to.
+  const tabSlug = context.tabSlug ?? "";
+  const subscriberId = nextSubscriberId();
+  const dispose = mountCustomWidget(iframe, {
     manifest,
+    bus: {
+      publish: (channel, payload) =>
+        busPublish({ tabSlug, channel, fromSubscriberId: subscriberId, payload }),
+      subscribe: (channel, deliver) => busSubscribe({ tabSlug, channel, subscriberId, deliver }),
+    },
+    // Widget write-back: the parent persists state under the widget's OWN tracked id
+    // (`widget.id`, host-tracked) via the shared accessor — the widgetId is never
+    // taken from a child message, so a widget can only read/write its own state.
+    // Gated behind the manifest `state:persist` capability inside the bridge.
+    getWidgetState: async () => {
+      if (!context.transport) {
+        throw new Error("Not connected.");
+      }
+      return createWidgetStateAccessor(context.transport, widget.id).get();
+    },
+    setWidgetState: async (blob) => {
+      if (!context.transport) {
+        throw new Error("Not connected.");
+      }
+      return createWidgetStateAccessor(context.transport, widget.id).set(blob);
+    },
     assertBindingAllowed: (bindingId) => {
       // Resolve-time defense-in-depth: an rpc binding may only name an allowlisted
       // method; a stream binding only an allowlisted event. Denials skip the gateway.
@@ -99,6 +139,13 @@ function attachWidgetBridge(params: {
       });
     },
   });
+  return () => {
+    dispose();
+    // Belt-and-suspenders: the bridge's dispose already unsubscribes every channel
+    // this widget held; sweep the broker by (tab, subscriberId) too so an unmounted
+    // widget can never leave a dangling delivery behind.
+    busUnsubscribeAll(tabSlug, subscriberId);
+  };
 }
 
 /**

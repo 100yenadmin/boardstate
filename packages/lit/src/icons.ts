@@ -35,6 +35,19 @@ export const icons = {
   moreHorizontal: glyph(
     svg`<circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />`,
   ),
+  externalLink: glyph(
+    svg`<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14L21 3" />`,
+  ),
+  clock: glyph(svg`<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />`),
+  puzzle: glyph(
+    svg`<path d="M4 7h3a1.5 1.5 0 1 0 3 0h3v3a1.5 1.5 0 1 1 0 3v3h-3a1.5 1.5 0 1 0-3 0H4v-3a1.5 1.5 0 1 1 0-3z" />`,
+  ),
+  maximize: glyph(
+    svg`<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />`,
+  ),
+  minimize: glyph(
+    svg`<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />`,
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;
