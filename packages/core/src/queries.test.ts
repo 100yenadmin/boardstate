@@ -10,6 +10,9 @@ import {
   visibleTabs,
 } from "./queries.js";
 
+// Relative future expiry — a hardcoded date here becomes a time-bomb the day it passes.
+const FUTURE_EXPIRY = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
 const sampleDoc = {
   schemaVersion: 1,
   workspaceVersion: 3,
@@ -74,7 +77,7 @@ describe("normalizeWorkspace", () => {
               id: "keep",
               kind: "k",
               grid: { x: 0, y: 0, w: 2, h: 2 },
-              ephemeral: { expiresAt: "2026-07-09T12:00:00Z" },
+              ephemeral: { expiresAt: FUTURE_EXPIRY },
             },
             {
               id: "drop",
@@ -86,7 +89,7 @@ describe("normalizeWorkspace", () => {
         },
       ],
     });
-    expect(ws.tabs[0]!.widgets[0]!.ephemeral).toEqual({ expiresAt: "2026-07-09T12:00:00Z" });
+    expect(ws.tabs[0]!.widgets[0]!.ephemeral).toEqual({ expiresAt: FUTURE_EXPIRY });
     expect(ws.tabs[0]!.widgets[1]!.ephemeral).toBeUndefined();
   });
 

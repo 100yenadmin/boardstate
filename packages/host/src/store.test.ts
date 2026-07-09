@@ -27,6 +27,9 @@ import {
   updateWidgetTitle,
 } from "./store.js";
 
+// Relative future expiry — a hardcoded date here becomes a time-bomb the day it passes.
+const FUTURE_EXPIRY = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
 function mockTransport(overrides: Partial<Transport> = {}): Transport {
   return {
     request: vi.fn(async () => ({})),
@@ -177,15 +180,13 @@ describe("optimistic mutations", () => {
       tabs: [
         {
           ...sampleDoc.tabs[0]!,
-          widgets: [
-            { ...sampleDoc.tabs[0]!.widgets[0]!, ephemeral: { expiresAt: "2026-07-09T12:00:00Z" } },
-          ],
+          widgets: [{ ...sampleDoc.tabs[0]!.widgets[0]!, ephemeral: { expiresAt: FUTURE_EXPIRY } }],
         },
         sampleDoc.tabs[1]!,
       ],
     });
     expect(state.workspace?.tabs[0]!.widgets[0]!.ephemeral).toEqual({
-      expiresAt: "2026-07-09T12:00:00Z",
+      expiresAt: FUTURE_EXPIRY,
     });
     const request = vi.fn(async () => ({}));
     const transport = mockTransport({ request: request as never });

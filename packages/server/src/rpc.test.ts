@@ -9,6 +9,9 @@ import { createInProcessHost, type InProcessHost, type RequestContext } from "./
 import { registerBoardstateRpc } from "./rpc.js";
 import { nodeRpcDeps } from "./node.js";
 
+// Relative future expiry — a hardcoded date here becomes a time-bomb the day it passes.
+const FUTURE_EXPIRY = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
 const CHANGE_EVENTS = [
   "boardstate.changed",
   "boardstate.presence",
@@ -226,13 +229,13 @@ describe("ephemeral widgets (living answers)", () => {
           id: "answer-1",
           kind: "builtin:markdown",
           grid: { x: 0, y: 0, w: 4, h: 2 },
-          ephemeral: { expiresAt: "2026-07-09T12:00:00Z" },
+          ephemeral: { expiresAt: FUTURE_EXPIRY },
         },
       });
       const addedWidget = added.result?.doc.tabs
         .find((tab: { slug: string }) => tab.slug === "ans")
         .widgets.find((w: { id: string }) => w.id === "answer-1");
-      expect(addedWidget.ephemeral).toEqual({ expiresAt: "2026-07-09T12:00:00Z" });
+      expect(addedWidget.ephemeral).toEqual({ expiresAt: FUTURE_EXPIRY });
 
       const pinned = await call(host, "dashboard.widget.update", {
         tab: "ans",
