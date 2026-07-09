@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/schema",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "The Boardstate workspace document schema, validators, and protocol spec",
   "type": "module",
   "license": "MIT",
