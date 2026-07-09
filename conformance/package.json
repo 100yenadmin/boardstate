@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/conformance",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "The Boardstate transport conformance suite: run it against your own host implementation",
   "type": "module",
   "license": "MIT",

@@ -1,5 +1,21 @@
 # @boardstate/agent
 
+## 0.2.0
+
+### Minor Changes
+
+- [`ff6fcf1`](https://github.com/100yenadmin/boardstate/commit/ff6fcf104979f2470c655ef213635b94a4bc0411) - `createAgentChatAgent({ selfReview: "once" })` — the self-building loop's first
+  rung (SPEC §15, M4a). After a turn that mutated the board, the runner appends ONE
+  bounded follow-up pass asking the model to call `dashboard_design_review`, fix the
+  findings it agrees with, and summarize — same token/iteration ceilings, and the
+  wire stays a single §14 turn (one `turn-start`, one terminal `turn-end`). Default
+  `"off"`.
+
+### Patch Changes
+
+- Updated dependencies [[`ff6fcf1`](https://github.com/100yenadmin/boardstate/commit/ff6fcf104979f2470c655ef213635b94a4bc0411)]:
+  - @boardstate/server@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes
