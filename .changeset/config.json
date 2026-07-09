@@ -1,9 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
-  "changelog": "@changesets/cli/changelog",
+  "changelog": ["@changesets/changelog-github", { "repo": "100yenadmin/boardstate" }],
   "commit": false,
   "fixed": [],
-  "linked": [],
+  "linked": [["@boardstate/schema", "@boardstate/core", "@boardstate/host", "@boardstate/server"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",

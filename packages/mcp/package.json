@@ -1,8 +1,23 @@
 {
   "name": "@boardstate/mcp",
   "version": "0.0.0",
+  "description": "MCP server exposing the Boardstate dashboard control plane to any AI",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/100yenadmin/boardstate#readme",
+  "bugs": "https://github.com/100yenadmin/boardstate/issues",
+  "keywords": [
+    "dashboard",
+    "agent",
+    "ai",
+    "mcp",
+    "widgets",
+    "layout-as-data",
+    "generative-ui",
+    "lit",
+    "boardstate",
+    "model-context-protocol"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

@@ -27,3 +27,25 @@ Node ≥ 22, pnpm 11. Each package also runs standalone: `pnpm --filter @boardst
 - [ ] Spec updated if any contract changed
 - [ ] A changeset (`pnpm changeset`) for anything user-visible
 - [ ] New behavior has a test that fails without the change
+
+## Releases
+
+Releases are [changesets](https://github.com/changesets/changesets)-based. Every user-visible PR
+includes a changeset (`pnpm changeset`); PRs that only touch internals, docs, or tests don't need one.
+
+We run a **weekly release train**: a maintainer merges the changesets "Version Packages" PR on
+Fridays, which cuts and publishes whatever changesets have accumulated since the last release.
+Out-of-band releases are reserved for critical fixes that can't wait for the next Friday.
+
+Boardstate is pre-1.0, so versions follow 0.x semantics rather than strict semver:
+
+- **Minor** — a new capability. May include breaking changes, which must be called out explicitly in
+  the changeset.
+- **Patch** — a fix, with no capability or contract change.
+
+We'll cut **1.0** once [SPEC.md](packages/schema/SPEC.md) is declared stable and the conformance suite
+covers the full control plane.
+
+`@boardstate/schema`, `@boardstate/core`, `@boardstate/host`, and `@boardstate/server` version
+together (changesets `linked`) since they share the document/control-plane contract. `@boardstate/lit`,
+`@boardstate/react`, and `@boardstate/mcp` version independently.

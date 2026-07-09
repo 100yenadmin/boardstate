@@ -1,8 +1,23 @@
 {
   "name": "@boardstate/react",
   "version": "0.0.0",
+  "description": "Typed React wrappers for the Boardstate view",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/100yenadmin/boardstate#readme",
+  "bugs": "https://github.com/100yenadmin/boardstate/issues",
+  "keywords": [
+    "dashboard",
+    "agent",
+    "ai",
+    "mcp",
+    "widgets",
+    "layout-as-data",
+    "generative-ui",
+    "lit",
+    "boardstate",
+    "react"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

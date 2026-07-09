@@ -1,5 +1,7 @@
 # Boardstate
 
+[![CI](https://github.com/100yenadmin/boardstate/actions/workflows/ci.yml/badge.svg)](https://github.com/100yenadmin/boardstate/actions/workflows/ci.yml) [![npm version](https://img.shields.io/npm/v/@boardstate/core)](https://www.npmjs.com/package/@boardstate/core) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 > **Your dashboard is data. Any AI can build it; any human can edit it.**
 
 **[▶ Live demo](https://100yenadmin.github.io/boardstate/)** — press “Simulate agent” and watch an AI compose the board, then drag things around yourself.
@@ -144,6 +146,7 @@ The live demo's **Lang** menu switches all 20 at runtime.
 - **[docs/design-review.md](docs/design-review.md)** — the agent workflow for reviewing and refining a layout it built.
 - **[templates/](templates)** — workspace templates (Agent HQ, the all-15-builtins Showcase, small-business, OSS-maintainer), starter custom widgets — including **twenty48**, a sandboxed game you can install from the demo's gallery, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
 - **[docs/demo-script.md](docs/demo-script.md)** — the acceptance walkthrough: a scripted Do/Observe tour proving every feature, for maintainers and PR reviewers.
+- **[GitHub Discussions](https://github.com/100yenadmin/boardstate/discussions)** — questions, ideas, show-and-tell.
 
 ## Status
 
