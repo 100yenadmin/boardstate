@@ -1,5 +1,23 @@
 # @boardstate/server
 
+## 0.2.0
+
+### Minor Changes
+
+- [`b21993e`](https://github.com/100yenadmin/boardstate/commit/b21993ea67d274297ccb8d1f17f3ef1596bceecf) - Add `createDashboardCoreTools` to the browser-safe root entry: the full
+  `dashboard_*` mutation tool set minus the node-only tools (widget scaffolding to
+  disk, file-binding data reads), needing only a store + broadcast. Previously the
+  entire tool factory lived behind `@boardstate/server/node`, so a browser host
+  wiring `createAgentChatAgent({ host, provider })` handed the model ZERO tools —
+  it could chat but never touch the board. `createDashboardTools` on the node
+  entry is unchanged (same names, same behavior; scaffold/data-read now appended
+  after `dashboard_undo`).
+
+### Patch Changes
+
+- Updated dependencies [[`f86e99a`](https://github.com/100yenadmin/boardstate/commit/f86e99a8223638af4e89d24a4e1d14dfe0251f9a), [`052ee22`](https://github.com/100yenadmin/boardstate/commit/052ee223495829bc6769f0c1cff9e441f26631ca)]:
+  - @boardstate/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
