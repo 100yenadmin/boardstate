@@ -1,4 +1,4 @@
-# Boardstate Specification — v0.1 (draft)
+# Boardstate Specification — v0.2 (draft)
 
 > **Your dashboard is data. Any AI can build it; any human can edit it.**
 
@@ -153,4 +153,72 @@ The reference implementation's UI and server were originally unit-tested against
 
 Extracted from the modular-dashboard system built for OpenClaw (roadmap: openclaw/openclaw#101136) by its authors. Source branches (fork `100yenadmin/openclaw`): base `up/pr3-custom-widgets @ aa54dc0c2b`; features `write-back @ 4c5b119770` · `preview @ b23a3b2362` · `charts+sdk @ d0b8615fd0` · `sdk-docs @ b00611bf83` · `ops-widgets @ 6624e5b986` · `notes @ f6a71c1f48` · `binding-kinds @ 1717e4a5ee` · `pubsub @ 5430328c6e` · `living-answers @ e68b455066` · `time-travel @ 876d5a397d` · `apps-layer @ 0da800fcb6` · `control-hub @ 1d92fb6236` · `distribution @ c71f97aa77`.
 
-_Spec version 0.1-draft · 2026-07-08 · License: MIT_
+## 14. Chat & agent-turn protocol (v0.2)
+
+The chat surface makes "an AI drives the board while you watch" a protocol feature, not
+an app feature. The agent loop (whatever runs the model) is a **client of the control
+plane** — it composes through the same `dashboard.*` methods as every other face; this
+section only standardizes how a turn is _started_ and how its progress is _streamed_.
+
+### 14.1 Methods
+
+- `chat.send { sessionKey, message }` — start an agent turn. Returns `{ turnId }`
+  immediately; progress arrives as events (§14.2). Hosts without an agent loop MUST
+  reject with a descriptive error (clients surface it — never a silent failure).
+- `chat.history.get { sessionKey }` — returns `{ events }`, the retained event ring for
+  the session (host-defined cap, reference: 200) so a chat view survives remount.
+- `chat.abort { sessionKey, turnId }` — request cancellation; the host MUST emit
+  `abort` then `turn-end { stopReason: "aborted" }` even if provider I/O misbehaves.
+
+### 14.2 The event stream (`AgentStreamEvent`)
+
+Events broadcast in-process as `boardstate.chat.event` (one event name; payload is the
+typed event). Streamed content uses **start → delta\* → end triads keyed by stable ids**
+so concurrent blocks never collide. Every event carries `sessionKey`; all but `error`
+carry `turnId`.
+
+| Type              | Fields (beyond sessionKey/turnId)   | Notes                                               |
+| ----------------- | ----------------------------------- | --------------------------------------------------- |
+| `turn-start`      | —                                   | first event of a turn                               |
+| `text-start`      | `id`                                | opens an assistant text block                       |
+| `text-delta`      | `id, delta`                         | append-only                                         |
+| `text-end`        | `id`                                | closes the block                                    |
+| `tool-call-start` | `callId, name`                      | name = a `dashboard.*` method                       |
+| `tool-call-delta` | `callId, argsTextDelta`             | RAW partial text; UI affordance only, never parse   |
+| `tool-call-ready` | `callId, name, args`                | args parsed; execution begins                       |
+| `tool-result`     | `callId, ok, result?, error?`       | `error: { code, message, retryable }`               |
+| `usage`           | `inputTokens, outputTokens`         | cumulative within the turn                          |
+| `turn-end`        | `stopReason`                        | `end · length · aborted · max-iterations · refusal` |
+| `abort`           | —                                   | user stop; distinct from `error`                    |
+| `error`           | `turnId?, code, message, retryable` | terminal when followed by `turn-end`                |
+
+Ordering invariants (conformance-pinned): `turn-start` precedes all; every `*-start`
+has a matching `*-end` (or the turn ends `aborted`); `tool-call-ready` precedes its
+`tool-result`; exactly one `turn-end` per turn, always last.
+
+### 14.3 HTTP mirroring (SSE)
+
+HTTP hosts mirror the bus at `GET /chat/stream?sessionKey=…` as `text/event-stream`:
+named `event:` types (one per event type), `id: <turnId>:<seq>` on every event, and a
+`: heartbeat` comment at least every 30s. **v0.2 streams are non-resumable**: clients
+MUST NOT rely on `Last-Event-ID` replay — on disconnect, tear down, re-fetch history
+via `chat.history.get`, and show a reconnected state.
+
+### 14.4 Agent-loop requirements (for conforming agent hosts)
+
+A host that implements `chat.send` with a real model loop MUST: execute store-mutating
+tool calls **serially** (read-only calls MAY run in parallel); enforce a tool-iteration
+ceiling and a per-turn token ceiling, ending the turn `max-iterations`/`length` when
+hit; report provider failures as `error` events with honest `retryable` classification;
+and ensure an aborted turn cannot leave a tool call half-applied (in-flight calls
+complete or are never started — the store's serialized writes make this cheap).
+
+### 14.5 Design provenance
+
+§14 was designed against 2026 prior art (AI SDK UI-message streams, Anthropic/OpenAI
+native streaming, MCP Apps): the triads, raw tool-arg deltas, and non-resumable v0.2
+SSE are deliberate, recorded choices — rationale in `docs/ROADMAP.md`.
+
+---
+
+_Spec version 0.2-draft · 2026-07-09 · License: MIT_

@@ -81,92 +81,31 @@ tool call via `transport.request("dashboard." + name, args)`. As those calls mut
 store, the existing `boardstate.changed` broadcast re-renders the board — so **the board
 visibly builds itself while text streams**, with no new refresh plumbing.
 
-### Streaming protocol (the detail called out)
+### Streaming protocol — FROZEN as SPEC §14 (v0.2)
 
-Two hops, each with a small, explicit contract.
+The normative contract now lives in `packages/schema/SPEC.md` §14 (chat & agent-turn
+protocol): `chat.send` / `chat.history.get` / `chat.abort`, the 12-type
+`AgentStreamEvent` stream (start→delta→end triads keyed by stable ids), the
+`boardstate.chat.event` bus name, SSE mirroring rules (named events, `turnId:seq` ids,
+25–30s heartbeats, explicitly non-resumable in v0.2), and agent-loop requirements
+(writes serial / reads parallel, iteration + token ceilings, honest `retryable`
+error classification).
 
-**Hop 1 — provider → agent (normalization).** Each provider has a native SSE stream
-(Anthropic message-stream; OpenAI `chat.completions` with `stream:true`). A `ProviderAdapter`
-normalizes it into a common delta iterable so the loop is provider-agnostic:
+Design deltas vs the first draft here (researched against AI SDK v5/v6, Anthropic and
+OpenAI native streams, MCP Apps; rationale in the v2 build plan):
 
-```ts
-// @boardstate/agent
-export interface ProviderAdapter {
-  readonly id: string;                       // "anthropic" | "openai-compat"
-  streamTurn(params: {
-    messages: ChatMessage[];
-    tools: ToolSchema[];                     // the dashboard_* JSON schemas (imported from mcp)
-    signal: AbortSignal;
-  }): AsyncIterable<ProviderDelta>;
-}
-export type ProviderDelta =
-  | { kind: "text"; delta: string }
-  | { kind: "tool_call"; callId: string; name: string; args: unknown }  // name = a dashboard.* method
-  | { kind: "usage"; inputTokens: number; outputTokens: number }
-  | { kind: "stop"; reason: "tool_use" | "end" | "length" | "refusal" };
-
-export const anthropicAdapter = (o: { apiKey: string; model: string }): ProviderAdapter => …;
-// GLM/z.ai IS this, with baseUrl = the z.ai endpoint. Also covers OpenAI, Together, Ollama.
-export const openAICompatAdapter =
-  (o: { baseUrl: string; apiKey: string; model: string }): ProviderAdapter => …;
-```
-
-**Hop 2 — agent → UI (the runner + event bus).** The runner drives the tool loop and emits
-a typed event stream. Events travel over the **existing host event bus** (`broadcast` /
-`addEventListener`) as `boardstate.chat.*` events keyed by `turnId`; the `builtin:chat`
-widget subscribes. (HTTP hosts expose the same events as SSE at `/chat/stream`.)
-
-```ts
-export type AgentStreamEvent =
-  | { type: "turn-start"; turnId: string }
-  | { type: "text-delta"; turnId: string; delta: string }
-  | { type: "tool-call"; turnId: string; callId: string; name: string; args: unknown }
-  | {
-      type: "tool-result";
-      turnId: string;
-      callId: string;
-      ok: boolean;
-      result?: unknown;
-      error?: { code: string; message: string };
-    }
-  | { type: "usage"; turnId: string; inputTokens: number; outputTokens: number }
-  | { type: "turn-end"; turnId: string; stopReason: string }
-  | { type: "error"; turnId?: string; code: string; message: string };
-
-// The loop (pseudocode): feed tool results back until the model stops asking for tools.
-async function* runAgentTurn({ transport, provider, messages, tools, signal }) {
-  yield { type: "turn-start", turnId };
-  for (;;) {
-    const pending = new Map<string, { name: string; args: unknown }>();
-    for await (const d of provider.streamTurn({ messages, tools, signal })) {
-      if (d.kind === "text") yield { type: "text-delta", turnId, delta: d.delta };
-      if (d.kind === "tool_call") {
-        pending.set(d.callId, d);
-        yield { type: "tool-call", turnId, ...d };
-      }
-      if (d.kind === "usage") yield { type: "usage", turnId, ...d };
-    }
-    if (pending.size === 0) break; // model answered in prose → done
-    for (const [callId, { name, args }] of pending) {
-      // execute against the SAME control plane
-      try {
-        const result = await transport.request(`dashboard.${name}`, args, ctx);
-        messages.push(toolResultMessage(callId, result));
-        yield { type: "tool-result", turnId, callId, ok: true, result };
-      } catch (e) {
-        messages.push(toolResultMessage(callId, { error: String(e) }));
-        yield { type: "tool-result", turnId, callId, ok: false, error: normalizeError(e) };
-      }
-    }
-  }
-  yield { type: "turn-end", turnId, stopReason: "end" };
-}
-```
-
-**Backpressure / cancel:** the runner takes an `AbortSignal`; the chat widget's "stop"
-button aborts it, which aborts the provider fetch. Tool execution is **serialized** (never
-parallel writes) — the store already enforces this, but the loop must not fire the next
-provider round until the current tool results are appended.
+- **Triads, not bare deltas** — concurrent text/tool blocks can't collide.
+- **`tool-call-delta` carries RAW partial text** (Anthropic `input_json_delta` /
+  OpenAI argument fragments); adapters parse only at block end (`tool-call-ready`).
+- **Accumulate tool calls by `callId`, never array index** (documented Ollama
+  compat bug: parallel calls all arrive `index:0`; synthesize ids when missing).
+- **`formatToolResult` lives on the adapter** (Anthropic `is_error` vs OpenAI
+  text-only tool messages — no shared shape exists).
+- **Loop policy**: maxToolIterations 20 default; retries max 4 on 429/5xx/timeout
+  with expo backoff (500ms→30s) + jitter + `Retry-After`; per-turn token ceiling is
+  a REQUIRED runner param, surfaced via `usage` events.
+- **GLM/z.ai** works via openai-compat (`api.z.ai/api/paas/v4`) — an
+  Anthropic-shaped endpoint (`api.z.ai/api/anthropic`) also exists as a fallback.
 
 ### Context management (open, ~85%)
 
@@ -256,7 +195,7 @@ density/"does the first screen answer the question" into a real self-critique to
 / tools_ — the AI requests a new binding/source, the human approves. (c) **Live bindings
 hardening:** make the injected-deps contract for `rpc`/`stream` bindings first-class + doc'd
 so AI-built boards are live, not static. Spec this fully at the start of M4 (it's the least
-certain today).
+certain today). (d) **MCP Apps interop**: a thin adapter re-exposing Boardstate custom widgets as MCP Apps `ui://` resources (Claude Desktop / VS Code / Goose distribution); hosting third-party MCP-UI widgets would be a NEW opt-in widget kind, never a change to existing custom-widget invariants.
 
 ## Package changes summary
 
