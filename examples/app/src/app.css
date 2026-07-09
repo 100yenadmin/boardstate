@@ -110,6 +110,24 @@
   border-color: var(--bs-accent);
   background: var(--bs-bg-hover);
 }
+/* The self-review handle — always visible in the dock chrome, accent-tinted. */
+.review-btn {
+  border: 1px solid var(--bs-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bs-accent);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.28rem 0.6rem;
+  cursor: pointer;
+  align-self: flex-start;
+  margin: 0.3rem 0.75rem;
+}
+.review-btn:hover {
+  background: var(--bs-accent);
+  color: var(--bs-accent-foreground);
+}
 
 /* --- CORS card ----------------------------------------------------------- */
 #cors-card {

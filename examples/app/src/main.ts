@@ -249,6 +249,29 @@ function wirePromptChips(dock: HTMLElement): void {
   sync();
 }
 
+/**
+ * The self-building loop's visible handle (SPEC §15): a persistent button that asks
+ * the agent to review its own board — the real agent calls the readOnly
+ * `dashboard_design_review` tool and fixes what it agrees with; the mock agent runs
+ * the same lint via a scripted flow. Same send mechanics as the prompt chips.
+ */
+function wireReviewButton(dock: HTMLElement): void {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "review-btn";
+  button.dataset.testId = "review-improve";
+  button.textContent = "✨ Review & improve";
+  button.title = "Ask the agent to critique this board and fix what it agrees with";
+  button.addEventListener("click", () => {
+    const textarea = dock.querySelector<HTMLTextAreaElement>(".dashboard-chat__textarea");
+    const send = dock.querySelector<HTMLButtonElement>("[data-test-id='dashboard-chat-send']");
+    if (!textarea || !send) return;
+    textarea.value = "Review this board: point out design issues and fix the ones you agree with.";
+    send.click();
+  });
+  document.getElementById("chat-dock-chrome")!.appendChild(button);
+}
+
 async function main(): Promise<void> {
   wireThemeControls();
   wireLanguageControl();
@@ -338,6 +361,7 @@ async function main(): Promise<void> {
 
   wireBoardPicker(host);
   wirePromptChips(document.getElementById("chat-dock")!);
+  wireReviewButton(document.getElementById("chat-dock")!);
 
   const costMeter = createCostMeter(host, document.getElementById("cost-meter")!, SESSION_KEY);
 
@@ -360,6 +384,10 @@ async function main(): Promise<void> {
           broadcast: host.broadcast,
         }),
         systemExtras: MOCK_DATA_PROMPT,
+        // M4a: after any board-mutating turn, one bounded self-review pass — the
+        // model critiques its own board via dashboard_design_review and fixes what
+        // it agrees with, still inside the same chat turn.
+        selfReview: "once",
       });
       costMeter.setModel(model);
     },

@@ -41,6 +41,7 @@ const EXPECTED_TOOL_NAMES = [
   "boardstate_workspace_replace",
   "boardstate_widget_scaffold",
   "boardstate_undo",
+  "boardstate_design_review",
   "boardstate_data_read",
   "boardstate_widget_approve",
 ];

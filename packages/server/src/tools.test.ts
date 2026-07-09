@@ -53,11 +53,13 @@ describe("dashboard tools", () => {
         "dashboard_layout_set",
         "dashboard_workspace_replace",
         "dashboard_undo",
+        "dashboard_design_review",
         "dashboard_widget_scaffold",
         "dashboard_data_read",
       ]);
       const validSamples: Record<string, unknown> = {
         dashboard_workspace_get: {},
+        dashboard_design_review: {},
         dashboard_tab_create: { title: "Finance" },
         dashboard_tab_update: { slug: "main", hidden: true },
         dashboard_tab_delete: { slug: "old" },

@@ -12,6 +12,10 @@
 //   # Any Anthropic key:
 //   ANTHROPIC_API_KEY=... node examples/agent-smoke.mjs --anthropic
 //
+//   # Self-review (M4a): append --self-review to any mode — runs the build through
+//   # createAgentChatAgent({ selfReview: "once" }) and asserts the review pass called
+//   # dashboard_design_review within the same single chat turn.
+//
 // Keys are read from the environment and NEVER printed: output is limited to event
 // types + tool names, and a self-check refuses to print anything containing a
 // credential substring.
@@ -25,12 +29,14 @@ import {
 import {
   runAgentTurn,
   buildSystemPrompt,
+  createAgentChatAgent,
   anthropicAdapter,
   openAICompatAdapter,
 } from "../packages/agent/dist/index.js";
 import { validateWorkspaceDoc } from "../packages/schema/dist/index.js";
 
 const mode = process.argv[2] ?? "--glm-anthropic";
+const selfReview = process.argv.includes("--self-review");
 const MODEL = process.env.SMOKE_MODEL ?? (mode === "--anthropic" ? "claude-sonnet-5" : "glm-4.7");
 
 function requireEnv(name) {
@@ -107,32 +113,48 @@ const toolCalls = [];
 const controller = new AbortController();
 const timeout = setTimeout(() => controller.abort(), 240_000);
 
-say(`smoke: mode=${mode} model=${MODEL} tools=${tools.length}`);
-const result = await runAgentTurn({
-  tools,
-  provider,
-  system: buildSystemPrompt(tools),
-  userMessage:
-    "Build an 'Insights' tab (slug 'insights') with exactly three widgets: " +
-    "a stat card (props: value 42184, format 'usd', label 'Pipeline'), an area chart " +
-    "with 10 upward-trending points (kind builtin:chart, props type 'area', bindings " +
-    "value static array), and a markdown note with two bullets. Use the exact prop and " +
-    "binding shapes from your composition guide. Then stop.",
-  emit: (event) => {
-    events.push(event.type);
-    if (event.type === "tool-call-ready") {
-      toolCalls.push(event.name);
-      say(`  tool → ${event.name}`);
-    }
-    if (event.type === "tool-result") say(`  result ← ok=${event.ok}`);
-    if (event.type === "error") say(`  error: ${event.code} retryable=${event.retryable}`);
-    if (event.type === "turn-end") say(`  turn-end: ${event.stopReason}`);
-  },
-  signal: controller.signal,
-  sessionKey: "smoke",
-  turnId: "smoke-1",
-  tokenCeiling: 60_000,
-});
+say(`smoke: mode=${mode} model=${MODEL} tools=${tools.length} selfReview=${selfReview}`);
+const userMessage =
+  "Build an 'Insights' tab (slug 'insights') with exactly three widgets: " +
+  "a stat card (props: value 42184, format 'usd', label 'Pipeline'), an area chart " +
+  "with 10 upward-trending points (kind builtin:chart, props type 'area', bindings " +
+  "value static array), and a markdown note with two bullets. Use the exact prop and " +
+  "binding shapes from your composition guide. Then stop.";
+const emit = (event) => {
+  events.push(event.type);
+  if (event.type === "tool-call-ready") {
+    toolCalls.push(event.name);
+    say(`  tool → ${event.name}`);
+  }
+  if (event.type === "tool-result") say(`  result ← ok=${event.ok}`);
+  if (event.type === "error") say(`  error: ${event.code} retryable=${event.retryable}`);
+  if (event.type === "turn-end") say(`  turn-end: ${event.stopReason}`);
+};
+if (selfReview) {
+  // The M4a loop: build turn + ONE bounded review pass, a single §14 turn on the wire.
+  const chatAgent = createAgentChatAgent({
+    provider,
+    tools,
+    selfReview: "once",
+    tokenCeiling: 60_000,
+  });
+  await chatAgent(
+    { sessionKey: "smoke", message: userMessage },
+    { emit, signal: controller.signal, turnId: "smoke-1" },
+  );
+} else {
+  await runAgentTurn({
+    tools,
+    provider,
+    system: buildSystemPrompt(tools),
+    userMessage,
+    emit,
+    signal: controller.signal,
+    sessionKey: "smoke",
+    turnId: "smoke-1",
+    tokenCeiling: 60_000,
+  });
+}
 clearTimeout(timeout);
 
 const doc = (await host.request("dashboard.workspace.get")).doc;
@@ -155,7 +177,14 @@ say(
   `insights tab: ${insights ? "present" : "MISSING"} with ${widgetCount} widgets · doc valid: ${valid}`,
 );
 
-const pass =
-  created >= 1 && added >= 2 && widgetCount >= 3 && valid && events.at(-1) === "turn-end";
+let pass = created >= 1 && added >= 2 && widgetCount >= 3 && valid && events.at(-1) === "turn-end";
+if (selfReview) {
+  const reviewed = toolCalls.includes("dashboard_design_review");
+  const singleTurn =
+    events.filter((type) => type === "turn-start").length === 1 &&
+    events.filter((type) => type === "turn-end").length === 1;
+  say(`self-review: design_review called=${reviewed} · single wire turn=${singleTurn}`);
+  pass = pass && reviewed && singleTurn;
+}
 say(pass ? "SMOKE PASS" : "SMOKE FAIL");
 process.exit(pass ? 0 : 1);

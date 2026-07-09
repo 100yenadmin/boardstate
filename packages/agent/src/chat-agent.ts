@@ -25,7 +25,22 @@ export type CreateAgentChatAgentOptions = {
   tokenCeiling?: number;
   /** Tool-iteration ceiling passed to `runAgentTurn` (default 20). */
   maxToolIterations?: number;
+  /**
+   * The self-building loop (SPEC §15, M4a). `"once"` appends ONE bounded follow-up
+   * pass after any turn that mutated the board: the model is asked to call
+   * `dashboard_design_review`, fix the findings it agrees with, and summarize. Same
+   * ceilings; the wire stays ONE §14 turn (a single turn-start/turn-end pair).
+   * Default `"off"`.
+   */
+  selfReview?: "off" | "once";
 };
+
+/** The synthetic user message driving the self-review pass (never shown in the UI). */
+const SELF_REVIEW_PROMPT =
+  "Review the board you just changed: call dashboard_design_review, fix the findings " +
+  "you agree with using the dashboard tools (skip any you disagree with), then " +
+  "summarize what you changed in one short message. If nothing is worth fixing, say " +
+  "so in one sentence.";
 
 /** True for a provider-native tool-result message (Anthropic user/tool_result or OpenAI tool). */
 function isToolResultMessage(message: ProviderMessage): boolean {
@@ -102,13 +117,30 @@ export function createAgentChatAgent(options: CreateAgentChatAgentOptions): Chat
       buildSystemPrompt(tools) + (options.systemExtras ? `\n\n${options.systemExtras}` : "");
     const history = truncateHistory(histories.get(sessionKey) ?? [], tokenCeiling);
 
+    // Self-review plumbing: watch for a mutating tool call, and if a review pass may
+    // follow, hold back the first pass's `turn-end` so the wire stays ONE §14 turn.
+    const wantsReview = options.selfReview === "once";
+    const mutatingTools = new Set(tools.filter((tool) => !tool.readOnly).map((tool) => tool.name));
+    let sawMutation = false;
+    let heldTurnEnd: Parameters<ChatAgentContext["emit"]>[0] | null = null;
+    const firstEmit: ChatAgentContext["emit"] = (event) => {
+      if (event.type === "tool-call-ready" && mutatingTools.has(event.name)) {
+        sawMutation = true;
+      }
+      if (wantsReview && event.type === "turn-end") {
+        heldTurnEnd = event;
+        return;
+      }
+      ctx.emit(event);
+    };
+
     const result = await runAgentTurn({
       tools,
       provider: options.provider,
       system,
       history,
       userMessage: message,
-      emit: ctx.emit,
+      emit: firstEmit,
       signal: ctx.signal,
       sessionKey,
       turnId: ctx.turnId,
@@ -116,9 +148,46 @@ export function createAgentChatAgent(options: CreateAgentChatAgentOptions): Chat
       maxToolIterations: options.maxToolIterations,
     });
 
-    // An aborted turn can leave an assistant tool_use without its results — don't persist
-    // that partial exchange (it would break the next turn's provider history).
-    if (result.stopReason !== "aborted") {
+    const shouldReview =
+      wantsReview && sawMutation && result.stopReason === "end" && !ctx.signal.aborted;
+    if (!shouldReview) {
+      if (heldTurnEnd) {
+        ctx.emit(heldTurnEnd); // release the held terminal — the turn ends here after all
+      }
+      // An aborted turn can leave an assistant tool_use without its results — don't
+      // persist that partial exchange (it would break the next turn's provider history).
+      if (result.stopReason !== "aborted") {
+        histories.set(sessionKey, truncateHistory(result.messages, tokenCeiling));
+      }
+      return;
+    }
+
+    // The bounded review pass: max ONE extra run, same ceilings. Its `turn-start` is
+    // swallowed (the turn is already open); its `turn-end` is the turn's real terminal.
+    const reviewEmit: ChatAgentContext["emit"] = (event) => {
+      if (event.type === "turn-start") {
+        return;
+      }
+      ctx.emit(event);
+    };
+    const reviewResult = await runAgentTurn({
+      tools,
+      provider: options.provider,
+      system,
+      history: truncateHistory(result.messages, tokenCeiling),
+      userMessage: SELF_REVIEW_PROMPT,
+      emit: reviewEmit,
+      signal: ctx.signal,
+      sessionKey,
+      turnId: ctx.turnId,
+      tokenCeiling,
+      maxToolIterations: options.maxToolIterations,
+    });
+
+    if (reviewResult.stopReason !== "aborted") {
+      histories.set(sessionKey, truncateHistory(reviewResult.messages, tokenCeiling));
+    } else {
+      // Keep the completed build exchange; drop only the partial review exchange.
       histories.set(sessionKey, truncateHistory(result.messages, tokenCeiling));
     }
   };

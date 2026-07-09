@@ -72,6 +72,11 @@ exports[`@boardstate/mcp server > emits a standard JSON Schema inputSchema for e
     ],
     "type": "object",
   },
+  "boardstate_design_review": {
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object",
+  },
   "boardstate_layout_set": {
     "additionalProperties": false,
     "properties": {

@@ -6,7 +6,7 @@
 // mid-turn `chat.abort` stops the script cleanly, and the host emits the terminal
 // abort + turn-end).
 
-import type { WorkspaceDoc } from "@boardstate/core";
+import { reviewWorkspace, type WorkspaceDoc } from "@boardstate/core";
 import type { ChatAgent, ChatAgentContext, InProcessHost } from "@boardstate/server";
 
 const AGENT_ACTOR = "agent:assistant";
@@ -204,6 +204,98 @@ async function buildLiveTicker(
 }
 
 /**
+ * The scripted self-review flow (the app's "✨ Review & improve" button in keyless
+ * mode): run the SAME `reviewWorkspace` design lint the real agent reaches through
+ * `dashboard_design_review`, then fix up to three mechanical findings through real
+ * tool calls — retitle untitled charts, add a context note to a data-heavy tab,
+ * sweep leftover ephemerals — and summarize "🔍 N findings · M fixed".
+ */
+async function reviewAndImprove(
+  ctx: ChatAgentContext,
+  host: InProcessHost,
+  sessionKey: string,
+): Promise<void> {
+  await streamText(ctx, sessionKey, "Let me take a critical look at the board…");
+  if (ctx.signal.aborted) {
+    return;
+  }
+  const { doc } = (await host.request("dashboard.workspace.get")) as { doc: WorkspaceDoc };
+  const findings = reviewWorkspace(doc);
+  if (findings.length === 0) {
+    await streamText(
+      ctx,
+      sessionKey,
+      "Reviewed — no findings. The board is dense where it should be and labeled where it matters.",
+    );
+    if (!ctx.signal.aborted) {
+      ctx.emit({
+        type: "usage",
+        sessionKey,
+        turnId: ctx.turnId,
+        inputTokens: 40,
+        outputTokens: 52,
+      });
+      ctx.emit({ type: "turn-end", sessionKey, turnId: ctx.turnId, stopReason: "end" });
+    }
+    return;
+  }
+
+  let fixed = 0;
+  for (const finding of findings) {
+    if (fixed >= 3 || ctx.signal.aborted) {
+      break;
+    }
+    if (finding.code === "chart-untitled" && finding.tab && finding.widgetId) {
+      await toolCall(ctx, host, sessionKey, "dashboard.widget.update", {
+        tab: finding.tab,
+        id: finding.widgetId,
+        actor: AGENT_ACTOR,
+        patch: { title: "Trend" },
+      });
+      fixed += 1;
+    } else if (finding.code === "tab-needs-context" && finding.tab) {
+      await toolCall(ctx, host, sessionKey, "dashboard.widget.add", {
+        tab: finding.tab,
+        actor: AGENT_ACTOR,
+        widget: {
+          id: `context-note-${finding.tab}`,
+          kind: "builtin:markdown",
+          title: "About this tab",
+          grid: { x: 8, y: 0, w: 4, h: 3 },
+          props: {
+            markdown: "_What you're looking at:_ the key numbers for this view, updated live.",
+          },
+        },
+      });
+      fixed += 1;
+    } else if (finding.code === "ephemeral-leftover" && finding.tab && finding.widgetId) {
+      await toolCall(ctx, host, sessionKey, "dashboard.widget.remove", {
+        tab: finding.tab,
+        id: finding.widgetId,
+        actor: AGENT_ACTOR,
+      });
+      fixed += 1;
+    }
+  }
+  if (ctx.signal.aborted) {
+    return;
+  }
+  await streamText(
+    ctx,
+    sessionKey,
+    `🔍 ${findings.length} finding${findings.length === 1 ? "" : "s"} · ${fixed} fixed. ` +
+      (findings.length > fixed
+        ? "The rest are judgment calls I'd leave to you — ask and I'll walk through them."
+        : "The board should read better now."),
+  );
+  if (ctx.signal.aborted) {
+    return;
+  }
+  ctx.emit({ type: "usage", sessionKey, turnId: ctx.turnId, inputTokens: 128, outputTokens: 190 });
+  ctx.emit({ type: "turn-end", sessionKey, turnId: ctx.turnId, stopReason: "end" });
+}
+
+/**
  * Build a scripted demo agent over an in-process host. "build me…"-style prompts run
  * the full build (compose an Insights tab with a live chart + summary); anything else
  * gets a shorter reply and a single read (`dashboard.workspace.get`).
@@ -211,6 +303,11 @@ async function buildLiveTicker(
 export function createMockAgent(host: InProcessHost): ChatAgent {
   return async ({ sessionKey, message }, ctx) => {
     ctx.emit({ type: "turn-start", sessionKey, turnId: ctx.turnId });
+
+    if (/\breview\b|\bimprove\b|\bcritique\b/i.test(message)) {
+      await reviewAndImprove(ctx, host, sessionKey);
+      return;
+    }
 
     if (/\blive\b|\bticker\b|\bstream/i.test(message)) {
       await buildLiveTicker(ctx, host, sessionKey);

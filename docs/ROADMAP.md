@@ -186,11 +186,15 @@ server-side) and update the hosted demo to the app (BYO-key/local). Package: eit
 strictly BYO-key on the public demo — rec: public demo is BYO-key only, self-host holds
 keys); cost/rate UX; onboarding copy.
 
-### M4 — Self-building loop + capability broker _(confidence 80%, frontier — lighter spec)_
+### M4 — Self-building loop + capability broker _(M4a SHIPPED 2026-07-10; rest frontier)_
 
-Where "build itself" gets deep. (a) **Design-review as a capability:** the agent reads its
-own board back, runs the `docs/design-review.md` convention, and iterates (turn contrast/
-density/"does the first screen answer the question" into a real self-critique tool). (b)
+Where "build itself" gets deep. (a) **Design-review as a capability — ✅ SHIPPED (M4a):**
+`reviewWorkspace(doc)` (12-rule pure lint, `@boardstate/core`), the readOnly
+`dashboard_design_review` tool (browser-safe core tool set), and
+`createAgentChatAgent({ selfReview: "once" })` — one bounded review pass after a mutating
+turn, a single §14 turn on the wire (SPEC §15, informative). The app ships the
+"✨ Review & improve" button; `agent-smoke --self-review` live-verifies against GLM.
+`"loop"` (review-until-clean) stays deferred. (b)
 **Capability broker:** extend the approval-gate trust model from _widgets_ to _data sources
 / tools_ — the AI requests a new binding/source, the human approves. (c) **Live bindings
 hardening:** make the injected-deps contract for `rpc`/`stream` bindings first-class + doc'd

@@ -219,6 +219,34 @@ complete or are never started — the store's serialized writes make this cheap)
 native streaming, MCP Apps): the triads, raw tool-arg deltas, and non-resumable v0.2
 SSE are deliberate, recorded choices — rationale in `docs/ROADMAP.md`.
 
+## 15. Agent self-review (informative)
+
+The self-building loop's first rung: the board can be **reviewed by the same agent
+that composed it**, through the same control plane. Hosts MAY implement any of it;
+nothing in this section is load-bearing for conformance.
+
+- **The read model** is a pure design lint over the workspace document —
+  `reviewWorkspace(doc)` in `@boardstate/core` — returning ranked findings
+  `{ code, severity: "info" | "warn", tab?, widgetId?, message, suggestion }`. The
+  twelve v1 rule codes are exported as `WORKSPACE_REVIEW_RULES` (density, empty tab,
+  numbers-not-leading, untitled chart, source-named tabs, missing context note,
+  leftover ephemerals, oversized widget, duplicate titles, sparse chart, unbounded
+  table, orphaned registry entries). Rules are total functions: a weird-but-valid
+  document yields fewer findings, never an error.
+- **The agent's mirror** is a readOnly tool, `dashboard_design_review`, wrapping that
+  lint over the live store (`@boardstate/server`, browser-safe core tool set). It
+  returns findings + counts — advisory, never errors; the agent fixes what it agrees
+  with through the ordinary `dashboard_*` mutation tools, under the same provenance
+  and approval gates as any other write (§8, §11-I3).
+- **The loop policy** lives client-side, in the agent runner — e.g.
+  `createAgentChatAgent({ selfReview: "once" })` appends ONE bounded review pass after
+  a turn that mutated the board, within the same ceilings (§14.4), and keeps the wire
+  a single §14 turn: one `turn-start`, one terminal `turn-end`. Unbounded
+  review-until-clean loops are deliberately out of scope for v1.
+
+Findings are conventions, not contract: rule codes MAY grow; consumers MUST ignore
+codes they do not recognize.
+
 ---
 
-_Spec version 0.2-draft · 2026-07-09 · License: MIT_
+_Spec version 0.2-draft · 2026-07-10 · License: MIT_

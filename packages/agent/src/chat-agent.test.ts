@@ -107,6 +107,113 @@ describe("createAgentChatAgent", () => {
   });
 });
 
+describe("selfReview: 'once'", () => {
+  /** A mutating no-op tool plus a design-review stand-in, as a browser host would wire. */
+  function reviewFixture() {
+    const calls: string[] = [];
+    const tools = [
+      {
+        name: "dashboard_widget_add",
+        label: "Add",
+        description: "add",
+        readOnly: false,
+        parameters: { type: "object" },
+        execute: async () => {
+          calls.push("dashboard_widget_add");
+          return { ok: true };
+        },
+      },
+      {
+        name: "dashboard_design_review",
+        label: "Review",
+        description: "review",
+        readOnly: true,
+        parameters: { type: "object" },
+        execute: async () => {
+          calls.push("dashboard_design_review");
+          return { findings: [] };
+        },
+      },
+    ];
+    // Pass 1: mutate. Pass 2 (the runner re-invokes after the tool result): finish.
+    // Pass 3 (the review run): call the review tool. Pass 4: finish.
+    let pass = 0;
+    const adapter: ProviderAdapter = {
+      id: "rev",
+      async *streamTurn() {
+        pass += 1;
+        if (pass === 1) {
+          yield { kind: "tool-call-start", callId: "c1", name: "dashboard_widget_add" };
+          yield { kind: "tool-call-ready", callId: "c1", name: "dashboard_widget_add", args: {} };
+          yield { kind: "stop", reason: "tool_use" };
+          return;
+        }
+        if (pass === 3) {
+          yield { kind: "tool-call-start", callId: "c2", name: "dashboard_design_review" };
+          yield {
+            kind: "tool-call-ready",
+            callId: "c2",
+            name: "dashboard_design_review",
+            args: {},
+          };
+          yield { kind: "stop", reason: "tool_use" };
+          return;
+        }
+        yield { kind: "text-delta", id: `t${pass}`, delta: pass === 2 ? "built" : "reviewed" };
+        yield { kind: "stop", reason: "end" };
+      },
+      formatToolResult: (callId, outcome) => ({
+        role: "tool",
+        tool_call_id: callId,
+        content: JSON.stringify(outcome.value ?? null),
+      }),
+      formatAssistantTurn: (turn) => ({ role: "assistant", content: turn.text }),
+    } as ProviderAdapter;
+    return { adapter, tools, calls };
+  }
+
+  it("appends one review pass after a mutating turn, as a single §14 turn", async () => {
+    const { adapter, tools, calls } = reviewFixture();
+    const chatAgent = createAgentChatAgent({
+      provider: adapter,
+      tools: tools as never,
+      selfReview: "once",
+    });
+    const events: AgentStreamEvent[] = [];
+    await chatAgent({ sessionKey: "s1", message: "build it" }, ctx(events, "t1"));
+
+    // The review tool ran after the mutation.
+    expect(calls).toEqual(["dashboard_widget_add", "dashboard_design_review"]);
+    // Exactly ONE turn on the wire: one turn-start, one terminal turn-end.
+    expect(events.filter((e) => e.type === "turn-start")).toHaveLength(1);
+    expect(events.filter((e) => e.type === "turn-end")).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ type: "turn-end", stopReason: "end" });
+  });
+
+  it("skips the review pass when the turn made no mutating call", async () => {
+    const { adapter } = capturingProvider("just chat");
+    const readOnlyTool = {
+      name: "dashboard_workspace_get",
+      label: "Get",
+      description: "get",
+      readOnly: true,
+      parameters: { type: "object" },
+      execute: async () => ({}),
+    };
+    const chatAgent = createAgentChatAgent({
+      provider: adapter,
+      tools: [readOnlyTool] as never,
+      selfReview: "once",
+    });
+    const events: AgentStreamEvent[] = [];
+    await chatAgent({ sessionKey: "s1", message: "hi" }, ctx(events, "t1"));
+
+    // No second pass — but the held turn-end is released.
+    expect(events.filter((e) => e.type === "turn-end")).toHaveLength(1);
+    expect(events.at(-1)).toMatchObject({ type: "turn-end", stopReason: "end" });
+  });
+});
+
 describe("truncateHistory", () => {
   it("elides oldest tool-result contents while keeping dialogue", () => {
     const bigPayload = "x".repeat(4000);

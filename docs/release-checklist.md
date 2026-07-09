@@ -8,6 +8,7 @@
    anonymous-404). Re-running the release job prints "already published" — that's
    the tell it's a visibility hold, not a failed publish.
 4. **Verify provenance attestations** on one package:
+
    > ⚠️ Provenance history: the 0.2.0/0.2.1 trains published WITHOUT attestations.
    > Root causes found: (a) `NPM_CONFIG_PROVENANCE` env alone is silently ignored on
    > the changesets→pnpm publish path; (b) the `repository.url` shorthand
@@ -17,6 +18,7 @@
    > attestations, escalate to npm trusted publishing (OIDC, npm ≥11.5.1).
 
    `npm view @boardstate/core dist.attestations --userconfig /dev/null`.
+
 5. **Clean-dir install smoke**: `cd $(mktemp -d) && npm init -y && npm i @boardstate/core @boardstate/lit && node --input-type=module -e "import('@boardstate/core').then(m=>console.log(Object.keys(m).length,'exports'))"`.
 6. **Update epics/milestone** with what shipped; move the roadmap if a milestone closed.
 7. Out-of-band releases only for critical fixes (same steps).

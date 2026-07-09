@@ -22,7 +22,7 @@ import {
   type JsonValue,
   type WorkspaceDoc,
 } from "@boardstate/schema";
-import type { DashboardStore } from "@boardstate/core";
+import { reviewWorkspace, type DashboardStore } from "@boardstate/core";
 import { Type } from "typebox";
 import { toolJson, type AgentTool, type ToolContext } from "./host.js";
 
@@ -874,6 +874,29 @@ export function createDashboardCoreTools(params: DashboardCoreToolParams): Agent
         const doc = await store.undo();
         broadcastChange(broadcast, { doc, actor });
         return toolJson({ doc, workspaceVersion: doc.workspaceVersion });
+      },
+    },
+    {
+      name: "dashboard_design_review",
+      label: "Dashboard Design Review",
+      readOnly: true,
+      description:
+        "Run the design lint over the current workspace and return ranked findings " +
+        "({ code, severity, tab, widgetId, message, suggestion }) — the agent's mirror " +
+        "for reviewing and improving its own board. Fix findings you agree with via the " +
+        "dashboard_* tools; findings are advisory, not errors.",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async () => {
+        const doc = await store.read();
+        const findings = reviewWorkspace(doc);
+        return toolJson({
+          findings,
+          counts: {
+            total: findings.length,
+            warn: findings.filter((finding) => finding.severity === "warn").length,
+          },
+          workspaceVersion: doc.workspaceVersion,
+        });
       },
     },
   ];
