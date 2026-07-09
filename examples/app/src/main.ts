@@ -10,7 +10,12 @@
 // views share the transport, so chatting in the dock edits the board live.
 
 import { DashboardStore, MemoryStorageAdapter, type WorkspaceDoc } from "@boardstate/core";
-import { createChatSessions, createInProcessHost, registerBoardstateRpc } from "@boardstate/server";
+import {
+  createChatSessions,
+  createDashboardCoreTools,
+  createInProcessHost,
+  registerBoardstateRpc,
+} from "@boardstate/server";
 import type { ChatAgent } from "@boardstate/server";
 import { createAgentChatAgent } from "@boardstate/agent";
 import { createMockAgent } from "./mock-agent.js";
@@ -346,6 +351,14 @@ async function main(): Promise<void> {
       activeAgent = createAgentChatAgent({
         host,
         provider: adapter,
+        // The browser-safe dashboard_* tool set — without this the real model can
+        // chat but never touch the board (host.tools() is empty in a browser host;
+        // scaffold/file-read stay node-only behind @boardstate/server/node).
+        tools: createDashboardCoreTools({
+          store,
+          context: { agentId: "assistant" },
+          broadcast: host.broadcast,
+        }),
         systemExtras: MOCK_DATA_PROMPT,
       });
       costMeter.setModel(model);

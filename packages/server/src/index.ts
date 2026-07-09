@@ -45,6 +45,14 @@ export {
   type RegisterChatRpcOptions,
 } from "./chat.js";
 
+// The browser-safe agent tool set (store + broadcast only — no fs). Node hosts get
+// the full set (scaffold + file data reads) from `@boardstate/server/node`.
+export {
+  createDashboardCoreTools,
+  type DashboardCoreToolParams,
+  type DashboardBroadcast,
+} from "./tools.js";
+
 // Pure CLI parsers (no fs) are handy for browser tooling too.
 export {
   parseDashboardGrid,

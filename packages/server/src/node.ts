@@ -10,11 +10,7 @@ import { installWidgetBundle } from "./install.js";
 
 export * from "./index.js";
 
-export {
-  createDashboardTools,
-  type DashboardToolParams,
-  type DashboardBroadcast,
-} from "./tools.js";
+export { createDashboardTools, type DashboardToolParams } from "./tools-node.js";
 
 export {
   scaffoldDashboardWidget,

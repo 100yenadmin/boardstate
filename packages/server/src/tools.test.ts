@@ -7,7 +7,7 @@ import { Command } from "commander";
 import { Value } from "typebox/value";
 import { describe, expect, it } from "vitest";
 import { registerDashboardCli } from "./cli/index.js";
-import { createDashboardTools } from "./tools.js";
+import { createDashboardTools } from "./tools-node.js";
 
 async function withTempStateDir<T>(run: (stateDir: string) => Promise<T>): Promise<T> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-tools-"));
@@ -52,8 +52,8 @@ describe("dashboard tools", () => {
         "dashboard_widget_remove",
         "dashboard_layout_set",
         "dashboard_workspace_replace",
-        "dashboard_widget_scaffold",
         "dashboard_undo",
+        "dashboard_widget_scaffold",
         "dashboard_data_read",
       ]);
       const validSamples: Record<string, unknown> = {

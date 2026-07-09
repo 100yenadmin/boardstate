@@ -3,6 +3,10 @@
 // the tool context, commits through the shared store, and broadcasts one
 // `boardstate.changed` per write. `workspace.replace` is sanitized so an agent can
 // never self-approve a widget or forge tab provenance (SPEC §8.2).
+//
+// This module is BROWSER-SAFE: the core tool set needs only a store + broadcast.
+// The node-only tools (widget scaffolding to disk, file-binding data reads) and the
+// FsStorageAdapter default live in tools-node.ts behind `@boardstate/server/node`.
 
 import {
   isDashboardActor,
@@ -18,19 +22,16 @@ import {
   type JsonValue,
   type WorkspaceDoc,
 } from "@boardstate/schema";
-import { DashboardStore, type ResolveBindingOptions } from "@boardstate/core";
-import { FsStorageAdapter, resolveBinding } from "@boardstate/core/node";
+import type { DashboardStore } from "@boardstate/core";
 import { Type } from "typebox";
 import { toolJson, type AgentTool, type ToolContext } from "./host.js";
-import { scaffoldDashboardWidget } from "./scaffold.js";
 
 export type DashboardBroadcast = (event: string, payload: unknown) => void;
 
-export type DashboardToolParams = {
+export type DashboardCoreToolParams = {
   context?: ToolContext;
-  store?: DashboardStore;
+  store: DashboardStore;
   broadcast?: DashboardBroadcast;
-  dataRead?: ResolveBindingOptions;
 };
 
 type MutationParams = {
@@ -491,8 +492,8 @@ function toolDescription(text: string): string {
   return `${text}${TOOL_DESCRIPTION_SUFFIX}`;
 }
 
-export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
-  const store = params.store ?? new DashboardStore({ storage: new FsStorageAdapter() });
+export function createDashboardCoreTools(params: DashboardCoreToolParams): AgentTool[] {
+  const store = params.store;
   const actor = actorFromContext(params.context);
   const broadcast = params.broadcast;
   const mutationBase = {
@@ -864,45 +865,6 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
       },
     },
     {
-      name: "dashboard_widget_scaffold",
-      label: "Dashboard Widget Scaffold",
-      readOnly: false,
-      description: toolDescription(
-        "Create a custom widget scaffold. Agent-authored scaffolds enter the registry as pending.",
-      ),
-      parameters: Type.Object(
-        {
-          name: Type.String({ description: "Custom widget name, A-Z a-z 0-9 . _ - only." }),
-          title: Type.Optional(Type.String({ description: "Widget display title." })),
-        },
-        { additionalProperties: false },
-      ),
-      execute: async (_toolCallId, rawParams) => {
-        const record = readRecord(rawParams, ["name", "title"]);
-        const scaffold = await scaffoldDashboardWidget({
-          name: readRequiredString(record, "name", "name"),
-          title: readOptionalString(record, "title"),
-          stateDir: store.stateDir,
-          createdBy: actor,
-        });
-        const result = await store.mutate(
-          (draft) => {
-            draft.widgetsRegistry[scaffold.name] = {
-              status: "pending",
-              createdBy: actor,
-            };
-          },
-          { actor },
-        );
-        broadcastChange(broadcast, { doc: result.doc, actor });
-        return toolJson({
-          ...scaffold,
-          registry: result.doc.widgetsRegistry[scaffold.name],
-          workspaceVersion: result.doc.workspaceVersion,
-        });
-      },
-    },
-    {
       name: "dashboard_undo",
       label: "Dashboard Undo",
       readOnly: false,
@@ -914,17 +876,17 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
         return toolJson({ doc, workspaceVersion: doc.workspaceVersion });
       },
     },
-    {
-      name: "dashboard_data_read",
-      label: "Dashboard Data Read",
-      readOnly: true,
-      description:
-        "Resolve a dashboard binding exactly as a widget sees it. RPC bindings return binding_client_resolved.",
-      parameters: Type.Object({ binding: BindingSchema }, { additionalProperties: false }),
-      execute: async (_toolCallId, rawParams) => {
-        const record = readRecord(rawParams, ["binding"]);
-        return toolJson({ data: await resolveBinding(record.binding, params.dataRead) });
-      },
-    },
   ];
 }
+
+// Shared with tools-node.ts (the scaffold + data-read tools reuse the same param
+// readers, provenance stamping, and broadcast shape).
+export {
+  actorFromContext,
+  broadcastChange,
+  readRecord,
+  readRequiredString,
+  readOptionalString,
+  toolDescription,
+  BindingSchema,
+};
