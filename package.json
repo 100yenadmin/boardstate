@@ -12,7 +12,7 @@
     "lint": "oxlint . && prettier --check .",
     "format": "prettier --write .",
     "changeset": "changeset",
-    "release": "pnpm build && changeset publish",
+    "release": "pnpm build && pnpm -r publish --access public --provenance --no-git-checks && changeset tag",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "build:registry": "node scripts/build-registry.mjs"
   },
