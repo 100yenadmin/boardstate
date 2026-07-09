@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server exposing the Boardstate dashboard control plane to any AI",
   "type": "module",
   "license": "MIT",
