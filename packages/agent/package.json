@@ -1,0 +1,49 @@
+{
+  "name": "@boardstate/agent",
+  "version": "0.0.0",
+  "description": "The provider loop that turns any LLM into a Boardstate dashboard-building agent",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/100yenadmin/boardstate#readme",
+  "bugs": "https://github.com/100yenadmin/boardstate/issues",
+  "keywords": [
+    "dashboard",
+    "agent",
+    "ai",
+    "mcp",
+    "widgets",
+    "layout-as-data",
+    "generative-ui",
+    "lit",
+    "boardstate",
+    "anthropic",
+    "openai",
+    "llm"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/server": "workspace:*",
+    "typebox": "1.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:100yenadmin/boardstate",
+    "directory": "packages/agent"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

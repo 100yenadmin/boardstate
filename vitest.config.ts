@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 const domPackages = ["host", "lit", "react"];
-const nodePackages = ["schema", "core", "server", "mcp"];
+const nodePackages = ["schema", "core", "server", "mcp", "agent"];
 
 export default defineConfig({
   test: {

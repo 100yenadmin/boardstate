@@ -79,6 +79,10 @@ Either way, press **“simulate agent”**, and watch: a tab appears, charts bin
 
 To give an AI the tools directly:
 
+![A real Claude, connected over MCP, builds a SaaS-metrics board live — tab, stat cards, chart, highlights, table — no human hands](docs/media/mcp-demo.gif)
+
+_That's a real Claude session connected to `@boardstate/mcp` — every widget lands via a `boardstate_*` tool call ([video](docs/media/mcp-demo.mp4))._
+
 ```sh
 npx @boardstate/mcp --serve 4400    # MCP stdio server + a live host page
 ```
