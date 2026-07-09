@@ -57,6 +57,7 @@
     "directory": "packages/lit"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }

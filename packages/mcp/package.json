@@ -46,6 +46,7 @@
     "directory": "packages/mcp"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }
