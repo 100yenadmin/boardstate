@@ -1,0 +1,24 @@
+{
+  "widgets": [
+    {
+      "name": "calculator",
+      "description": "A pure, fully self-contained widget: no bindings, no capabilities, no data requests. Everything happens client-side with plain event listeners.",
+      "manifestUrl": "./calculator.bundle.json"
+    },
+    {
+      "name": "hello-data",
+      "description": "Minimal example: requests one static binding (greeting) with dashboard:getData on load, and re-renders on both the dashboard:data reply and any later dashboard:push.",
+      "manifestUrl": "./hello-data.bundle.json"
+    },
+    {
+      "name": "notes",
+      "description": "A scratchpad widget — and a deliberately honest example of the current persistence gap.",
+      "manifestUrl": "./notes.bundle.json"
+    },
+    {
+      "name": "twenty48",
+      "description": "A compact 2048 tile game showing off state:persist — best score and board survive a reload.",
+      "manifestUrl": "./twenty48.bundle.json"
+    }
+  ]
+}

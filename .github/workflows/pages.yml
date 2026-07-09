@@ -36,9 +36,21 @@ jobs:
         env:
           BASE_PATH: /boardstate/
 
+      - name: Build the reference app
+        run: pnpm --filter boardstate-example-app build
+        env:
+          BASE_PATH: /boardstate/app/
+
+      # The standalone demo is the site root; the app nests under /app/.
+      - name: Assemble the Pages site
+        run: |
+          mkdir -p site
+          cp -r examples/standalone/dist/* site/
+          cp -r examples/app/dist site/app
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: examples/standalone/dist
+          path: site
 
   deploy:
     needs: build

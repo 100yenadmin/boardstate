@@ -4,7 +4,7 @@
 
 > **Your dashboard is data. Any AI can build it; any human can edit it.**
 
-**[▶ Live demo](https://100yenadmin.github.io/boardstate/)** — press “Simulate agent” and watch an AI compose the board, then drag things around yourself.
+**[▶ Live app — plug in your key](https://100yenadmin.github.io/boardstate/app/)** — bring your own provider (GLM, Anthropic, OpenAI, Ollama, or any OpenAI-compatible endpoint) and watch the AI build your dashboard live, in your browser. Prefer no key? The **[component demo](https://100yenadmin.github.io/boardstate/)** presses “Simulate agent” and composes the board with a scripted agent — then drag things around yourself.
 
 ![An agent builds a dashboard: creates a tab, adds a chart, scaffolds a sandboxed widget, and it renders live the moment you approve it](docs/media/hero.gif)
 

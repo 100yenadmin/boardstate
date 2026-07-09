@@ -51,6 +51,34 @@ importers:
         specifier: ^4
         version: 4.1.10(@types/node@26.1.0)(happy-dom@20.10.6)(vite@7.3.6(@types/node@26.1.0))
 
+  examples/app:
+    dependencies:
+      '@boardstate/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@boardstate/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@boardstate/host':
+        specifier: workspace:*
+        version: link:../../packages/host
+      '@boardstate/lit':
+        specifier: workspace:*
+        version: link:../../packages/lit
+      '@boardstate/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@boardstate/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      lit:
+        specifier: ^3.3
+        version: 3.3.3
+    devDependencies:
+      vite:
+        specifier: ^7
+        version: 7.3.6(@types/node@26.1.0)
+
   examples/standalone:
     dependencies:
       '@boardstate/core':

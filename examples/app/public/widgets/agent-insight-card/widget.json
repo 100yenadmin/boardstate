@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "agent-insight-card",
+  "title": "Agent Insight Card",
+  "entrypoint": "index.html",
+  "bindings": [
+    {
+      "id": "value",
+      "source": "static",
+      "value": {
+        "headline": "Sandboxed & approved",
+        "detail": "An agent scaffolded this widget and it only started rendering the moment you clicked Approve.",
+        "count": 1
+      }
+    }
+  ],
+  "capabilities": ["data:read"],
+  "preferredSize": { "w": 6, "h": 4 }
+}

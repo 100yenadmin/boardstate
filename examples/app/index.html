@@ -3,23 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Boardstate — your dashboard is data. Any AI can build it.</title>
+    <title>Boardstate — plug in your AI, watch it build your dashboard</title>
     <meta
       name="description"
-      content="Agent-composable dashboards: one validated JSON document any AI can compose through tools, any human can edit with drag & drop — with agent-authored widgets running provably sandboxed."
+      content="Plug in a provider (GLM, Anthropic, OpenAI, Ollama, or any OpenAI-compatible endpoint) and watch the AI compose a live dashboard — running entirely in your browser, no server."
     />
-    <meta property="og:title" content="Boardstate — your dashboard is data. Any AI can build it." />
+    <meta
+      property="og:title"
+      content="Boardstate — plug in your AI, watch it build your dashboard"
+    />
     <meta
       property="og:description"
-      content="Press “Simulate agent” and watch an AI compose a live dashboard — then install a sandboxed game from the widget gallery."
+      content="Bring your own API key and watch an AI build a dashboard live, over the same control plane a human uses."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://100yenadmin.github.io/boardstate/" />
-    <meta
-      property="og:image"
-      content="https://raw.githubusercontent.com/100yenadmin/boardstate/main/docs/media/social-preview.png"
-    />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:url" content="https://100yenadmin.github.io/boardstate/app/" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%236c5bfa'/%3E%3Crect x='6' y='6' width='12' height='9' rx='2' fill='white'/%3E%3Crect x='20' y='6' width='6' height='20' rx='2' fill='white' opacity='.75'/%3E%3Crect x='6' y='17' width='12' height='9' rx='2' fill='white' opacity='.55'/%3E%3C/svg%3E"
@@ -44,11 +42,16 @@
       * {
         box-sizing: border-box;
       }
+      html,
+      body {
+        height: 100%;
+      }
       body {
         margin: 0;
         font-family: var(--bs-font-sans);
         color: var(--bs-text);
         background: var(--bs-bg);
+        overflow: hidden;
       }
       header {
         display: flex;
@@ -121,81 +124,16 @@
         border-color: var(--bs-accent);
         background: var(--bs-bg-hover);
       }
-      #simulate {
-        border: 0;
-        border-radius: 8px;
-        background: var(--bs-accent);
-        color: var(--bs-accent-foreground);
-        font-weight: 600;
-        font-size: 0.84rem;
-        padding: 0.5rem 0.9rem;
-        cursor: pointer;
-      }
-      #simulate:disabled {
-        opacity: 0.55;
-        cursor: default;
-      }
-      /* The guided-tour strip: numbered things to try + a live status readout. */
-      .tour {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.4rem 0.55rem;
-        padding: 0.45rem 1.25rem;
-        border-bottom: 1px solid var(--bs-border);
-        font-size: 0.8rem;
-      }
-      .tour-label {
-        font-size: 0.68rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--bs-text-muted);
-      }
-      .tour button {
-        border: 1px solid var(--bs-border);
-        border-radius: 999px;
-        background: transparent;
-        color: var(--bs-text);
-        font-family: inherit;
-        font-size: 0.76rem;
-        padding: 0.22rem 0.65rem;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .tour button:hover {
-        border-color: var(--bs-accent);
-        background: var(--bs-bg-hover);
-      }
-      .tour button b {
-        color: var(--bs-accent);
-        font-weight: 700;
-        margin-right: 0.3rem;
-      }
-      #status {
-        margin-left: auto;
-        color: var(--bs-text-muted);
-        font-size: 0.78rem;
-        min-height: 1rem;
-        text-align: right;
-      }
-      #app {
-        padding: 1rem 1.25rem;
-      }
       /* RTL languages: let each English/Arabic run keep its own direction. */
-      [dir="rtl"] header p,
-      [dir="rtl"] #status,
-      [dir="rtl"] .tour button {
+      [dir="rtl"] header p {
         unicode-bidi: plaintext;
       }
       @media (max-width: 760px) {
         .brand p {
           display: none;
         }
-        #status {
-          margin-left: 0;
-          width: 100%;
-          text-align: left;
+        body {
+          overflow: auto;
         }
       }
     </style>
@@ -211,7 +149,7 @@
         </svg>
         <div>
           <h1>Boardstate</h1>
-          <p>Your dashboard is data. Any AI can build it; any human can edit it.</p>
+          <p>Plug in your AI. Watch it build.</p>
         </div>
       </div>
       <div class="controls">
@@ -222,6 +160,8 @@
           <option value="smallbiz">Small business</option>
           <option value="maintainer">OSS maintainer</option>
         </select>
+        <span id="provider-pill" class="pill" data-state="mock" title="Provider status"></span>
+        <span id="cost-meter" hidden title="Session token usage & estimated cost"></span>
         <label for="lang">Lang</label>
         <select id="lang" title="UI language (partial translations; English fallback)">
           <option value="en">English</option>
@@ -253,13 +193,9 @@
           <option value="aurora">Aurora</option>
         </select>
         <button id="mode" class="ghost-btn" title="Toggle light / dark">🌙 Dark</button>
-        <a
-          class="ghost-btn"
-          href="./app/"
-          title="Plug in your own AI provider and watch it build your dashboard"
-        >
-          ✨ Try the full app — plug in your own AI →
-        </a>
+        <button id="provider-gear" class="ghost-btn" title="Change provider / API key">
+          ⚙️ Provider
+        </button>
         <a
           class="ghost-btn"
           href="https://github.com/100yenadmin/boardstate"
@@ -274,18 +210,23 @@
           </svg>
           GitHub
         </a>
-        <button id="simulate">🤖 Simulate agent</button>
       </div>
     </header>
-    <div class="tour">
-      <span class="tour-label">Try</span>
-      <button id="tour-simulate" type="button"><b>1</b>Simulate an agent</button>
-      <button id="tour-game" type="button"><b>2</b>Install the game</button>
-      <button id="tour-history" type="button"><b>3</b>Time-travel</button>
-      <button id="tour-drag" type="button"><b>4</b>Drag things around</button>
-      <span id="status"></span>
+    <div id="app-shell">
+      <div id="board-area"></div>
+      <div
+        id="dock-divider"
+        role="separator"
+        aria-orientation="vertical"
+        title="Drag to resize the chat"
+      ></div>
+      <div id="chat-dock">
+        <div id="chat-dock-chrome">
+          <div id="prompt-chips"></div>
+          <div id="cors-card" hidden></div>
+        </div>
+      </div>
     </div>
-    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

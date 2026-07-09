@@ -1,0 +1,261 @@
+/* App-shell chrome the reference app adds on top of @boardstate/lit: the board +
+   chat-dock split, the first-run provider hero, the header status pill / cost meter,
+   and the dock's prompt chips + CORS card. Uses the same --bs-* theme tokens the view
+   ships, so it re-themes for free with Graphite / Aurora / Vibrancy and light / dark. */
+
+/* --- header extras ------------------------------------------------------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--bs-border-strong);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--bs-text);
+  background: var(--bs-card);
+  white-space: nowrap;
+}
+.pill .pill-dot {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.pill[data-state="live"] .pill-dot {
+  color: #29c467;
+}
+.pill[data-state="mock"] {
+  color: var(--bs-text-muted);
+}
+.pill[data-state="mock"] .pill-dot {
+  color: var(--bs-text-muted);
+}
+#cost-meter {
+  font-variant-numeric: tabular-nums;
+  color: var(--bs-text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --- board / chat-dock split -------------------------------------------- */
+#app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6px var(--dock-width, 400px);
+  height: calc(100vh - var(--header-h, 56px));
+  min-height: 0;
+}
+#board-area {
+  overflow: auto;
+  padding: 1rem 1.25rem;
+  min-width: 0;
+}
+#dock-divider {
+  cursor: col-resize;
+  background: var(--bs-border);
+  transition: background 0.15s;
+}
+#dock-divider:hover,
+#dock-divider[data-dragging="true"] {
+  background: var(--bs-accent);
+}
+#chat-dock {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--bs-border);
+  background: var(--bs-card);
+  overflow: hidden;
+}
+#chat-dock-chrome {
+  padding: 0.6rem 0.75rem 0.2rem;
+  border-bottom: 1px solid var(--bs-border);
+}
+/* The dock hosts a full-bleed chat via a second <boardstate-view> pinned to the
+   hidden "assistant" tab — hide that view's page header + tab strip so only the
+   chat surface shows. */
+#chat-dock boardstate-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: block;
+}
+#chat-dock boardstate-view .dashboard-page-header,
+#chat-dock boardstate-view .dashboard-tabs {
+  display: none !important;
+}
+#chat-dock boardstate-view .dashboard,
+#chat-dock boardstate-view .dashboard__body {
+  height: 100%;
+}
+
+/* --- prompt chips -------------------------------------------------------- */
+#prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.prompt-chip {
+  border: 1px solid var(--bs-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bs-text);
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.28rem 0.6rem;
+  cursor: pointer;
+  text-align: left;
+}
+.prompt-chip:hover {
+  border-color: var(--bs-accent);
+  background: var(--bs-bg-hover);
+}
+
+/* --- CORS card ----------------------------------------------------------- */
+#cors-card {
+  margin-top: 0.5rem;
+  border: 1px solid var(--bs-border-strong);
+  border-left: 3px solid #e0654f;
+  border-radius: var(--bs-radius-md);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.78rem;
+  background: var(--bs-bg-hover);
+}
+.cors-card__title {
+  font-weight: 650;
+  margin-bottom: 0.2rem;
+}
+.cors-card__body a {
+  color: var(--bs-accent);
+}
+
+/* --- provider hero ------------------------------------------------------- */
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(6, 6, 10, 0.62);
+  backdrop-filter: blur(3px);
+}
+/* `display: grid` above would otherwise defeat the [hidden] UA style — the picker
+   close path sets `overlay.hidden = true` and must actually hide it. */
+.picker-overlay[hidden] {
+  display: none;
+}
+.picker-card {
+  width: min(420px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.4rem;
+  border: 1px solid var(--bs-border-strong);
+  border-radius: 14px;
+  background: var(--bs-card);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.picker-card__title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--bs-text-strong);
+}
+.picker-card__sub {
+  margin: 0 0 0.3rem;
+  color: var(--bs-text-muted);
+  font-size: 0.85rem;
+}
+.picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bs-text-muted);
+}
+.picker-field input,
+.picker-field select {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--bs-text);
+  background: var(--bs-bg);
+  border: 1px solid var(--bs-border-strong);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+.picker-field[data-optional="true"] input::placeholder {
+  font-style: italic;
+}
+.picker-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--bs-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+.picker-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--bs-text);
+}
+.picker-check input {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.picker-cors-hint {
+  font-size: 0.74rem;
+  color: var(--bs-text-muted);
+  line-height: 1.35;
+}
+.picker-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.picker-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  border: 1px solid var(--bs-border-strong);
+  background: var(--bs-bg);
+  color: var(--bs-text);
+}
+.picker-btn--primary {
+  border: 0;
+  background: var(--bs-accent);
+  color: var(--bs-accent-foreground);
+  flex: 1;
+}
+.picker-btn--ghost:hover {
+  border-color: var(--bs-accent);
+}
+
+@media (max-width: 720px) {
+  #app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: auto;
+  }
+  #dock-divider {
+    display: none;
+  }
+  #chat-dock {
+    border-left: 0;
+    border-top: 1px solid var(--bs-border);
+    height: 60vh;
+  }
+}

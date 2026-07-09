@@ -1,0 +1,23 @@
+{
+  "name": "boardstate-example-app",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "echo \"no tests\" && exit 0"
+  },
+  "dependencies": {
+    "lit": "^3.3",
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/core": "workspace:*",
+    "@boardstate/server": "workspace:*",
+    "@boardstate/host": "workspace:*",
+    "@boardstate/lit": "workspace:*",
+    "@boardstate/agent": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^7"
+  }
+}
