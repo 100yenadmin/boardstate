@@ -1,5 +1,14 @@
 # @boardstate/server
 
+## 0.3.0
+
+### Minor Changes
+
+- [`ff6fcf1`](https://github.com/100yenadmin/boardstate/commit/ff6fcf104979f2470c655ef213635b94a4bc0411) - `dashboard_design_review` — a readOnly agent tool in the browser-safe core set
+  wrapping `reviewWorkspace` from `@boardstate/core`: returns ranked design-lint
+  findings (`{ code, severity, tab, widgetId, message, suggestion }`) plus counts,
+  the agent's mirror for reviewing and improving its own board (SPEC §15, M4a).
+
 ## 0.2.1
 
 ### Patch Changes
