@@ -1,5 +1,19 @@
 # @boardstate/server
 
+## 0.3.1
+
+### Patch Changes
+
+- [`9636400`](https://github.com/100yenadmin/boardstate/commit/963640033e7acdec2407dced868a4b979b2db07f) - Publish flow: `pnpm -r publish --provenance` + `changeset tag` — the third and
+  loud-failing provenance attempt. `changeset publish` silently dropped provenance
+  through BOTH `NPM_CONFIG_PROVENANCE` and `publishConfig.provenance`; the explicit
+  `--provenance` flag errors when OIDC is unavailable instead of skipping, so this
+  train either carries Sigstore attestations or the release run tells us exactly
+  why not. No code changes.
+- Updated dependencies [[`9636400`](https://github.com/100yenadmin/boardstate/commit/963640033e7acdec2407dced868a4b979b2db07f)]:
+  - @boardstate/schema@0.3.1
+  - @boardstate/core@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
