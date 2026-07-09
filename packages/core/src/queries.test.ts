@@ -117,6 +117,35 @@ describe("normalizeWorkspace", () => {
     expect(ws.tabs[0]!.owner).toBe("device:a");
     expect(ws.tabs[1]!.visibility).toBeUndefined();
   });
+
+  // Regression: the normalizer once recognized only rpc/file/static, silently
+  // stripping stream and computed bindings on every client load — a stream-bound
+  // widget rendered "—" forever while the raw RPC response carried the binding.
+  it("preserves stream and computed bindings through normalization", () => {
+    const ws = normalizeWorkspace({
+      tabs: [
+        {
+          slug: "live",
+          widgets: [
+            {
+              id: "ticker",
+              kind: "builtin:stat-card",
+              grid: { x: 0, y: 0, w: 4, h: 2 },
+              bindings: {
+                rev: { source: "stream", event: "presence", pointer: "/rev" },
+                avg: { source: "computed", op: "avg", inputs: ["rev"] },
+                bogus: { source: "telepathy", event: "presence" },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const bindings = ws.tabs[0]!.widgets[0]!.bindings!;
+    expect(bindings.rev).toEqual({ source: "stream", event: "presence", pointer: "/rev" });
+    expect(bindings.avg).toEqual({ source: "computed", op: "avg", inputs: ["rev"] });
+    expect(bindings.bogus).toBeUndefined();
+  });
 });
 
 describe("groupTabsByActor", () => {

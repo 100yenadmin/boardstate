@@ -12,7 +12,7 @@ export type DashboardCreatedBy = string;
 
 export type DashboardWidgetKind = string;
 
-export type DashboardBindingSource = "rpc" | "file" | "static";
+export type DashboardBindingSource = "rpc" | "file" | "static" | "stream" | "computed";
 
 export type DashboardBinding = {
   source: DashboardBindingSource;
@@ -25,6 +25,12 @@ export type DashboardBinding = {
   params?: Record<string, unknown>;
   /** `static` bindings carry their value inline. */
   value?: unknown;
+  /** `stream` bindings name an allowlisted broadcast channel (payload via `pointer`). */
+  event?: string;
+  /** `computed` bindings derive a value from sibling bindings via a whitelisted op. */
+  op?: string;
+  inputs?: string[];
+  arg?: string;
 };
 
 export type DashboardGridRect = {

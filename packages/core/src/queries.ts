@@ -43,7 +43,13 @@ function normalizeBinding(value: unknown): DashboardBinding | null {
     return null;
   }
   const source = value.source;
-  if (source !== "rpc" && source !== "file" && source !== "static") {
+  if (
+    source !== "rpc" &&
+    source !== "file" &&
+    source !== "static" &&
+    source !== "stream" &&
+    source !== "computed"
+  ) {
     return null;
   }
   return {
@@ -53,6 +59,12 @@ function normalizeBinding(value: unknown): DashboardBinding | null {
     ...(typeof value.pointer === "string" ? { pointer: value.pointer } : {}),
     ...(isRecord(value.params) ? { params: value.params } : {}),
     ...("value" in value ? { value: value.value } : {}),
+    ...(typeof value.event === "string" ? { event: value.event } : {}),
+    ...(typeof value.op === "string" ? { op: value.op } : {}),
+    ...(Array.isArray(value.inputs)
+      ? { inputs: value.inputs.filter((input): input is string => typeof input === "string") }
+      : {}),
+    ...(typeof value.arg === "string" ? { arg: value.arg } : {}),
   };
 }
 
