@@ -1,5 +1,19 @@
 # @boardstate/mcp
 
+## 0.1.2
+
+### Patch Changes
+
+- [`49655b2`](https://github.com/100yenadmin/boardstate/commit/49655b2d9826cba377dbc1afb971b57e1fae1084) - Enable npm provenance attestations declaratively (`publishConfig.provenance`):
+  the 0.2.0 train's `NPM_CONFIG_PROVENANCE` env wiring was silently ignored by the
+  publish path, so those tarballs carry registry signatures but no Sigstore
+  attestation. The declarative flag fails loudly if OIDC is unavailable instead of
+  skipping. No code changes.
+- Updated dependencies [[`49655b2`](https://github.com/100yenadmin/boardstate/commit/49655b2d9826cba377dbc1afb971b57e1fae1084)]:
+  - @boardstate/schema@0.2.1
+  - @boardstate/core@0.2.1
+  - @boardstate/server@0.2.1
+
 ## 0.1.1
 
 ### Patch Changes
