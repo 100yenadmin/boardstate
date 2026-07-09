@@ -6,7 +6,16 @@
 
 **[▶ Live app — plug in your key](https://100yenadmin.github.io/boardstate/app/)** — bring your own provider (GLM, Anthropic, OpenAI, Ollama, or any OpenAI-compatible endpoint) and watch the AI build your dashboard live, in your browser. Prefer no key? The **[component demo](https://100yenadmin.github.io/boardstate/)** presses “Simulate agent” and composes the board with a scripted agent — then drag things around yourself.
 
+![Plug in your AI: pick a provider (or go keyless), ask for a live ticker, and the agent builds a stream-bound board that ticks on its own](docs/media/app-hero.gif)
+
+<details>
+<summary>More demos: a real Claude over MCP, and the component demo's scripted agent</summary>
+
+![A real Claude connected over MCP composes the board: tab, chart, sandboxed widget, approval](docs/media/mcp-demo.gif)
+
 ![An agent builds a dashboard: creates a tab, adds a chart, scaffolds a sandboxed widget, and it renders live the moment you approve it](docs/media/hero.gif)
+
+</details>
 
 Boardstate is a protocol and runtime for **agent-composable dashboards**. The entire dashboard — tabs, widgets, layout, data bindings, even the registry of agent-authored custom widgets — is one validated JSON document: the _board state_. An AI agent composes it through tools, a human rearranges it with drag & drop, a script edits it over RPC — **all through the same guarded control plane**, with no privileged path. Agent-authored widgets render live inside a sandbox strict enough that foreign code is safe _by construction_, behind an explicit operator approval gate.
 
