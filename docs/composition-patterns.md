@@ -13,23 +13,24 @@ Every builtin takes a `bindings.value` (any binding source — `static`, `rpc`, 
 `stream`, `computed`) unless noted. Shapes below are the `static` forms; transforms
 degrade gracefully on partial data (they never throw).
 
-| Kind                   | Use for                              | Value / props essentials                                                                               |
-| ---------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `builtin:stat-card`    | One number that matters              | `value`: number or string · `props.format`: `"usd"` \| plain · `props.metric` label                    |
-| `builtin:table`        | Rows and columns                     | rows/columns via `props` (see any template) — keep ≤ ~10 visible rows                                  |
-| `builtin:chart`        | Trends, comparisons, budgets         | `value`: number array (or labeled points) · `props.type`: `area` \| `bar` \| `line` \| `gauge`         |
-| `builtin:activity`     | Event feed                           | `value`: `{ entries: [{ ts, jobName, status, summary }] }`                                             |
-| `builtin:markdown`     | Prose, explanations, small md tables | `value`: markdown string (sanitized render)                                                            |
-| `builtin:notes`        | Operator scratch text                | `props.text` starter content                                                                           |
-| `builtin:action-form`  | The chat↔dashboard loop              | form fields in `props`; submission goes back through the control plane (see living-answers.md)         |
-| `builtin:sessions`     | Who/what is running                  | `value`: rows `{ key, label, status, hasActiveRun, updatedAt }` · `props.limit`                        |
-| `builtin:agent-status` | Agents + their goals/progress        | sessions shape + `goal: { objective, tokensUsed, tokenBudget }`                                        |
-| `builtin:usage`        | Cost/token totals                    | `value`: `{ totals: { totalCost, totalTokens }, days? }`                                               |
-| `builtin:cron`         | Scheduled jobs                       | `value`: `{ jobs: [{ id, name, enabled, state: { nextRunAtMs, lastRunStatus } }] }`                    |
-| `builtin:instances`    | Fleet presence                       | `value`: `{ presence: [{ instanceId, platform, version, lastInputSeconds }] }`                         |
-| `builtin:approvals`    | Pending widget approvals             | **ignores bindings** — reads the live registry; renders empty until something is pending               |
-| `builtin:preview`      | A live page with viewport controls   | `props.url` (+ `props.defaultViewport`) — relative/same-origin allowed; cross-origin needs host opt-in |
-| `builtin:iframe-embed` | A live page, chromeless              | `props.url` — same URL policy as preview                                                               |
+| Kind                   | Use for                              | Value / props essentials                                                                                    |
+| ---------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `builtin:stat-card`    | One number that matters              | `value`: number or string · `props.format`: `"usd"` \| plain · `props.metric` label                         |
+| `builtin:table`        | Rows and columns                     | rows/columns via `props` (see any template) — keep ≤ ~10 visible rows                                       |
+| `builtin:chart`        | Trends, comparisons, budgets         | `value`: number array (or labeled points) · `props.type`: `area` \| `bar` \| `line` \| `gauge`              |
+| `builtin:activity`     | Event feed                           | `value`: `{ entries: [{ ts, jobName, status, summary }] }`                                                  |
+| `builtin:markdown`     | Prose, explanations, small md tables | `value`: markdown string (sanitized render)                                                                 |
+| `builtin:notes`        | Operator scratch text                | `props.text` starter content                                                                                |
+| `builtin:action-form`  | The chat↔dashboard loop              | form fields in `props`; submission goes back through the control plane (see living-answers.md)              |
+| `builtin:sessions`     | Who/what is running                  | `value`: rows `{ key, label, status, hasActiveRun, updatedAt }` · `props.limit`                             |
+| `builtin:agent-status` | Agents + their goals/progress        | sessions shape + `goal: { objective, tokensUsed, tokenBudget }`                                             |
+| `builtin:usage`        | Cost/token totals                    | `value`: `{ totals: { totalCost, totalTokens }, days? }`                                                    |
+| `builtin:cron`         | Scheduled jobs                       | `value`: `{ jobs: [{ id, name, enabled, state: { nextRunAtMs, lastRunStatus } }] }`                         |
+| `builtin:instances`    | Fleet presence                       | `value`: `{ presence: [{ instanceId, platform, version, lastInputSeconds }] }`                              |
+| `builtin:approvals`    | Pending widget approvals             | **ignores bindings** — reads the live registry; renders empty until something is pending                    |
+| `builtin:preview`      | A live page with viewport controls   | `props.url` (+ `props.defaultViewport`) — relative/same-origin allowed; cross-origin needs host opt-in      |
+| `builtin:iframe-embed` | A live page, chromeless              | `props.url` — same URL policy as preview                                                                    |
+| `builtin:chat`         | Talk to the agent, watch it work     | **ignores bindings** — drives `chat.*` + renders the `AgentStreamEvent` stream (§14) · `props.placeholder?` |
 
 **[`templates/showcase.json`](../templates/showcase.json) exercises every kind above
 with working static shapes — treat it as the few-shot reference when composing.**

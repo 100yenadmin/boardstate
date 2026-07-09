@@ -31,6 +31,7 @@ import {
   type ResolveBindingOptions,
 } from "@boardstate/core";
 import { formatError, type RpcHandlerContext, type ServerHost } from "./host.js";
+import { registerChatRpc, type ChatAgent, type ChatSessions } from "./chat.js";
 import type { InstallWidgetOptions, WidgetBundleInput } from "./install.js";
 
 /**
@@ -65,6 +66,16 @@ export type RegisterBoardstateRpcOptions = {
   resolveBinding?: BindingResolver;
   /** Node widget-bundle installer; when absent, `dashboard.widget.install` errors. */
   installWidgetBundle?: WidgetBundleInstaller;
+  /**
+   * Chat session plumbing (SPEC §14). When provided, `chat.history.get` and
+   * `chat.abort` are registered; when absent, no chat method exists.
+   */
+  chat?: ChatSessions;
+  /**
+   * Agent loop backing `chat.send` (SPEC §14.1). Requires `chat`. When set, `chat.send`
+   * is registered; when absent, a host with no agent loop rejects `chat.send`.
+   */
+  chatAgent?: ChatAgent;
 };
 
 function respondError(respond: Respond, error: unknown) {
@@ -1043,4 +1054,11 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
     },
     { scope: "write" },
   );
+
+  // Chat & agent-turn protocol (SPEC §14). Only wired when a host opts in with a
+  // session store; `chat.send` is registered only when an agent loop is also provided
+  // (a host without one leaves it unregistered so the wire rejects it — §14.1).
+  if (options.chat) {
+    registerChatRpc(host, { sessions: options.chat, chatAgent: options.chatAgent });
+  }
 }

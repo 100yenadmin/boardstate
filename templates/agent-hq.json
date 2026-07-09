@@ -452,8 +452,38 @@
           }
         }
       ]
+    },
+    {
+      "slug": "assistant",
+      "title": "Assistant",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "assistant-chat",
+          "kind": "builtin:chat",
+          "title": "Assistant",
+          "grid": { "x": 0, "y": 0, "w": 8, "h": 10 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "placeholder": "Ask the agent to build you a view — try “build me an insights dashboard”"
+          }
+        },
+        {
+          "id": "assistant-about",
+          "kind": "builtin:markdown",
+          "title": "About the assistant",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 10 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## Watch an agent work\n\nSend a message and the assistant streams its turn back — text, tool calls, and results — while it edits **this same board** through the `dashboard.*` control plane.\n\nTry:\n\n- **“build me an insights dashboard”** — composes a new Insights tab with a live chart and a summary.\n- Anything else — a short reply plus a read of the current board.\n\nEvery step is a real, sandboxed control-plane call: the same document a human edits, driven by the agent."
+          }
+        }
+      ]
     }
   ],
   "widgetsRegistry": {},
-  "prefs": { "tabOrder": ["overview", "fleet", "answers", "incidents"] }
+  "prefs": { "tabOrder": ["overview", "fleet", "answers", "incidents", "assistant"] }
 }

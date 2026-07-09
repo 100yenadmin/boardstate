@@ -5,6 +5,7 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import type { AgentStreamEvent } from "@boardstate/schema";
 import {
   evaluateEmbedUrl,
   mapActivity,
@@ -21,6 +22,7 @@ import { renderActivity } from "./activity.js";
 import { renderAgentStatus } from "./agent-status.js";
 import { renderApprovals } from "./approvals.js";
 import { renderChart } from "./chart.js";
+import { renderChat } from "./chat.js";
 import { renderCron } from "./cron.js";
 import { renderIframeEmbed } from "./iframe-embed.js";
 import { renderInstances } from "./instances.js";
@@ -405,5 +407,137 @@ describe("approvals render (wave-ops)", () => {
       .querySelector<HTMLButtonElement>('[data-test-id="dashboard-approvals-approve"]')
       ?.click();
     expect(onDecide).toHaveBeenCalledWith(item, "approve");
+  });
+});
+
+describe("chat render (wave-chat)", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const S = "main";
+
+  /** A scripted chat seam whose history() replays a fixed event sequence. */
+  function scriptChat(
+    events: AgentStreamEvent[],
+    over: Partial<NonNullable<BuiltinWidgetContext["chat"]>> = {},
+  ): NonNullable<BuiltinWidgetContext["chat"]> {
+    return {
+      history: async () => events,
+      subscribe: () => () => {},
+      send: vi.fn(async () => ({ turnId: "t1" })),
+      abort: vi.fn(async () => {}),
+      ...over,
+    };
+  }
+
+  // A live turn (no turn-end) that issued three consecutive tool calls: ok, ok, fail.
+  const LIVE_TOOL_TURN: AgentStreamEvent[] = [
+    { type: "turn-start", sessionKey: S, turnId: "t1" },
+    {
+      type: "tool-call-start",
+      sessionKey: S,
+      turnId: "t1",
+      callId: "A",
+      name: "dashboard.tab.create",
+    },
+    {
+      type: "tool-call-ready",
+      sessionKey: S,
+      turnId: "t1",
+      callId: "A",
+      name: "dashboard.tab.create",
+      args: { title: "Sales" },
+    },
+    { type: "tool-result", sessionKey: S, turnId: "t1", callId: "A", ok: true },
+    {
+      type: "tool-call-start",
+      sessionKey: S,
+      turnId: "t1",
+      callId: "B",
+      name: "dashboard.workspace.get",
+    },
+    { type: "tool-result", sessionKey: S, turnId: "t1", callId: "B", ok: true },
+    {
+      type: "tool-call-start",
+      sessionKey: S,
+      turnId: "t1",
+      callId: "C",
+      name: "dashboard.widget.add",
+    },
+    {
+      type: "tool-result",
+      sessionKey: S,
+      turnId: "t1",
+      callId: "C",
+      ok: false,
+      error: { code: "x", message: "no", retryable: false },
+    },
+  ];
+
+  it("merges consecutive tool calls into one chip and shows Stop while the turn is live", async () => {
+    const container = renderToContainer(
+      renderChat(widget({ id: "chat-a", kind: "builtin:chat" }), null, {
+        ...STRICT_EMBED,
+        chat: scriptChat(LIVE_TOOL_TURN),
+      }),
+    );
+    await flush();
+    const groups = container.querySelectorAll('[data-test-id="dashboard-chat-tools"]');
+    expect(groups).toHaveLength(1);
+    expect(container.querySelector(".dashboard-chat__chip-count")?.textContent).toContain(
+      "3 actions",
+    );
+    expect(container.querySelector(".dashboard-chat__chip-marks")?.textContent).toBe("✓✓✗");
+    expect(container.querySelector('[data-test-id="dashboard-chat-stop"]')).not.toBeNull();
+  });
+
+  it("hides Stop and shows the empty hint when there is no live turn", async () => {
+    const complete: AgentStreamEvent[] = [
+      { type: "turn-start", sessionKey: S, turnId: "t1" },
+      { type: "turn-end", sessionKey: S, turnId: "t1", stopReason: "end" },
+    ];
+    const live = renderToContainer(
+      renderChat(widget({ id: "chat-b", kind: "builtin:chat" }), null, {
+        ...STRICT_EMBED,
+        chat: scriptChat(complete),
+      }),
+    );
+    await flush();
+    expect(live.querySelector('[data-test-id="dashboard-chat-stop"]')).toBeNull();
+
+    const emptyView = renderToContainer(
+      renderChat(widget({ id: "chat-c", kind: "builtin:chat" }), null, {
+        ...STRICT_EMBED,
+        chat: scriptChat([]),
+      }),
+    );
+    await flush();
+    expect(emptyView.querySelector('[data-test-id="dashboard-chat-empty"]')).not.toBeNull();
+  });
+
+  it("renders an inline approval card during a live turn and resolves it via approveWidget", async () => {
+    const approveWidget = vi.fn();
+    const container = renderToContainer(
+      renderChat(widget({ id: "chat-d", kind: "builtin:chat" }), null, {
+        ...STRICT_EMBED,
+        chat: scriptChat(LIVE_TOOL_TURN),
+        registryPending: ["sales"],
+        approveWidget,
+      }),
+    );
+    await flush();
+    const card = container.querySelector('[data-test-id="dashboard-chat-approval"]');
+    expect(card).not.toBeNull();
+    container.querySelector<HTMLButtonElement>('[data-test-id="dashboard-chat-approve"]')?.click();
+    expect(approveWidget).toHaveBeenCalledWith("sales", "approved");
+  });
+
+  it("degrades to a disabled input with a hint when no chat seam is present", () => {
+    const container = renderToContainer(
+      renderChat(widget({ id: "chat-e", kind: "builtin:chat" }), null, STRICT_EMBED),
+    );
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-test-id="dashboard-chat-textarea"]',
+    );
+    expect(textarea?.disabled).toBe(true);
+    expect(container.querySelector('[data-test-id="dashboard-chat-disconnected"]')).not.toBeNull();
   });
 });

@@ -11,7 +11,8 @@
 // navigation, which no Service Worker can intercept for an opaque-origin frame.
 
 import { DashboardStore, MemoryStorageAdapter, type WorkspaceDoc } from "@boardstate/core";
-import { createInProcessHost, registerBoardstateRpc } from "@boardstate/server";
+import { createChatSessions, createInProcessHost, registerBoardstateRpc } from "@boardstate/server";
+import { createMockAgent } from "./mock-agent.js";
 import "@boardstate/lit";
 // The view renders to light DOM, so its stylesheet (grid, cells, tokens) loads here.
 // This ships the default "Graphite" theme (light + dark) out of the box.
@@ -167,8 +168,13 @@ async function main(): Promise<void> {
   const storage = new MemoryStorageAdapter();
   const store = new DashboardStore({ storage });
   const host = createInProcessHost(store, storage);
+  // Chat & agent-turn protocol (SPEC §14): a per-session ring buffer + live broadcast,
+  // driven by a scripted demo agent that composes the board over the real control plane.
+  const chat = createChatSessions({ broadcast: host.broadcast });
   registerBoardstateRpc(host, {
     store,
+    chat,
+    chatAgent: createMockAgent(host),
     // Gallery install, browser edition. The node installer writes bundle files to
     // disk then registers the widget `pending`; here the starter widgets' files
     // are ALREADY hosted statically (public/widgets/<name>/), so installing is
@@ -188,20 +194,10 @@ async function main(): Promise<void> {
     },
   });
 
-  // The action-form / custom-widget prompt dispatch (`chat.send`) has no handler in
-  // this no-backend demo — register a stub that acks and reports what happened. A real
-  // host wires this to its chat runtime, routing the prompt to the operator's agent.
-  host.registerRpc(
-    "chat.send",
-    ({ respond }) => {
-      respond(true, { ok: true });
-      const status = document.getElementById("status");
-      if (status) {
-        status.textContent = "🤖 (demo) prompt delivered — a live host routes this to your agent.";
-      }
-    },
-    { scope: "write" },
-  );
+  // The action-form / custom-widget prompt dispatch and the `builtin:chat` widget both
+  // drive `chat.send`, now wired above to `createMockAgent` — the scripted demo agent
+  // streams its turn back over `CHAT_EVENT` and builds the board through the real
+  // control plane. A production host swaps in its own `chatAgent` (a live model loop).
 
   // Point the widget gallery at the demo's own registry (public/registry/) so
   // Browse → Install works out of the box. Only seeded when the operator hasn't

@@ -7,6 +7,25 @@
 import type { TemplateResult } from "lit";
 import type { ApprovalsWidgetSource, DashboardWidget } from "@boardstate/core";
 import type { PromptDispatchOutcome } from "@boardstate/host";
+import type { AgentStreamEvent } from "@boardstate/schema";
+
+/**
+ * The chat control-plane seam the `builtin:chat` widget drives (SPEC §14). It is the
+ * chat FACE only: it starts/aborts turns and reads the live `AgentStreamEvent`
+ * stream, and knows NOTHING about providers. The view binds all four methods to a
+ * single `sessionKey` and filters the broadcast bus to it. Present only when a live
+ * transport exists; absent renders the widget's disconnected state.
+ */
+export type BuiltinChatSeam = {
+  /** Start an agent turn (`chat.send`); resolves with the new turn's id. */
+  send(message: string): Promise<{ turnId: string }>;
+  /** Request cancellation of a live turn (`chat.abort`). */
+  abort(turnId: string): Promise<void>;
+  /** The retained event ring for this session (`chat.history.get`), for remount. */
+  history(): Promise<AgentStreamEvent[]>;
+  /** Subscribe to this session's live events; returns an unsubscribe fn. */
+  subscribe(listener: (event: AgentStreamEvent) => void): () => void;
+};
 
 /**
  * Widget-id-bound accessor for the write-back state store. The host binds both
@@ -54,6 +73,24 @@ export type BuiltinWidgetContext = {
   onActionError?: (message: string) => void;
   /** Pending-approvals slice — only the `approvals` widget consumes it. */
   approvals?: ApprovalsWidgetSource;
+  /**
+   * The chat control-plane seam — only the `chat` widget consumes it. Present only
+   * when a live transport exists; absent renders the chat widget's disconnected hint.
+   */
+  chat?: BuiltinChatSeam;
+  /**
+   * Names of `custom:` widgets currently `pending` approval, read from the live
+   * workspace registry. The `chat` widget shows an inline approval card for each
+   * during a live turn (a freshly scaffolded widget). Re-supplied on every doc
+   * change (the view re-renders builtins then), so it stays current.
+   */
+  registryPending?: string[];
+  /**
+   * Approve/reject a pending scaffolded widget by name (`dashboard.widget.approve`),
+   * driving the same write path the approvals widget uses. The `chat` widget's
+   * inline approval card consumes it; absent when there is no live transport.
+   */
+  approveWidget?: (name: string, decision: "approved" | "rejected") => void;
 };
 
 /** A builtin widget renderer: pure, side-effect-free, throws only on real bugs. */

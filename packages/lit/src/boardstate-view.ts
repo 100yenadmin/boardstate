@@ -79,6 +79,7 @@ import {
   type GalleryBundle,
   type GalleryEntry,
 } from "@boardstate/host";
+import { CHAT_EVENT, type AgentStreamEvent } from "@boardstate/schema";
 import {
   renderWidgetBody,
   renderWidgetCell,
@@ -949,11 +950,61 @@ function buildBuiltinContext(
       workspace,
       (name, decision) => void approveWidget(state, transport, { name, decision }),
     ),
+    // The chat builtin's inline approval card reads the live pending set (re-supplied
+    // on every doc change) and resolves through the same approve path.
+    registryPending: pendingWidgetNames(workspace),
   };
   if (transport) {
     context.state = createBuiltinStateAccessor(transport, widget.id);
+    context.chat = makeBuiltinChatSeam(transport, props.sessionKey ?? "main");
+    context.approveWidget = (name, decision) =>
+      void approveWidget(state, transport, { name, decision });
   }
   return context;
+}
+
+/** Names of `custom:` widgets currently `pending` approval (chat inline approval card). */
+function pendingWidgetNames(workspace: DashboardWorkspace): string[] {
+  return Object.entries(workspace.widgetsRegistry)
+    .filter(([, entry]) => entry.status === "pending")
+    .map(([name]) => name);
+}
+
+/**
+ * Build the `builtin:chat` control-plane seam (SPEC §14): all four `chat.*` methods
+ * bound to a single `sessionKey`, with the broadcast bus (`CHAT_EVENT`) and the
+ * history ring filtered to that key. The renderer knows nothing about providers —
+ * this seam is the whole coupling to the control plane.
+ */
+function makeBuiltinChatSeam(
+  transport: Transport,
+  sessionKey: string,
+): NonNullable<BuiltinWidgetContext["chat"]> {
+  const belongsToSession = (event: AgentStreamEvent): boolean => event.sessionKey === sessionKey;
+  return {
+    send: async (message) => {
+      const result = (await transport.request("chat.send", { sessionKey, message })) as {
+        turnId: string;
+      };
+      return { turnId: result.turnId };
+    },
+    abort: async (turnId) => {
+      await transport.request("chat.abort", { sessionKey, turnId });
+    },
+    history: async () => {
+      const result = (await transport.request("chat.history.get", { sessionKey })) as {
+        events?: AgentStreamEvent[];
+      };
+      return (result.events ?? []).filter(belongsToSession);
+    },
+    subscribe: (listener) =>
+      transport.addEventListener(CHAT_EVENT, (payload: unknown) => {
+        const event = payload as AgentStreamEvent;
+        if (event && belongsToSession(event)) {
+          listener(event);
+        }
+      }),
+  };
 }
 
 /** Widget-id-bound write-back accessor over the transport (notes builtin). */

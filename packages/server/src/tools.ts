@@ -506,6 +506,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
       label: "Dashboard Workspace Get",
       description:
         "Read the full dashboard workspace document so an agent can diff before mutating it.",
+      readOnly: true,
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async () => {
         const doc = await store.read();
@@ -515,6 +516,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_tab_create",
       label: "Dashboard Tab Create",
+      readOnly: false,
       description: toolDescription(
         "Create a dashboard tab. Slugs are lowercase letters, digits, and dashes, max 40 chars.",
       ),
@@ -559,6 +561,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_tab_update",
       label: "Dashboard Tab Update",
+      readOnly: false,
       description: toolDescription("Update a dashboard tab title, icon, hidden state, or layout."),
       parameters: Type.Object(
         {
@@ -598,6 +601,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_tab_delete",
       label: "Dashboard Tab Delete",
+      readOnly: false,
       description: toolDescription("Delete a dashboard tab and all widgets inside it."),
       parameters: Type.Object(
         { slug: Type.String({ description: "Tab slug." }) },
@@ -623,6 +627,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_tabs_reorder",
       label: "Dashboard Tabs Reorder",
+      readOnly: false,
       description: toolDescription("Set dashboard tab order. Missing existing tabs are appended."),
       parameters: Type.Object(
         { order: Type.Array(Type.String({ description: "Tab slug." })) },
@@ -649,6 +654,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_widget_add",
       label: "Dashboard Widget Add",
+      readOnly: false,
       description: toolDescription(
         "Add a widget to a tab. Grid x+w must fit within the 12-column dashboard grid.",
       ),
@@ -687,6 +693,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_widget_update",
       label: "Dashboard Widget Update",
+      readOnly: false,
       description: toolDescription("Patch a widget title, grid, visibility, bindings, or props."),
       parameters: Type.Object(
         {
@@ -723,6 +730,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_widget_move",
       label: "Dashboard Widget Move",
+      readOnly: false,
       description: toolDescription(
         "Move a widget by changing its grid or moving it to another tab.",
       ),
@@ -776,6 +784,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_widget_remove",
       label: "Dashboard Widget Remove",
+      readOnly: false,
       description: toolDescription("Remove a widget from a tab."),
       parameters: Type.Object(
         {
@@ -805,6 +814,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_layout_set",
       label: "Dashboard Layout Set",
+      readOnly: false,
       description: toolDescription("Batch-update widget grids for one tab."),
       parameters: Type.Object(
         {
@@ -837,6 +847,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_workspace_replace",
       label: "Dashboard Workspace Replace",
+      readOnly: false,
       description: toolDescription(
         "Replace the full workspace document after local validation and size/schema caps.",
       ),
@@ -855,6 +866,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_widget_scaffold",
       label: "Dashboard Widget Scaffold",
+      readOnly: false,
       description: toolDescription(
         "Create a custom widget scaffold. Agent-authored scaffolds enter the registry as pending.",
       ),
@@ -893,6 +905,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_undo",
       label: "Dashboard Undo",
+      readOnly: false,
       description: "Restore the newest dashboard undo snapshot.",
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async () => {
@@ -904,6 +917,7 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
     {
       name: "dashboard_data_read",
       label: "Dashboard Data Read",
+      readOnly: true,
       description:
         "Resolve a dashboard binding exactly as a widget sees it. RPC bindings return binding_client_resolved.",
       parameters: Type.Object({ binding: BindingSchema }, { additionalProperties: false }),

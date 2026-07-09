@@ -24,7 +24,7 @@ export type {
   InProcessHost,
   CreateInProcessHostOptions,
 } from "./host.js";
-export { createInProcessHost, formatError, toolJson } from "./host.js";
+export { createInProcessHost, formatError, toolJson, agentToolToJsonSchema } from "./host.js";
 
 export {
   registerBoardstateRpc,
@@ -32,6 +32,18 @@ export {
   type WidgetBundleInstaller,
   type BindingResolver,
 } from "./rpc.js";
+
+// Chat & agent-turn protocol plumbing (SPEC §14) — browser-safe.
+export {
+  createChatSessions,
+  registerChatRpc,
+  type ChatSessions,
+  type CreateChatSessionsOptions,
+  type ChatEmitter,
+  type ChatAgent,
+  type ChatAgentContext,
+  type RegisterChatRpcOptions,
+} from "./chat.js";
 
 // Pure CLI parsers (no fs) are handy for browser tooling too.
 export {

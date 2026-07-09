@@ -22,6 +22,7 @@ import {
 import { DashboardStore, type StorageAdapter } from "@boardstate/core";
 import { FsStorageAdapter } from "@boardstate/core/node";
 import {
+  agentToolToJsonSchema,
   createDashboardTools,
   createInProcessHost,
   nodeRpcDeps,
@@ -72,7 +73,9 @@ function toAgentToolName(mcpName: string): string {
     : mcpName;
 }
 
-/** Strip typebox symbol keys so the emitted `inputSchema` is plain JSON Schema. */
+/** Strip typebox symbol keys so a plain-object schema emits as plain JSON Schema. The
+ *  agent-tool schemas use the shared `agentToolToJsonSchema` util; this local strip
+ *  only covers the non-tool APPROVE schema below. */
 function toJsonSchema(schema: unknown): Record<string, unknown> {
   return JSON.parse(JSON.stringify(schema ?? {})) as Record<string, unknown>;
 }
@@ -137,11 +140,14 @@ export function createBoardstateMcpServer(
     createDashboardTools({ store, context: { agentId }, broadcast: host.broadcast });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools = buildTools(clientAgentId()).map((tool) => ({
-      name: toMcpToolName(tool.name),
-      description: tool.description,
-      inputSchema: toJsonSchema(tool.parameters),
-    }));
+    const tools = buildTools(clientAgentId()).map((tool) => {
+      const schema = agentToolToJsonSchema(tool);
+      return {
+        name: toMcpToolName(schema.name),
+        description: schema.description,
+        inputSchema: schema.inputSchema,
+      };
+    });
     tools.push({
       name: APPROVE_TOOL_NAME,
       description:

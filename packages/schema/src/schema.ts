@@ -92,7 +92,7 @@ const TAB_VISIBILITY_VALUES = new Set<DashboardTabVisibility>(["shared", "privat
 const TAB_OWNER_PATTERN = /^[A-Za-z0-9:._-]{1,128}$/;
 const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
 const BUILTIN_KIND_PATTERN =
-  /^builtin:(stat-card|markdown|table|iframe-embed|sessions|usage|cron|instances|activity|chart|notes|action-form|preview|agent-status|approvals)$/;
+  /^builtin:(stat-card|markdown|table|iframe-embed|sessions|usage|cron|instances|activity|chart|notes|action-form|preview|agent-status|approvals|chat)$/;
 const CUSTOM_KIND_PATTERN = /^custom:[A-Za-z0-9._-]{1,64}$/;
 const CUSTOM_WIDGET_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 const BINDING_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;

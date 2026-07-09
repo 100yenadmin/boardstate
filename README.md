@@ -60,7 +60,7 @@ sequenceDiagram
 | [`@boardstate/core`](packages/core)      | Headless runtime: store, bindings, grid math, export/import, pub/sub, history       |
 | [`@boardstate/server`](packages/server)  | The `dashboard.*` control plane, agent tools, widget serving, CLI                   |
 | [`@boardstate/host`](packages/host)      | Framework-free DOM host: sandbox mount, postMessage bridge, client store            |
-| [`@boardstate/lit`](packages/lit)        | The reference view — `<boardstate-view>` and 15 builtin widgets, as custom elements |
+| [`@boardstate/lit`](packages/lit)        | The reference view — `<boardstate-view>` and 16 builtin widgets, as custom elements |
 | [`@boardstate/react`](packages/react)    | Typed React wrappers over the custom elements                                       |
 | [`@boardstate/mcp`](packages/mcp)        | MCP server: give any AI the full dashboard tool set                                 |
 | [`@boardstate/conformance`](conformance) | The transport conformance suite — run it against _your_ host                        |
@@ -144,7 +144,7 @@ The live demo's **Lang** menu switches all 20 at runtime.
 - **[docs/authoring.md](docs/authoring.md)** — write a widget (builtin renderer or sandboxed custom).
 - **[docs/living-answers.md](docs/living-answers.md)** — the agent convention: answer visual questions with live widgets, not prose.
 - **[docs/design-review.md](docs/design-review.md)** — the agent workflow for reviewing and refining a layout it built.
-- **[templates/](templates)** — workspace templates (Agent HQ, the all-15-builtins Showcase, small-business, OSS-maintainer), starter custom widgets — including **twenty48**, a sandboxed game you can install from the demo's gallery, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
+- **[templates/](templates)** — workspace templates (Agent HQ, the all-builtins Showcase, small-business, OSS-maintainer), starter custom widgets — including **twenty48**, a sandboxed game you can install from the demo's gallery, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
 - **[docs/demo-script.md](docs/demo-script.md)** — the acceptance walkthrough: a scripted Do/Observe tour proving every feature, for maintainers and PR reviewers.
 - **[GitHub Discussions](https://github.com/100yenadmin/boardstate/discussions)** — questions, ideas, show-and-tell.
 

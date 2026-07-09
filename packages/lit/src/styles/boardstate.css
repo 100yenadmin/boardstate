@@ -1161,6 +1161,240 @@ select.bs-dialog__input {
   margin-inline-start: auto;
 }
 
+/* --- chat widget (wave-chat) — control-plane chat face (SPEC §14) --------- */
+.dashboard-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.dashboard-chat__scroll {
+  flex: 1 1 auto;
+  min-height: 96px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-inline-end: 2px;
+}
+.dashboard-chat__empty {
+  margin: auto;
+  padding: 12px;
+  text-align: center;
+  color: var(--bs-text-muted);
+  font-size: 13px;
+}
+.dashboard-chat__turn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dashboard-chat__role {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bs-text-dim);
+}
+.dashboard-chat__turn--user .dashboard-chat__role {
+  color: var(--bs-accent);
+}
+.dashboard-chat__text {
+  color: var(--bs-text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.dashboard-chat__text pre {
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--bs-bg-muted);
+  border: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius-sm);
+  font-family: var(--bs-font-mono);
+  font-size: 12px;
+}
+.dashboard-chat__error {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--bs-radius-sm);
+  background: var(--bs-danger-subtle);
+  color: var(--bs-danger);
+  font-size: 12px;
+}
+.dashboard-chat__error-retry {
+  color: var(--bs-text-muted);
+  font-style: italic;
+}
+/* Tool-call group chip: a run of consecutive calls, collapsed by default. */
+.dashboard-chat__tools {
+  border: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-card-highlight);
+}
+.dashboard-chat__chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--bs-text-muted);
+  list-style: none;
+}
+.dashboard-chat__chip::-webkit-details-marker {
+  display: none;
+}
+.dashboard-chat__chip-count {
+  color: var(--bs-text);
+}
+.dashboard-chat__chip-sep {
+  color: var(--bs-text-dim);
+}
+.dashboard-chat__chip-marks {
+  font-family: var(--bs-font-mono);
+  letter-spacing: 1px;
+}
+.dashboard-chat__tool-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+.dashboard-chat__tool-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--bs-text);
+}
+.dashboard-chat__tool-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dashboard-chat__tool-mark {
+  font-family: var(--bs-font-mono);
+}
+.dashboard-chat__tool-row[data-status="ok"] .dashboard-chat__tool-mark {
+  color: var(--bs-success);
+}
+.dashboard-chat__tool-row[data-status="error"] .dashboard-chat__tool-mark {
+  color: var(--bs-danger);
+}
+.dashboard-chat__tool-row[data-status="cancelled"] {
+  opacity: 0.55;
+}
+.dashboard-chat__tool-detail summary {
+  cursor: pointer;
+  color: var(--bs-text-dim);
+  font-size: 11px;
+}
+.dashboard-chat__tool-detail pre {
+  margin: 4px 0 0;
+  padding: 6px;
+  overflow-x: auto;
+  background: var(--bs-bg-muted);
+  border-radius: var(--bs-radius-sm);
+  font-family: var(--bs-font-mono);
+  font-size: 11px;
+}
+.dashboard-chat__tool-row--building {
+  flex-direction: row;
+  align-items: center;
+  color: var(--bs-text-muted);
+}
+.dashboard-chat__tool-note {
+  font-style: italic;
+  color: var(--bs-text-dim);
+}
+.dashboard-chat__shimmer {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--bs-radius-full);
+  background: linear-gradient(
+    90deg,
+    var(--bs-bg-muted),
+    var(--bs-border-strong),
+    var(--bs-bg-muted)
+  );
+  background-size: 200% 100%;
+  animation: dashboard-chat-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes dashboard-chat-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-chat__shimmer {
+    animation: none;
+  }
+}
+/* Inline "the agent scaffolded a widget" approval card. */
+.dashboard-chat__approval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--bs-border-strong);
+  border-radius: var(--bs-radius-md);
+  background: var(--bs-card-highlight);
+}
+.dashboard-chat__approval-title {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--bs-text);
+}
+.dashboard-chat__approval-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.dashboard-chat__jump {
+  align-self: center;
+  padding: 3px 12px;
+  border: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius-full);
+  background: var(--bs-card);
+  color: var(--bs-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--bs-shadow-md);
+}
+.dashboard-chat__input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dashboard-chat__textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 42px;
+  padding: 8px;
+  font: inherit;
+  color: var(--bs-text);
+  background: var(--bs-input);
+  border: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius-sm);
+}
+.dashboard-chat__input-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.dashboard-chat__hint {
+  font-size: 12px;
+  color: var(--bs-text-muted);
+}
+
 /* --- ephemeral (temporary) widget badge (wave-m1) ------------------------ */
 .dashboard-widget__ephemeral {
   display: inline-flex;

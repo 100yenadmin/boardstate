@@ -14,7 +14,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { Transport } from "@boardstate/core";
-import { validateWorkspaceDoc, type WorkspaceDoc } from "@boardstate/schema";
+import {
+  CHAT_EVENT,
+  validateWorkspaceDoc,
+  type AgentStreamEvent,
+  type WorkspaceDoc,
+} from "@boardstate/schema";
 import {
   customWidgetClaimingApprovedDoc as customWidgetClaimingApproved,
   oneTabDoc as oneTab,
@@ -48,6 +53,12 @@ export interface TransportConformanceOptions {
   extensions?: { widgetState?: boolean; history?: boolean };
   /** Operator-scoped transports for the §11-I6 history-visibility assertion. */
   operators?: () => Promise<OperatorHarness>;
+  /**
+   * Opt-in chat & agent-turn protocol assertions (SPEC §14). Requires the transport
+   * to register `chat.send` (a host with an agent loop). Absent ⇒ skipped, so a host
+   * with no agent loop is not forced to implement one.
+   */
+  chat?: boolean;
 }
 
 type Envelope = { doc: WorkspaceDoc; workspaceVersion: number };
@@ -74,6 +85,85 @@ async function rejectsWithCode(promise: Promise<unknown>, code: string): Promise
   }
   expect(error, `expected a rejection with code ${code}`).toBeInstanceOf(Error);
   expect((error as { code?: string }).code).toBe(code);
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Drive one chat turn over a transport: subscribe to `CHAT_EVENT`, `chat.send`, and
+ * collect this session's events until `turn-end` (or a safety timeout). When `abort`
+ * is set, fire `chat.abort` immediately after `chat.send` to exercise mid-turn cancel.
+ */
+async function collectChatTurn(
+  transport: Transport,
+  sessionKey: string,
+  message: string,
+  opts: { abort?: boolean } = {},
+): Promise<AgentStreamEvent[]> {
+  const events: AgentStreamEvent[] = [];
+  let resolveDone: () => void = () => {};
+  const done = new Promise<void>((resolve) => {
+    resolveDone = resolve;
+  });
+  const unsubscribe = transport.addEventListener(CHAT_EVENT, (payload) => {
+    const event = payload as AgentStreamEvent;
+    if (event.sessionKey !== sessionKey) {
+      return;
+    }
+    events.push(event);
+    if (event.type === "turn-end") {
+      resolveDone();
+    }
+  });
+  try {
+    const { turnId } = (await transport.request("chat.send", { sessionKey, message })) as {
+      turnId: string;
+    };
+    if (opts.abort) {
+      await transport.request("chat.abort", { sessionKey, turnId });
+    }
+    await Promise.race([done, sleep(3000)]);
+  } finally {
+    unsubscribe();
+  }
+  return events;
+}
+
+/** Every text block is a matched start → delta* → end triad (open blocks allowed only on abort). */
+function assertTextTriads(events: AgentStreamEvent[], aborted: boolean): void {
+  const open = new Set<string>();
+  for (const event of events) {
+    if (event.type === "text-start") {
+      expect(open.has(event.id), "duplicate text-start id").toBe(false);
+      open.add(event.id);
+    } else if (event.type === "text-delta") {
+      expect(open.has(event.id), "text-delta outside its block").toBe(true);
+    } else if (event.type === "text-end") {
+      expect(open.has(event.id), "text-end without a start").toBe(true);
+      open.delete(event.id);
+    }
+  }
+  if (!aborted) {
+    expect(open.size, "unmatched text-start on a non-aborted turn").toBe(0);
+  }
+}
+
+/** `tool-call-ready` precedes its `tool-result`; every result names a started+ready call. */
+function assertToolOrdering(events: AgentStreamEvent[]): void {
+  const started = new Set<string>();
+  const ready = new Set<string>();
+  for (const event of events) {
+    if (event.type === "tool-call-start") {
+      started.add(event.callId);
+    } else if (event.type === "tool-call-delta") {
+      expect(started.has(event.callId), "tool-call-delta before its start").toBe(true);
+    } else if (event.type === "tool-call-ready") {
+      expect(started.has(event.callId), "tool-call-ready before its start").toBe(true);
+      ready.add(event.callId);
+    } else if (event.type === "tool-result") {
+      expect(ready.has(event.callId), "tool-result before its tool-call-ready").toBe(true);
+    }
+  }
 }
 
 export function runTransportConformance(
@@ -363,6 +453,62 @@ export function runTransportConformance(
           }
         });
       }
+    }
+
+    if (opts.chat) {
+      it("§14 turn stream: turn-start first, triads matched, tool-call-ready before its tool-result, one turn-end last", async () => {
+        await withTransport(async (transport) => {
+          const sessionKey = "conformance-chat";
+          const events = await collectChatTurn(transport, sessionKey, "build me a dashboard");
+
+          expect(events.length, "no chat events streamed").toBeGreaterThan(0);
+          expect(events[0]!.type, "turn-start must be first").toBe("turn-start");
+
+          const ends = events.filter((event) => event.type === "turn-end");
+          expect(ends, "exactly one turn-end").toHaveLength(1);
+          expect(events.at(-1)!.type, "turn-end must be last").toBe("turn-end");
+
+          assertTextTriads(events, false);
+          assertToolOrdering(events);
+
+          // A real read tool call rode the turn (SPEC §14: names are dashboard.* methods).
+          expect(
+            events.some(
+              (event) => event.type === "tool-call-ready" && event.name.startsWith("dashboard."),
+            ),
+            "expected at least one dashboard.* tool call in the turn",
+          ).toBe(true);
+
+          // history mirrors the stream so a remounted chat view survives (SPEC §14.1).
+          const history = (await transport.request("chat.history.get", { sessionKey })) as {
+            events: AgentStreamEvent[];
+          };
+          expect(history.events.some((event) => event.type === "turn-end")).toBe(true);
+        });
+      });
+
+      it("§14 abort: chat.abort mid-turn yields abort then a single terminal turn-end{aborted}", async () => {
+        await withTransport(async (transport) => {
+          const events = await collectChatTurn(transport, "conformance-abort", "build me a board", {
+            abort: true,
+          });
+
+          const ends = events.filter((event) => event.type === "turn-end");
+          expect(ends, "exactly one turn-end after abort").toHaveLength(1);
+          const last = events.at(-1)!;
+          expect(last.type, "turn-end must be last after abort").toBe("turn-end");
+          expect(last.type === "turn-end" && last.stopReason).toBe("aborted");
+          expect(
+            events.some((event) => event.type === "abort"),
+            "an abort event must precede the aborted turn-end",
+          ).toBe(true);
+
+          // An abort may leave a text block open — that is the ONE exception the triad
+          // invariant allows (SPEC §14.2).
+          assertTextTriads(events, true);
+          assertToolOrdering(events);
+        });
+      });
     }
   });
 }

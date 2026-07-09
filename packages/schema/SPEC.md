@@ -40,7 +40,7 @@ Top level (unknown keys MUST be rejected):
 
 ### 3.1 Widget kinds
 
-`builtin:<name>` where `<name>` ∈ the host's builtin registry (reference set: `stat-card`, `markdown`, `table`, `iframe-embed`, `sessions`, `usage`, `cron`, `instances`, `activity`, `chart`, `notes`, `action-form`, `preview`, `agent-status`, `approvals`), or `custom:<name>` where `<name>` is a `widgetsRegistry` key. A UI MUST NOT instantiate a `custom:` widget whose registry status is not `approved` (§8, §11-I3).
+`builtin:<name>` where `<name>` ∈ the host's builtin registry (reference set: `stat-card`, `markdown`, `table`, `iframe-embed`, `sessions`, `usage`, `cron`, `instances`, `activity`, `chart`, `notes`, `action-form`, `preview`, `agent-status`, `approvals`, `chat`), or `custom:<name>` where `<name>` is a `widgetsRegistry` key. A UI MUST NOT instantiate a `custom:` widget whose registry status is not `approved` (§8, §11-I3).
 
 ### 3.2 Size limits
 

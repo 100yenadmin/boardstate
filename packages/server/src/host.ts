@@ -44,6 +44,12 @@ export type AgentTool = {
   label: string;
   description: string;
   parameters: TSchema;
+  /**
+   * True for tools that only read (never mutate the store) — a hint a host may use to
+   * run reads in parallel while serializing writes (SPEC §14.4). Absent ⇒ treat as a
+   * mutation (fail-safe).
+   */
+  readOnly?: boolean;
   execute: (toolCallId: string, params: unknown) => AgentToolResult | Promise<AgentToolResult>;
 };
 
@@ -84,6 +90,24 @@ export function formatError(error: unknown): string {
 /** Wrap a JSON-serializable value as an agent-tool result. */
 export function toolJson(details: unknown): AgentToolResult {
   return { details };
+}
+
+/**
+ * The JSON-Schema view of an agent tool: `{ name, description, inputSchema }` with the
+ * typebox symbol keys stripped so `inputSchema` is plain JSON Schema — the exact shape
+ * a JSON-Schema tool host (e.g. the MCP server) advertises. Shared so consumers need
+ * not re-derive the strip.
+ */
+export function agentToolToJsonSchema(tool: AgentTool): {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+} {
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: JSON.parse(JSON.stringify(tool.parameters ?? {})) as Record<string, unknown>,
+  };
 }
 
 type RegisteredRpc = { handler: RpcHandler; scope: RpcScope };

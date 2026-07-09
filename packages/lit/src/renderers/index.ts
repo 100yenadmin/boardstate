@@ -7,6 +7,7 @@ import { renderActivity } from "./activity.js";
 import { renderAgentStatus } from "./agent-status.js";
 import { renderApprovals } from "./approvals.js";
 import { renderChart } from "./chart.js";
+import { renderChat } from "./chat.js";
 import { renderCron } from "./cron.js";
 import { renderIframeEmbed } from "./iframe-embed.js";
 import { renderInstances } from "./instances.js";
@@ -35,6 +36,7 @@ export const BUILTIN_WIDGET_RENDERERS: Record<string, BuiltinWidgetRenderer> = {
   "action-form": renderActionForm,
   "agent-status": (widget, value) => renderAgentStatus(widget, value),
   approvals: renderApprovals,
+  chat: renderChat,
 };
 
 export function getBuiltinRenderer(kind: string): BuiltinWidgetRenderer | undefined {
@@ -48,6 +50,7 @@ export {
   renderAgentStatus,
   renderApprovals,
   renderChart,
+  renderChat,
   renderCron,
   renderIframeEmbed,
   renderInstances,
