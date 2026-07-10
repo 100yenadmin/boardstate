@@ -2,6 +2,7 @@
 // Keys are the bare kind (`builtin:<name>` with the prefix stripped). Adding a
 // builtin = add a renderer module + one entry here.
 
+import { renderActionButton } from "./action-button.js";
 import { renderActionForm } from "./action-form.js";
 import { renderActivity } from "./activity.js";
 import { renderAgentStatus } from "./agent-status.js";
@@ -34,6 +35,7 @@ export const BUILTIN_WIDGET_RENDERERS: Record<string, BuiltinWidgetRenderer> = {
   chart: (widget, value) => renderChart(widget, value),
   notes: renderNotes,
   "action-form": renderActionForm,
+  "action-button": renderActionButton,
   "agent-status": (widget, value) => renderAgentStatus(widget, value),
   approvals: renderApprovals,
   chat: renderChat,
@@ -45,6 +47,7 @@ export function getBuiltinRenderer(kind: string): BuiltinWidgetRenderer | undefi
 }
 
 export {
+  renderActionButton,
   renderActionForm,
   renderActivity,
   renderAgentStatus,

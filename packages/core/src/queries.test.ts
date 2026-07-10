@@ -146,6 +146,42 @@ describe("normalizeWorkspace", () => {
     expect(bindings.avg).toEqual({ source: "computed", op: "avg", inputs: ["rev"] });
     expect(bindings.bogus).toBeUndefined();
   });
+
+  // #45 real-load-path regression (the stream-binding lesson): the normalizer must
+  // carry an `mcp` read binding's connector/tool/args + pointer intact, or a
+  // broker-bound widget silently loses its wiring before the host ever resolves it.
+  it("preserves an mcp read binding's fields through normalization", () => {
+    const ws = normalizeWorkspace({
+      tabs: [
+        {
+          slug: "live",
+          widgets: [
+            {
+              id: "q3",
+              kind: "builtin:table",
+              grid: { x: 0, y: 0, w: 6, h: 4 },
+              bindings: {
+                rows: {
+                  source: "mcp",
+                  connector: "officecli",
+                  tool: "workbook_query",
+                  args: { sheet: "Q3" },
+                  pointer: "/rows",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(ws.tabs[0]!.widgets[0]!.bindings!.rows).toEqual({
+      source: "mcp",
+      connector: "officecli",
+      tool: "workbook_query",
+      args: { sheet: "Q3" },
+      pointer: "/rows",
+    });
+  });
 });
 
 describe("groupTabsByActor", () => {

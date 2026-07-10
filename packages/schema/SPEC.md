@@ -368,6 +368,12 @@ status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. The eng
   networked transport. `dashboard.action.invoke` is NOT operator-only — any client may invoke, but a
   networked client can directly EXECUTE only `readOnly` granted tools; anything consequential PARKS
   and goes through the confirm gate.
+- **Pure-read verb (normative).** `source:"mcp"` bindings resolve through `dashboard.connector.read`,
+  NOT `dashboard.action.invoke`. `connector.read` AND-gates identically but REFUSES a non-`readOnly`
+  tool outright (`not_readonly`) — it NEVER parks. This is required because a binding re-resolves on
+  every refresh: routing a read through `action.invoke` would park a pending mutation into the operator
+  queue on each refresh (queue spam, and an operator confirm would then fire it). A read has no side
+  effect.
 - **External text is DATA.** Tool descriptions and results are rendered inert — never
   re-interpolated into control-plane verbs, never able to mutate the board outside gated
   verbs.

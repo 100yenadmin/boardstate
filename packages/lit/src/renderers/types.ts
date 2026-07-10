@@ -7,7 +7,49 @@
 import type { TemplateResult } from "lit";
 import type { ApprovalsWidgetSource, DashboardWidget } from "@boardstate/core";
 import type { PromptDispatchOutcome } from "@boardstate/host";
-import type { AgentStreamEvent } from "@boardstate/schema";
+import type { AgentStreamEvent, JsonValue } from "@boardstate/schema";
+
+/**
+ * Outcome of a `dashboard.action.invoke` (SPEC §18): a `readOnly` granted tool
+ * executes directly and returns its `result`; a mutation is PARKED as an
+ * operator-confirmed pending action (`pending`, carrying the id + TTL) — never
+ * auto-executed. The engine re-checks the grant + manifest hash at invoke time, so a
+ * revoked-between-validate-and-invoke tool rejects (the promise rejects, not this union).
+ */
+export type ActionInvokeOutcome =
+  { kind: "result"; result: unknown } | { kind: "pending"; id: string; expiresAt: string };
+
+/** A pending-action lifecycle change (`dashboard.action.changed`, SPEC §18). */
+export type ActionChange = {
+  id: string;
+  status: "pending" | "confirmed" | "denied" | "expired";
+  connector: string;
+  tool: string;
+};
+
+/**
+ * The action seam the `builtin:action-button` and tool-mode `builtin:action-form`
+ * widgets drive (SPEC §17 v2 / §18). `invoke` any client may call (a mutation only
+ * PARKS); `confirm`/`deny` are OPERATOR-ONLY and present ONLY over an operator
+ * transport — absent over a networked transport, where the widget renders the confirm
+ * affordance disabled-with-reason (the server also enforces this: invariant #5).
+ */
+export type BuiltinActionsSeam = {
+  invoke(params: {
+    connector: string;
+    tool: string;
+    args?: Record<string, JsonValue>;
+  }): Promise<ActionInvokeOutcome>;
+  /**
+   * Confirm a parked action (`dashboard.action.confirm`) and resolve with the executed
+   * tool's `result`; operator transport only.
+   */
+  confirm?: (id: string) => Promise<{ result: unknown }>;
+  /** Deny a parked action (`dashboard.action.deny`); operator transport only. */
+  deny?: (id: string) => Promise<void>;
+  /** Subscribe to pending-action lifecycle changes; returns an unsubscribe fn. */
+  subscribe(listener: (change: ActionChange) => void): () => void;
+};
 
 /**
  * The chat control-plane seam the `builtin:chat` widget drives (SPEC §14). It is the
@@ -73,6 +115,13 @@ export type BuiltinWidgetContext = {
   onActionError?: (message: string) => void;
   /** Pending-approvals slice — only the `approvals` widget consumes it. */
   approvals?: ApprovalsWidgetSource;
+  /**
+   * External-tool action seam (SPEC §17 v2 / §18) — the `action-button` and tool-mode
+   * `action-form` widgets consume it. Present only when a live transport exists; absent
+   * renders those widgets' disconnected/inert state. `confirm`/`deny` are present only
+   * over an operator transport (see {@link BuiltinActionsSeam}).
+   */
+  actions?: BuiltinActionsSeam;
   /**
    * The chat control-plane seam — only the `chat` widget consumes it. Present only
    * when a live transport exists; absent renders the chat widget's disconnected hint.
