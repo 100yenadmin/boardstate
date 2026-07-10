@@ -156,6 +156,9 @@ export function createInProcessHost(
     if (!subscribers) {
       return;
     }
+    // Snapshot before dispatch: a listener may (un)subscribe during broadcast, and
+    // this event must reach exactly the set registered when it fired.
+    // oxlint-disable-next-line no-useless-spread
     for (const fn of [...subscribers]) {
       fn(payload);
     }

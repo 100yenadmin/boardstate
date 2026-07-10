@@ -110,11 +110,11 @@ export function toSanitizedMarkdownHtml(source: string): string {
 
   for (let i = 0; i < rawLines.length; i += 1) {
     const line = rawLines[i]!;
-    if (/^```/.test(line)) {
+    if (line.startsWith("```")) {
       flushParagraph();
       const fence: string[] = [];
       i += 1;
-      while (i < rawLines.length && !/^```/.test(rawLines[i]!)) {
+      while (i < rawLines.length && !rawLines[i]!.startsWith("```")) {
         fence.push(rawLines[i]!);
         i += 1;
       }

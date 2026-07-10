@@ -338,7 +338,7 @@ describe("private-tab visibility (control-hub)", () => {
       });
 
       const asA = await call(host, "dashboard.workspace.get", {}, { operatorId: "operator-a" });
-      const slugsForA = (asA.result?.doc.tabs as Array<{ slug: string }>).map((t) => t.slug);
+      const slugsForA = (asA.result!.doc.tabs as Array<{ slug: string }>).map((t) => t.slug);
       expect(slugsForA).toContain("secrets");
       expect(slugsForA).toContain("team");
 
@@ -354,7 +354,7 @@ describe("private-tab visibility (control-hub)", () => {
 
       // Unidentified operator (no context) is fail-closed out of the private tab.
       const anon = await call(host, "dashboard.workspace.get", {});
-      expect((anon.result?.doc.tabs as Array<{ slug: string }>).map((t) => t.slug)).not.toContain(
+      expect((anon.result!.doc.tabs as Array<{ slug: string }>).map((t) => t.slug)).not.toContain(
         "secrets",
       );
     });
@@ -381,7 +381,7 @@ describe("private-tab visibility (control-hub)", () => {
         { operatorId: "operator-b" },
       );
       expect(snap.ok, JSON.stringify(snap.error)).toBe(true);
-      expect((snap.result?.doc.tabs as Array<{ slug: string }>).map((t) => t.slug)).not.toContain(
+      expect((snap.result!.doc.tabs as Array<{ slug: string }>).map((t) => t.slug)).not.toContain(
         "secrets",
       );
       expect(JSON.stringify(snap.result)).not.toContain("secrets");
