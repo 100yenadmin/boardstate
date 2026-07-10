@@ -1,5 +1,12 @@
 # @boardstate/conformance
 
+## 0.1.13
+
+### Patch Changes
+
+- Updated dependencies [[`ed04514`](https://github.com/100yenadmin/boardstate/commit/ed045143d925ba7a6479c8e969ee7e4beb0cc0f9)]:
+  - @boardstate/server@1.4.0
+
 ## 0.1.12
 
 ### Patch Changes
