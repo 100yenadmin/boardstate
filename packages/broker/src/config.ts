@@ -141,6 +141,14 @@ function parseConnector(raw: unknown, index: number): ConnectorConfig {
       ) {
         throw new BrokerConfigError(`connector "${name}": headers must be a string map`);
       }
+      // Header CONTRACT (intentionally looser than `env`): a value may be a plain
+      // literal (e.g. `Content-Type`) OR contain `${ENV}` refs that `resolveHeaderValue`
+      // interpolates from process env at connect time. SECRETS (bearer tokens, api keys)
+      // MUST use `${ENV}` refs — the blessed presets do, and the connector docs teach it —
+      // but we deliberately do NOT run a literal-secret detector here (unreliable, and
+      // header values never leave the node side, so this is best-practice, not an
+      // invariant gate). Do not "tighten" this into env-style ref-only: it would reject
+      // legitimate literal headers.
       config.headers = raw.headers as Record<string, string>;
     }
   }

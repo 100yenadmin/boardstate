@@ -79,6 +79,30 @@ importers:
         specifier: ^7
         version: 7.3.6(@types/node@26.1.0)
 
+  examples/operational-demo:
+    dependencies:
+      '@boardstate/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@boardstate/broker':
+        specifier: workspace:*
+        version: link:../../packages/broker
+      '@boardstate/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@boardstate/lit':
+        specifier: workspace:*
+        version: link:../../packages/lit
+      '@boardstate/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@boardstate/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+
   examples/standalone:
     dependencies:
       '@boardstate/core':
@@ -125,9 +149,15 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
     devDependencies:
+      '@boardstate/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@boardstate/core':
         specifier: workspace:*
         version: link:../core
+      '@boardstate/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/core:
     dependencies:

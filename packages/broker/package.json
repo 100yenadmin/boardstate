@@ -35,7 +35,9 @@
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
-    "@boardstate/core": "workspace:*"
+    "@boardstate/agent": "workspace:*",
+    "@boardstate/core": "workspace:*",
+    "@boardstate/schema": "workspace:*"
   },
   "repository": {
     "type": "git",
