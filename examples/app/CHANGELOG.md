@@ -1,5 +1,17 @@
 # boardstate-example-app
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`af1df09`](https://github.com/100yenadmin/boardstate/commit/af1df09e17e36d597243a0fe78121e6cf5c9cf17)]:
+  - @boardstate/schema@1.0.0
+  - @boardstate/core@1.0.0
+  - @boardstate/server@1.0.0
+  - @boardstate/agent@0.2.6
+  - @boardstate/host@1.0.0
+  - @boardstate/lit@0.2.1
+
 ## 0.0.9
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/react",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Typed React wrappers for the Boardstate view",
   "type": "module",
   "license": "MIT",
