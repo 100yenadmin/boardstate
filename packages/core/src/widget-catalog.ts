@@ -11,7 +11,9 @@
 // `value`). Every `example` here is validated against the schema in a unit test, so a
 // copied example always mounts non-empty.
 
-import type { DashboardWidget } from "./types.js";
+// The examples type against the SCHEMA's widget shape (it carries `hidden`, which the
+// write-path validator requires); core's own read-model widget type is narrower.
+import type { DashboardWidget } from "@boardstate/schema";
 
 export type WidgetCatalogBinding = {
   /** Binding key on `widget.bindings` (e.g. "value", "rows", "content"). */
