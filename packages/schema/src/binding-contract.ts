@@ -19,6 +19,10 @@ export const DATA_READ_RPC_ALLOWLIST = [
   "cron.list",
   "cron.status",
   "cron.runs",
+  // First-party broker read (SPEC §18): the operator-authored connector roster +
+  // per-connector broker status. Read-only; the broker itself is host-side and
+  // never enters a browser bundle.
+  "dashboard.connector.list",
 ] as const;
 
 // Allowlisted gateway broadcast channels a `stream` binding may subscribe to.

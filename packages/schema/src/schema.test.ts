@@ -344,4 +344,233 @@ describe("builtin:action-form props", () => {
     props.fields[0]!.maxLength = 5000;
     expect(() => validateWorkspaceDoc(withActionForm(props))).toThrow("maxLength");
   });
+
+  it("accepts tool mode with connector + tool + argsFrom", () => {
+    const props = {
+      ...validProps(),
+      mode: "tool",
+      connector: "linear",
+      tool: "create_issue",
+      argsFrom: { title: "service", env: "env" },
+    };
+    const validated = validateWorkspaceDoc(withActionForm(props));
+    expect(validated.tabs[0]!.widgets.find((w) => w.id === "action-1")?.props).toMatchObject({
+      mode: "tool",
+      connector: "linear",
+    });
+  });
+
+  it("rejects an invalid mode value", () => {
+    const props = { ...validProps(), mode: "webhook" };
+    expect(() => validateWorkspaceDoc(withActionForm(props))).toThrow(
+      'mode must be "prompt" or "tool"',
+    );
+  });
+
+  it("rejects tool-only keys outside tool mode (prompt mode stays clean)", () => {
+    const props = { ...validProps(), connector: "linear" };
+    expect(() => validateWorkspaceDoc(withActionForm(props))).toThrow(
+      'connector is only allowed when mode is "tool"',
+    );
+  });
+
+  it("rejects tool mode missing its connector", () => {
+    const props = { ...validProps(), mode: "tool", tool: "create_issue" };
+    expect(() => validateWorkspaceDoc(withActionForm(props))).toThrow("connector must be a string");
+  });
+
+  it("rejects argsFrom targeting an undeclared field", () => {
+    const props = {
+      ...validProps(),
+      mode: "tool",
+      connector: "linear",
+      tool: "create_issue",
+      argsFrom: { title: "nope" },
+    };
+    expect(() => validateWorkspaceDoc(withActionForm(props))).toThrow(
+      "argsFrom references unknown field: nope",
+    );
+  });
+});
+
+describe("builtin:action-button props", () => {
+  function withButton(props: unknown): WorkspaceDoc {
+    const doc = validDoc();
+    doc.tabs[0]!.widgets.push({
+      id: "btn-1",
+      kind: "builtin:action-button",
+      grid: { x: 0, y: 40, w: 3, h: 2 },
+      collapsed: false,
+      hidden: false,
+      props: props as never,
+    });
+    return doc;
+  }
+
+  it("accepts a well-formed action-button", () => {
+    const validated = validateWorkspaceDoc(
+      withButton({
+        connector: "officecli",
+        tool: "restart_service",
+        args: { svc: "x" },
+        label: "Go",
+      }),
+    );
+    expect(validated.tabs[0]!.widgets.find((w) => w.id === "btn-1")?.kind).toBe(
+      "builtin:action-button",
+    );
+  });
+
+  it("accepts an action-button with no args or label", () => {
+    expect(() =>
+      validateWorkspaceDoc(withButton({ connector: "officecli", tool: "restart_service" })),
+    ).not.toThrow();
+  });
+
+  it("rejects an invalid connector name", () => {
+    expect(() =>
+      validateWorkspaceDoc(withButton({ connector: "bad connector", tool: "t" })),
+    ).toThrow("connector is invalid");
+  });
+
+  it("rejects an invalid tool name", () => {
+    expect(() =>
+      validateWorkspaceDoc(withButton({ connector: "officecli", tool: "has:colon" })),
+    ).toThrow("tool is invalid");
+  });
+
+  it("rejects a non-object args value", () => {
+    expect(() =>
+      validateWorkspaceDoc(withButton({ connector: "officecli", tool: "t", args: [1, 2] })),
+    ).toThrow("args must be an object");
+  });
+
+  it("rejects an over-length label", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withButton({ connector: "officecli", tool: "t", label: "x".repeat(41) }),
+      ),
+    ).toThrow("label must be 1-40 characters");
+  });
+
+  it("rejects an unknown props key", () => {
+    expect(() =>
+      validateWorkspaceDoc(withButton({ connector: "officecli", tool: "t", url: "http://x" })),
+    ).toThrow("url is not allowed");
+  });
+});
+
+describe("mcp bindings (SPEC §18, shape only)", () => {
+  function withBinding(binding: unknown): WorkspaceDoc {
+    const doc = validDoc();
+    doc.tabs[0]!.widgets[0]!.bindings = { data: binding as never };
+    return doc;
+  }
+
+  it("accepts a well-formed mcp binding with args", () => {
+    const validated = validateWorkspaceDoc(
+      withBinding({
+        source: "mcp",
+        connector: "pipedream",
+        tool: "list_rows",
+        args: { limit: 10 },
+      }),
+    );
+    expect(validated.tabs[0]!.widgets[0]!.bindings!.data).toEqual({
+      source: "mcp",
+      connector: "pipedream",
+      tool: "list_rows",
+      args: { limit: 10 },
+    });
+  });
+
+  it("accepts an mcp binding without args", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withBinding({ source: "mcp", connector: "pipedream", tool: "list_rows" }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects an invalid connector", () => {
+    expect(() =>
+      validateWorkspaceDoc(withBinding({ source: "mcp", connector: "bad name", tool: "t" })),
+    ).toThrow("connector is invalid");
+  });
+
+  it("rejects an unknown key", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withBinding({ source: "mcp", connector: "c", tool: "t", secret: "leak" }),
+      ),
+    ).toThrow("secret is not allowed");
+  });
+
+  it("rejects a non-object args", () => {
+    expect(() =>
+      validateWorkspaceDoc(withBinding({ source: "mcp", connector: "c", tool: "t", args: "x" })),
+    ).toThrow("args must be an object");
+  });
+});
+
+describe("capability grant tool grants (SPEC §17 v2)", () => {
+  function withGrant(grant: unknown): WorkspaceDoc {
+    const doc = validDoc();
+    doc.capabilitiesRegistry = { officecli: grant as never };
+    return doc;
+  }
+
+  it("accepts a grant with namespaced tool ids + toolsHash", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({
+        status: "requested",
+        methods: [],
+        streams: [],
+        tools: ["officecli:read_sheet", "officecli:send_mail"],
+        toolsHash: "sha256-abc123",
+      }),
+    );
+    expect(validated.capabilitiesRegistry!.officecli).toMatchObject({
+      tools: ["officecli:read_sheet", "officecli:send_mail"],
+      toolsHash: "sha256-abc123",
+    });
+  });
+
+  it("normalizes a tools-only grant to always-array methods + streams", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({ status: "requested", tools: ["officecli:read_sheet"] }),
+    );
+    const grant = validated.capabilitiesRegistry!.officecli!;
+    expect(grant.methods).toEqual([]);
+    expect(grant.streams).toEqual([]);
+    expect(grant.tools).toEqual(["officecli:read_sheet"]);
+  });
+
+  it("rejects a tool id without a connector:tool namespace", () => {
+    expect(() =>
+      validateWorkspaceDoc(withGrant({ status: "requested", tools: ["read_sheet"] })),
+    ).toThrow("tools[0] is not a valid connector:tool id");
+  });
+
+  it("rejects a tool id over 64 characters", () => {
+    expect(() =>
+      validateWorkspaceDoc(withGrant({ status: "requested", tools: [`c:${"t".repeat(64)}`] })),
+    ).toThrow("tools[0] is not a valid connector:tool id");
+  });
+
+  it("does NOT validate tool ids against the read RPC allowlist", () => {
+    // A grant's `tools` are external tool ids, not read RPCs — a namespaced id that
+    // is nowhere in DATA_READ_RPC_ALLOWLIST is still valid.
+    expect(() =>
+      validateWorkspaceDoc(withGrant({ status: "requested", tools: ["stripe:create_charge"] })),
+    ).not.toThrow();
+  });
+
+  it("rejects a malformed toolsHash", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({ status: "requested", methods: [], streams: [], toolsHash: "bad hash!" }),
+      ),
+    ).toThrow("toolsHash is invalid");
+  });
 });

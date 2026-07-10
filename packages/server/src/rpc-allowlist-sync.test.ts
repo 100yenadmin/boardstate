@@ -33,6 +33,7 @@ describe("rpc allowlist stays pinned to the canonical read-method set", () => {
       "cron.list",
       "cron.status",
       "cron.runs",
+      "dashboard.connector.list",
     ]);
   });
 

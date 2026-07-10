@@ -34,12 +34,26 @@ export type DashboardComputedBinding = {
   inputs: string[];
   arg?: string;
 };
+/**
+ * `mcp` binding (SPEC §18): READ data from a granted external MCP tool, named by
+ * `connector` + `tool` with optional static `args`. This module only VALIDATES the
+ * shape — host resolution (calling the broker, gating on a granted tool capability)
+ * lands with the broker/read-path work (#45); a validated `mcp` binding never
+ * resolves until then. Never carries credentials (SPEC §18: secrets stay node-side).
+ */
+export type DashboardMcpBinding = {
+  source: "mcp";
+  connector: string;
+  tool: string;
+  args?: Record<string, JsonValue>;
+};
 export type DashboardBinding =
   | DashboardRpcBinding
   | DashboardFileBinding
   | DashboardStaticBinding
   | DashboardStreamBinding
-  | DashboardComputedBinding;
+  | DashboardComputedBinding
+  | DashboardMcpBinding;
 /** Marks a widget as auto-expiring (Living Answers); the store sweeps it once past `expiresAt`. */
 export type DashboardEphemeral = { expiresAt: string };
 export type DashboardWidget = {
@@ -91,10 +105,47 @@ export type DashboardCapabilityGrant = {
   methods: string[];
   /** Allowlisted `STREAM_EVENT_ALLOWLIST` channels this connector's streams cover. */
   streams: string[];
+  /**
+   * External MCP tools (SPEC §17 v2) this grant authorizes, each a namespaced
+   * `connector:tool` id. UNLIKE `methods`/`streams`, tool ids are NOT drawn from a
+   * frozen schema allowlist — the tool space is per-connector and dynamic — so an
+   * entry is validated only for shape (`connector:tool`, ≤64 chars). Optional-in;
+   * a grant with no external tools omits the key. Partial grants are the approved
+   * SUBSET the operator ticked (SPEC §17 v2), not the full requested set.
+   */
+  tools?: string[];
+  /**
+   * Anti-rug-pull digest (SPEC §17 v2): a hash over the connector's declared tool
+   * manifest at grant time. A later manifest whose hash differs forces a re-request
+   * before any tool call succeeds. Opaque here (shape validated, never recomputed).
+   */
+  toolsHash?: string;
   /** Human-readable one-liner for the approval card. */
   description?: string;
   grantedBy?: DashboardActor;
   grantedAt?: string;
+};
+
+export type PendingActionStatus = "pending" | "confirmed" | "denied" | "expired";
+
+/**
+ * A server-enforced pending side-effecting action (SPEC §18). The M5b-3 engine
+ * (#41) PERSISTS this shape: a non-readOnly tool call is parked `pending` until an
+ * OPERATOR confirms (`dashboard.action.confirm`, operator-only) or it is denied /
+ * expires. This module contributes only the TYPE + `validatePendingAction` shape
+ * guard — no lifecycle, no store, no confirm wiring (all #41).
+ */
+export type PendingActionRecord = {
+  id: string;
+  connector: string;
+  tool: string;
+  /** The concrete arguments the parked call would invoke the tool with. */
+  args: Record<string, JsonValue>;
+  /** Agent that requested the action, when it carries agent provenance. */
+  requestedBy?: DashboardActor;
+  createdAt: string;
+  expiresAt: string;
+  status: PendingActionStatus;
 };
 
 export type WorkspaceDoc = {
@@ -120,9 +171,27 @@ const TAB_VISIBILITY_VALUES = new Set<DashboardTabVisibility>(["shared", "privat
 const TAB_OWNER_PATTERN = /^[A-Za-z0-9:._-]{1,128}$/;
 const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
 const BUILTIN_KIND_PATTERN =
-  /^builtin:(stat-card|markdown|table|iframe-embed|sessions|usage|cron|instances|activity|chart|notes|action-form|preview|agent-status|approvals|chat)$/;
+  /^builtin:(stat-card|markdown|table|iframe-embed|sessions|usage|cron|instances|activity|chart|notes|action-form|action-button|preview|agent-status|approvals|chat)$/;
 const CUSTOM_KIND_PATTERN = /^custom:[A-Za-z0-9._-]{1,64}$/;
 const CUSTOM_WIDGET_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+// A connector (broker) name: same bounded alphabet used to key `capabilitiesRegistry`.
+const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+// A single external tool NAME (the part after `connector:` in a grant id, and the
+// `tool` prop of an mcp binding / action widget). Bounded, no separators.
+const CONNECTOR_TOOL_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+// A namespaced grant tool id: `connector:tool`. The connector segment shares
+// CONNECTOR_NAME_PATTERN's alphabet and the tool segment CONNECTOR_TOOL_PATTERN's,
+// separated by exactly one colon; the whole id is additionally capped at
+// GRANT_TOOL_ID_MAX_LENGTH so `{1,64}:{1,64}` can't stretch past the 64-char bound.
+// NOT validated against DATA_READ_RPC_ALLOWLIST — external tools are not read RPCs.
+const GRANT_TOOL_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}:[A-Za-z0-9._-]{1,64}$/;
+const GRANT_TOOL_ID_MAX_LENGTH = 64;
+// Opaque anti-rug-pull digest + pending-action id: bounded opaque tokens.
+const TOOLS_HASH_PATTERN = /^[A-Za-z0-9._+/=-]{1,128}$/;
+const PENDING_ACTION_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+// Args objects (mcp binding + action widgets + pending action) are bounded JSON
+// objects — the same 8 KB envelope a static binding gets.
+const MAX_ARGS_BINDING_BYTES = 8 * 1024;
 const BINDING_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 const MAX_STATIC_BINDING_BYTES = 8 * 1024;
 const MAX_COMPUTED_INPUTS = 32;
@@ -331,7 +400,41 @@ function validateBinding(value: unknown, path: string): DashboardBinding {
     }
     return { source, op: op as ComputedOp, inputs, ...(arg !== undefined ? { arg } : {}) };
   }
+  if (source === "mcp") {
+    // Shape-only (SPEC §18): host resolution + the granted-tool AND-gate land with
+    // the broker read path (#45). A validated `mcp` binding never resolves here.
+    assertKnownKeys(record, ["source", "connector", "tool", "args"], path);
+    const connector = requireString(record, "connector", path);
+    if (!CONNECTOR_NAME_PATTERN.test(connector)) {
+      throw new Error(`${path}.connector is invalid`);
+    }
+    const tool = requireString(record, "tool", path);
+    if (!CONNECTOR_TOOL_PATTERN.test(tool)) {
+      throw new Error(`${path}.tool is invalid`);
+    }
+    const args = validateArgsObject(record.args, `${path}.args`);
+    return { source, connector, tool, ...(args !== undefined ? { args } : {}) };
+  }
   throw new Error(`${path}.source is invalid`);
+}
+
+/**
+ * Validate an optional `args` object (mcp binding, action-button, pending action):
+ * a JSON OBJECT (never a scalar/array) bounded to the 8 KB static-binding envelope.
+ * Returns the frozen JSON value, or `undefined` when the key is absent.
+ */
+function validateArgsObject(value: unknown, path: string): Record<string, JsonValue> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const json = assertJsonValue(value, path);
+  if (!isRecord(json)) {
+    throw new Error(`${path} must be an object`);
+  }
+  if (serializedBytes(json) > MAX_ARGS_BINDING_BYTES) {
+    throw new Error(`${path} must serialize to 8 KB or less`);
+  }
+  return json;
 }
 
 function validateBindingRecord(value: unknown, path: string): Record<string, DashboardBinding> {
@@ -385,7 +488,11 @@ function validateEphemeral(value: unknown, path: string): DashboardEphemeral {
  */
 function validateActionFormProps(value: unknown, path: string): void {
   const record = assertRecord(value, path);
-  assertKnownKeys(record, ["template", "fields", "buttonLabel"], path);
+  assertKnownKeys(
+    record,
+    ["template", "fields", "buttonLabel", "mode", "connector", "tool", "argsFrom"],
+    path,
+  );
   const template = requireString(record, "template", path);
   if (template.length < 1 || template.length > ACTION_FORM_MAX_TEMPLATE_CHARS) {
     throw new Error(`${path}.template must be 1-${ACTION_FORM_MAX_TEMPLATE_CHARS} characters`);
@@ -451,6 +558,72 @@ function validateActionFormProps(value: unknown, path: string): void {
       throw new Error(`${path}.template references unknown field: {${slot}}`);
     }
   }
+  // `mode` (SPEC §17 v2): the default (absent) is `prompt` — a form that sends its
+  // interpolated template to the agent (byte-identical to pre-M5 behavior). `tool`
+  // mode submits the form's fields as arguments to a granted external tool; the
+  // tool-only keys are inert (rejected) outside tool mode so a prompt-mode form
+  // never carries dangling connector wiring. Invocation itself lands with #44.
+  const mode = optionalString(record, "mode", path);
+  if (mode !== undefined && mode !== "prompt" && mode !== "tool") {
+    throw new Error(`${path}.mode must be "prompt" or "tool"`);
+  }
+  if (mode === "tool") {
+    const connector = requireString(record, "connector", path);
+    if (!CONNECTOR_NAME_PATTERN.test(connector)) {
+      throw new Error(`${path}.connector is invalid`);
+    }
+    const tool = requireString(record, "tool", path);
+    if (!CONNECTOR_TOOL_PATTERN.test(tool)) {
+      throw new Error(`${path}.tool is invalid`);
+    }
+    // `argsFrom` maps a tool ARGUMENT name → a declared FIELD name; every target
+    // must be a declared field (the same "no undeclared value" discipline the
+    // template-slot check enforces).
+    if (record.argsFrom !== undefined) {
+      const argsFrom = assertRecord(record.argsFrom, `${path}.argsFrom`);
+      const mappings = Object.entries(argsFrom);
+      if (mappings.length > ACTION_FORM_MAX_FIELDS) {
+        throw new Error(`${path}.argsFrom must contain at most ${ACTION_FORM_MAX_FIELDS} entries`);
+      }
+      for (const [argName, fieldName] of mappings) {
+        if (!ACTION_FORM_FIELD_NAME_PATTERN.test(argName)) {
+          throw new Error(`${path}.argsFrom key is invalid: ${argName}`);
+        }
+        if (typeof fieldName !== "string" || !names.has(fieldName)) {
+          throw new Error(`${path}.argsFrom references unknown field: ${String(fieldName)}`);
+        }
+      }
+    }
+  } else {
+    for (const key of ["connector", "tool", "argsFrom"] as const) {
+      if (record[key] !== undefined) {
+        throw new Error(`${path}.${key} is only allowed when mode is "tool"`);
+      }
+    }
+  }
+}
+
+/**
+ * Write-time validation for a `builtin:action-button` widget's props (SPEC §17 v2):
+ * a one-click invocation of a granted external tool with fixed `args`. Shape-only —
+ * the actual (server-gated) invocation + pending-action parking land with #44/#41.
+ */
+function validateActionButtonProps(value: unknown, path: string): void {
+  const record = assertRecord(value, path);
+  assertKnownKeys(record, ["connector", "tool", "args", "label"], path);
+  const connector = requireString(record, "connector", path);
+  if (!CONNECTOR_NAME_PATTERN.test(connector)) {
+    throw new Error(`${path}.connector is invalid`);
+  }
+  const tool = requireString(record, "tool", path);
+  if (!CONNECTOR_TOOL_PATTERN.test(tool)) {
+    throw new Error(`${path}.tool is invalid`);
+  }
+  validateArgsObject(record.args, `${path}.args`);
+  const label = optionalString(record, "label", path);
+  if (label !== undefined && (label.length < 1 || label.length > 40)) {
+    throw new Error(`${path}.label must be 1-40 characters`);
+  }
 }
 
 function validateWidget(value: unknown, path: string): DashboardWidget {
@@ -484,6 +657,9 @@ function validateWidget(value: unknown, path: string): DashboardWidget {
       : validateEphemeral(record.ephemeral, `${path}.ephemeral`);
   if (kind === "builtin:action-form") {
     validateActionFormProps(props, `${path}.props`);
+  }
+  if (kind === "builtin:action-button") {
+    validateActionButtonProps(props, `${path}.props`);
   }
   return {
     id,
@@ -599,37 +775,53 @@ function validateWidgetsRegistry(value: unknown): Record<string, DashboardWidget
 }
 
 const CAPABILITY_STATUSES = new Set<DashboardCapabilityStatus>(["requested", "granted", "revoked"]);
-const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 function validateCapabilityGrant(value: unknown, path: string): DashboardCapabilityGrant {
   const record = assertRecord(value, path);
   assertKnownKeys(
     record,
-    ["status", "methods", "streams", "description", "grantedBy", "grantedAt"],
+    ["status", "methods", "streams", "tools", "toolsHash", "description", "grantedBy", "grantedAt"],
     path,
   );
   const status = record.status;
   if (typeof status !== "string" || !CAPABILITY_STATUSES.has(status as DashboardCapabilityStatus)) {
     throw new Error(`${path}.status must be requested, granted, or revoked`);
   }
-  const methods = requireArray(record.methods, `${path}.methods`).map((method, index) => {
-    if (
-      typeof method !== "string" ||
-      !DATA_READ_RPC_ALLOWLIST.includes(method as (typeof DATA_READ_RPC_ALLOWLIST)[number])
-    ) {
-      throw new Error(`${path}.methods[${index}] is not an allowlisted read method`);
-    }
-    return method;
-  });
-  const streams = requireArray(record.streams, `${path}.streams`).map((event, index) => {
-    if (
-      typeof event !== "string" ||
-      !STREAM_EVENT_ALLOWLIST.includes(event as (typeof STREAM_EVENT_ALLOWLIST)[number])
-    ) {
-      throw new Error(`${path}.streams[${index}] is not an allowlisted stream channel`);
-    }
-    return event;
-  });
+  // methods/streams are optional-IN (a tools-only grant omits them) but ALWAYS
+  // arrays OUT — existing `.length` consumers (approvals reach summary) keep working.
+  // A pre-§17 grant always carried both, so its validated output is byte-identical.
+  const methods = optionalAllowlistArray(
+    record.methods,
+    `${path}.methods`,
+    DATA_READ_RPC_ALLOWLIST,
+    "allowlisted read method",
+  );
+  const streams = optionalAllowlistArray(
+    record.streams,
+    `${path}.streams`,
+    STREAM_EVENT_ALLOWLIST,
+    "allowlisted stream channel",
+  );
+  // `tools` (SPEC §17 v2): namespaced `connector:tool` ids, shape-validated ONLY
+  // (never against DATA_READ_RPC_ALLOWLIST — the tool space is per-connector +
+  // dynamic). Omitted when absent so a pre-§17 grant stays byte-identical.
+  const tools =
+    record.tools === undefined
+      ? undefined
+      : requireArray(record.tools, `${path}.tools`).map((tool, index) => {
+          if (
+            typeof tool !== "string" ||
+            tool.length > GRANT_TOOL_ID_MAX_LENGTH ||
+            !GRANT_TOOL_ID_PATTERN.test(tool)
+          ) {
+            throw new Error(`${path}.tools[${index}] is not a valid connector:tool id`);
+          }
+          return tool;
+        });
+  const toolsHash = optionalString(record, "toolsHash", path);
+  if (toolsHash !== undefined && !TOOLS_HASH_PATTERN.test(toolsHash)) {
+    throw new Error(`${path}.toolsHash is invalid`);
+  }
   const description = optionalString(record, "description", path);
   if (description !== undefined && description.length > 200) {
     throw new Error(`${path}.description must be 200 characters or fewer`);
@@ -643,10 +835,34 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
     status: status as DashboardCapabilityStatus,
     methods,
     streams,
+    ...(tools !== undefined ? { tools } : {}),
+    ...(toolsHash !== undefined ? { toolsHash } : {}),
     ...(description !== undefined ? { description } : {}),
     ...(grantedBy !== undefined ? { grantedBy } : {}),
     ...(grantedAt !== undefined ? { grantedAt } : {}),
   };
+}
+
+/**
+ * An optional array of allowlisted string entries → always an array out ([] when
+ * absent). Shared by a grant's `methods`/`streams` so a tools-only grant may omit
+ * them while every consumer still sees an array.
+ */
+function optionalAllowlistArray(
+  value: unknown,
+  path: string,
+  allowlist: readonly string[],
+  label: string,
+): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  return requireArray(value, path).map((entry, index) => {
+    if (typeof entry !== "string" || !allowlist.includes(entry)) {
+      throw new Error(`${path}[${index}] is not an ${label}`);
+    }
+    return entry;
+  });
 }
 
 function validateCapabilitiesRegistry(value: unknown): Record<string, DashboardCapabilityGrant> {
@@ -662,6 +878,69 @@ function validateCapabilitiesRegistry(value: unknown): Record<string, DashboardC
     registry[name] = validateCapabilityGrant(entry, `capabilitiesRegistry.${name}`);
   }
   return registry;
+}
+
+const PENDING_ACTION_STATUSES = new Set<PendingActionStatus>([
+  "pending",
+  "confirmed",
+  "denied",
+  "expired",
+]);
+
+/**
+ * Shape guard for a persisted pending-action record (SPEC §18). Validates the type
+ * the M5b-3 engine (#41) stores; this module owns no lifecycle. Throws on any
+ * malformed field so a networked confirm path can trust a loaded record's shape.
+ */
+export function validatePendingAction(value: unknown): PendingActionRecord {
+  const record = assertRecord(value, "pendingAction");
+  assertKnownKeys(
+    record,
+    ["id", "connector", "tool", "args", "requestedBy", "createdAt", "expiresAt", "status"],
+    "pendingAction",
+  );
+  const id = requireString(record, "id", "pendingAction");
+  if (!PENDING_ACTION_ID_PATTERN.test(id)) {
+    throw new Error("pendingAction.id is invalid");
+  }
+  const connector = requireString(record, "connector", "pendingAction");
+  if (!CONNECTOR_NAME_PATTERN.test(connector)) {
+    throw new Error("pendingAction.connector is invalid");
+  }
+  const tool = requireString(record, "tool", "pendingAction");
+  if (!CONNECTOR_TOOL_PATTERN.test(tool)) {
+    throw new Error("pendingAction.tool is invalid");
+  }
+  if (record.args === undefined) {
+    throw new Error("pendingAction.args is required");
+  }
+  const args = validateArgsObject(record.args, "pendingAction.args")!;
+  const requestedBy =
+    record.requestedBy === undefined
+      ? undefined
+      : validateActor(record.requestedBy, "pendingAction.requestedBy");
+  const createdAt = requireString(record, "createdAt", "pendingAction");
+  if (!ISO_TIMESTAMP_PATTERN.test(createdAt) || Number.isNaN(Date.parse(createdAt))) {
+    throw new Error("pendingAction.createdAt must be an ISO 8601 timestamp");
+  }
+  const expiresAt = requireString(record, "expiresAt", "pendingAction");
+  if (!ISO_TIMESTAMP_PATTERN.test(expiresAt) || Number.isNaN(Date.parse(expiresAt))) {
+    throw new Error("pendingAction.expiresAt must be an ISO 8601 timestamp");
+  }
+  const status = record.status;
+  if (typeof status !== "string" || !PENDING_ACTION_STATUSES.has(status as PendingActionStatus)) {
+    throw new Error("pendingAction.status must be pending, confirmed, denied, or expired");
+  }
+  return {
+    id,
+    connector,
+    tool,
+    args,
+    ...(requestedBy !== undefined ? { requestedBy } : {}),
+    createdAt,
+    expiresAt,
+    status: status as PendingActionStatus,
+  };
 }
 
 function validatePrefs(value: unknown, tabSlugs: Set<string>): WorkspaceDoc["prefs"] {
