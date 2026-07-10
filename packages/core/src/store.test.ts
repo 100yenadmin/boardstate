@@ -307,6 +307,57 @@ describe("DashboardStore", () => {
     });
   });
 
+  describe("grant TTL sweep (SPEC §17 grant TTLs, #64)", () => {
+    async function seedGrant(stateDir: string): Promise<number> {
+      // `replace` is the trusted seeding primitive (no re-pend); the granted lease has an
+      // expiresAt at t=1000 and carries an autoConfirm the sweep must also clear.
+      const writer = storeAt(stateDir, { now: () => 500 });
+      const doc = await writer.read();
+      doc.capabilitiesRegistry = {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:send_mail"],
+          toolsHash: "hash-send",
+          autoConfirm: ["officecli:send_mail"],
+          expiresAt: new Date(1_000).toISOString(),
+          grantedBy: "user",
+          grantedAt: new Date(500).toISOString(),
+        },
+      };
+      const result = await writer.replace(doc, { actor: "user" });
+      return result.doc.workspaceVersion;
+    }
+
+    it("re-pends a lapsed grant on read — clears autoConfirm + expiresAt, bumps version once", async () => {
+      await withTempStateDir(async (stateDir) => {
+        const seededVersion = await seedGrant(stateDir);
+        const reader = storeAt(stateDir, { now: () => 2_000 });
+        const doc = await reader.read();
+        const grant = doc.capabilitiesRegistry!.officecli!;
+        expect(grant.status).toBe("requested");
+        expect(grant.autoConfirm).toBeUndefined();
+        expect(grant.expiresAt).toBeUndefined();
+        expect(grant.grantedBy).toBeUndefined();
+        // Tools survive (the operator re-approves the SAME surface); version bumped once.
+        expect(grant.tools).toEqual(["officecli:send_mail"]);
+        expect(doc.workspaceVersion).toBe(seededVersion + 1);
+        expect(await readJsonFile(reader.workspacePath)).toEqual(doc);
+      });
+    });
+
+    it("keeps a live (unexpired) grant untouched and does not rewrite the doc", async () => {
+      await withTempStateDir(async (stateDir) => {
+        const seededVersion = await seedGrant(stateDir);
+        const reader = storeAt(stateDir, { now: () => 800 });
+        const doc = await reader.read();
+        expect(doc.capabilitiesRegistry!.officecli!.status).toBe("granted");
+        expect(doc.workspaceVersion).toBe(seededVersion);
+      });
+    });
+  });
+
   describe("widget state (write-back)", () => {
     it("persists a blob and reads it back with an incrementing version", async () => {
       await withTempStateDir(async (stateDir) => {
@@ -450,6 +501,53 @@ describe("replaceSanitized (approval gate, SPEC §8.2)", () => {
         actor: "agent:x",
       });
       expect(noop.doc.capabilitiesRegistry!.officecli!.status).toBe("granted");
+    });
+  });
+
+  it("re-pends a granted grant whose autoConfirm or expiresAt is mutated via replace (#62/#64)", async () => {
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      const seed = await store.read();
+      seed.capabilitiesRegistry = {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:send_mail"],
+          toolsHash: "hash-send",
+          grantedBy: "user",
+          grantedAt: "2026-01-01T00:00:00.000Z",
+        },
+      };
+      await store.replace(seed, { actor: "user" });
+
+      // A) an agent injecting autoConfirm onto a granted grant (no tools/hash change) re-pends.
+      const inject = structuredClone(await store.read());
+      inject.capabilitiesRegistry!.officecli!.autoConfirm = ["officecli:send_mail"];
+      const injected = await store.replaceSanitized(inject, { actor: "agent:x" });
+      expect(injected.doc.capabilitiesRegistry!.officecli!.status).toBe("requested");
+      expect(injected.doc.capabilitiesRegistry!.officecli!.autoConfirm).toBeUndefined();
+      expect(injected.doc.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
+
+      // Re-grant with a FUTURE TTL (so the store's real clock does not sweep it), then
+      // B) an agent EXTENDING that TTL on a granted grant re-pends + strips it.
+      const regrant = structuredClone(injected.doc);
+      regrant.capabilitiesRegistry!.officecli = {
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+        toolsHash: "hash-send",
+        expiresAt: "2099-01-05T00:00:00.000Z",
+        grantedBy: "user",
+        grantedAt: "2026-01-02T00:00:00.000Z",
+      };
+      await store.replace(regrant, { actor: "user" });
+      const extend = structuredClone(await store.read());
+      extend.capabilitiesRegistry!.officecli!.expiresAt = "2099-12-31T00:00:00.000Z";
+      const extended = await store.replaceSanitized(extend, { actor: "agent:x" });
+      expect(extended.doc.capabilitiesRegistry!.officecli!.status).toBe("requested");
+      expect(extended.doc.capabilitiesRegistry!.officecli!.expiresAt).toBeUndefined();
     });
   });
 

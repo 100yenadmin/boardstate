@@ -113,7 +113,9 @@ type Harness = {
 
 const harnesses: Harness[] = [];
 
-async function setup(opts: { mutationTimeoutMs?: number } = {}): Promise<Harness> {
+async function setup(
+  opts: { mutationTimeoutMs?: number; asyncActions?: boolean } = {},
+): Promise<Harness> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-agentsurface-"));
   const storage = new FsStorageAdapter({ storageDir: stateDir });
   const store = new DashboardStore({ storage });
@@ -143,6 +145,7 @@ async function setup(opts: { mutationTimeoutMs?: number } = {}): Promise<Harness
     store,
     actions,
     ...(opts.mutationTimeoutMs !== undefined ? { mutationTimeoutMs: opts.mutationTimeoutMs } : {}),
+    ...(opts.asyncActions !== undefined ? { asyncActions: opts.asyncActions } : {}),
   });
   await actions.ready;
   await agentTools.ready;
@@ -241,6 +244,28 @@ describe("broker→AgentTool adapter (#42)", () => {
     expect(h.broker.calls).toEqual([{ id: "acme:send", args }]);
   });
 
+  it("default (asyncActions off) BLOCKS: execute() stays unresolved until confirm and never returns a parked frame", async () => {
+    // Discriminating pin (adversarial verify 2026-07-11): the prior test's assertions
+    // would pass even if the default flipped to async. This one fails on a flip —
+    // (a) the promise must NOT settle before the operator confirms, (b) the resolved
+    // frame carries the RESULT, never `parked:true`.
+    const h = await setup();
+    await grant(h, ["acme:send"]);
+    const pending = Promise.resolve(getTool(h, "acme__send")!.execute("c-block", { to: "x" }));
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+    const id = await nextPendingId(h);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false); // still awaiting the operator — blocking semantics
+    await h.host.request("dashboard.action.confirm", { id });
+    const { details } = (await pending) as { details: Record<string, unknown> };
+    expect(settled).toBe(true);
+    expect(details.parked).toBeUndefined(); // a parked frame in default mode = async leak
+    expect(details.result ?? details.content ?? details).toBeTruthy();
+  });
+
   it("returns a model-legible refusal (not a throw) when the operator denies", async () => {
     const h = await setup();
     await grant(h, ["acme:send"]);
@@ -272,6 +297,43 @@ describe("broker→AgentTool adapter (#42)", () => {
     };
     expect(details.ok).toBe(false);
     expect(String(details.error)).toContain("boom");
+  });
+
+  it("async mode (#63): a mutation returns a framed `parked` result immediately (no block)", async () => {
+    const h = await setup({ asyncActions: true });
+    await grant(h, ["acme:send"]);
+    const { details } = (await getTool(h, "acme__send")!.execute("c6", { to: "x", body: "y" })) as {
+      details: Record<string, unknown>;
+    };
+    // The turn is NOT blocked on confirm — a parked frame comes back right away.
+    expect(details.parked).toBe(true);
+    expect(typeof details.id).toBe("string");
+    expect(String(details.note)).toContain("PARKED");
+    // The action is genuinely parked in the engine, awaiting an operator confirm.
+    expect(h.actions.pendingActions()).toHaveLength(1);
+    // Nothing hit the connector — async mode defers execution to the later confirm.
+    expect(h.broker.calls).toEqual([]);
+  });
+
+  it("auto-confirm (#62): a granted always-allow mutation executes directly, never parking", async () => {
+    const h = await setup();
+    await h.host.request("dashboard.capability.approve", {
+      name: CONNECTOR,
+      decision: "granted",
+      tools: ["acme:send"],
+      autoConfirm: ["acme:send"],
+    });
+    await h.agentTools.refresh();
+    const args = { to: "ops", body: "auto" };
+    const { details } = (await getTool(h, "acme__send")!.execute("c7", args)) as {
+      details: Record<string, unknown>;
+    };
+    // Executed inline (framed as a result, not parked, not refused).
+    expect(details.parked).toBeUndefined();
+    expect(details.refused).toBeUndefined();
+    expect(details.external).toBe(true);
+    expect(h.actions.pendingActions()).toHaveLength(0);
+    expect(h.broker.calls).toEqual([{ id: "acme:send", args }]);
   });
 });
 

@@ -107,6 +107,10 @@ export type DashboardCapabilityGrant = {
   tools?: string[];
   /** Anti-rug-pull digest over the connector's tool manifest at grant time. */
   toolsHash?: string;
+  /** Operator-set "always allow" subset of `tools` (SPEC §17.2, #62). */
+  autoConfirm?: string[];
+  /** ISO-8601 instant after which the grant re-pends to `requested` (SPEC §17, #64). */
+  expiresAt?: string;
   description?: string;
   grantedBy?: DashboardCreatedBy;
   grantedAt?: string;

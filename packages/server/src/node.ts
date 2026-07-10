@@ -53,6 +53,7 @@ export {
   type BrokerActionAuditEntry,
   type BrokerActionsHandle,
   type InstallBrokerActionsOptions,
+  type ActionSettlementResult,
 } from "./broker-actions.js";
 
 // M5c agent surface (#42 + #43): the broker→AgentTool adapter + definition-token budget,

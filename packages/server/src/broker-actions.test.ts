@@ -18,10 +18,13 @@ import { nodeRpcDeps } from "./node.js";
 import {
   installBrokerActions,
   type ActionBroker,
+  type ActionSettlementResult,
   type ActionToolManifest,
   type ActionToolManifestEntry,
   type BrokerActionsHandle,
+  type InstallBrokerActionsOptions,
 } from "./broker-actions.js";
+import type { PendingActionRecord } from "@boardstate/schema";
 
 /** A tiny in-memory broker: a mutable catalog + a variant map that moves subset hashes. */
 class FakeBroker implements ActionBroker {
@@ -96,27 +99,43 @@ let host: InProcessHost;
 let handle: BrokerActionsHandle | null = null;
 let broker: FakeBroker;
 let stateDir: string;
-let actionEvents: Array<{ id: string; status: string }>;
+let actionEvents: Array<{ id: string; status: string; autoConfirmed?: boolean }>;
 
-async function setup(
-  entries: ActionToolManifestEntry[],
-  opts: { ttlMs?: number; invokeRateMax?: number } = {},
-): Promise<void> {
+type SetupOpts = {
+  ttlMs?: number;
+  invokeRateMax?: number;
+  /** Injected clock (ms), threaded into the store sweep, engine, AND rpc future-dating. */
+  now?: () => number;
+  grantSweepMs?: InstallBrokerActionsOptions["grantSweepMs"];
+  onActionSettled?: InstallBrokerActionsOptions["onActionSettled"];
+};
+
+async function setup(entries: ActionToolManifestEntry[], opts: SetupOpts = {}): Promise<void> {
+  const { now, ...rest } = opts;
   stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-actions-"));
   const storage = new FsStorageAdapter({ storageDir: stateDir });
-  store = new DashboardStore({ storage });
+  store = new DashboardStore({ storage, ...(now ? { now } : {}) });
   host = createInProcessHost(store, storage);
   broker = new FakeBroker(entries);
-  handle = installBrokerActions(host, { broker, store, ...opts });
+  handle = installBrokerActions(host, {
+    broker,
+    store,
+    // Disable the real-timer sweep in tests by default; grant TTL is driven deterministically
+    // through the injected clock + a read (or handle.sweepGrants()).
+    grantSweepMs: 0,
+    ...(now ? { now } : {}),
+    ...rest,
+  });
   registerBoardstateRpc(host, {
     store,
     dataRead: { stateDir },
     ...nodeRpcDeps(),
     capabilityToolsHash: handle.capabilityToolsHash,
+    ...(now ? { now } : {}),
   });
   actionEvents = [];
   host.addEventListener("dashboard.action.changed", (payload) => {
-    actionEvents.push(payload as { id: string; status: string });
+    actionEvents.push(payload as { id: string; status: string; autoConfirmed?: boolean });
   });
   await handle.ready;
 }
@@ -124,6 +143,19 @@ async function setup(
 /** Approve a connector's full requested grant through the operator RPC. */
 async function grantAll(name: string): Promise<void> {
   await host.request("dashboard.capability.approve", { name, decision: "granted", actor: "user" });
+}
+
+/** Approve with an explicit tools subset + optional autoConfirm/TTL (SPEC §17.1/§17.2/§17 TTLs). */
+async function grant(
+  name: string,
+  opts: { tools?: string[]; autoConfirm?: string[]; expiresAt?: string } = {},
+): Promise<{ ok: boolean; code?: string }> {
+  return req("dashboard.capability.approve", {
+    name,
+    decision: "granted",
+    actor: "user",
+    ...opts,
+  });
 }
 
 async function req(
@@ -460,5 +492,204 @@ describe("audit + confirmAndExecute (M5c-1 blocking primitive)", () => {
     const waiting2 = handle!.confirmAndExecute(parked2.result.id);
     await host.request("dashboard.action.deny", { id: parked2.result.id, actor: "user" });
     await expect(waiting2).rejects.toThrow(/denied/);
+  });
+});
+
+describe("per-tool auto-confirm (SPEC §17.2, #62)", () => {
+  it("executes an autoConfirm mutation DIRECTLY, audited auto-confirmed, without parking", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    const res = await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
+    expect(res.ok).toBe(true);
+    // A direct execution returns the tool result inline — never a { pending } envelope.
+    expect(res.result.pending).toBeUndefined();
+    expect(res.result.content).toBeDefined();
+    expect(broker.calls).toEqual([{ id: "officecli:send_mail", args: {} }]);
+    expect(handle!.pendingActions()).toHaveLength(0);
+    const last = handle!.auditLog().at(-1)!;
+    expect(last.outcome).toBe("auto-confirmed");
+    // The board timeline sees a confirmed status flagged autoConfirmed (honest bypass).
+    const evt = actionEvents.at(-1)!;
+    expect(evt.status).toBe("confirmed");
+    expect(evt.autoConfirmed).toBe(true);
+  });
+
+  it("still PARKS a second (non-autoConfirm) mutation of the same connector", async () => {
+    await setup([SEND, BOOM]);
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    const auto = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    expect(auto.result.pending).toBeUndefined();
+    const parked = await req("dashboard.action.invoke", { connector: "officecli", tool: "boom" });
+    expect(parked.result.pending).toBe(true);
+    expect(handle!.pendingActions().map((a) => a.tool)).toEqual(["boom"]);
+  });
+
+  it("still rate-limits an autoConfirm tool (bypasses confirm, not the prompt gate)", async () => {
+    await setup([SEND], { invokeRateMax: 2 });
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
+    await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
+    const third = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    expect(third.ok).toBe(false);
+    expect(third.code).toBe("rate_limited");
+  });
+
+  it("REJECTS an autoConfirm id outside the granted tools", async () => {
+    await setup([READ, SEND]);
+    const res = await grant("officecli", {
+      tools: ["officecli:read_mail"],
+      autoConfirm: ["officecli:send_mail"],
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("anti-rug-pull re-pend WIPES autoConfirm (a tool that changed must not keep auto-run)", async () => {
+    await setup([SEND]);
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    broker.mutateTool("officecli:send_mail");
+    const res = await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe("capability_pending");
+    const grantAfter = (await store.read()).capabilitiesRegistry!.officecli!;
+    expect(grantAfter.status).toBe("requested");
+    expect(grantAfter.autoConfirm).toBeUndefined();
+  });
+
+  it("revoke clears autoConfirm", async () => {
+    await setup([SEND]);
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    await host.request("dashboard.capability.approve", {
+      name: "officecli",
+      decision: "revoked",
+      actor: "user",
+    });
+    const grantAfter = (await store.read()).capabilitiesRegistry!.officecli!;
+    expect(grantAfter.status).toBe("revoked");
+    expect(grantAfter.autoConfirm).toBeUndefined();
+  });
+});
+
+describe("grant TTLs (SPEC §17 grant TTLs, #64)", () => {
+  const BASE = Date.parse("2026-07-11T00:00:00.000Z");
+
+  it("a granted tool is callable before expiry, then re-pends after the clock passes", async () => {
+    let t = BASE;
+    await setup([READ, SEND], { now: () => t });
+    const expiresAt = new Date(BASE + 60_000).toISOString();
+    expect((await grant("officecli", { expiresAt })).ok).toBe(true);
+    // Callable while the lease is live.
+    const before = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(before.ok).toBe(true);
+    // Advance past expiry: the lazy sweep-on-read re-pends the grant.
+    t = BASE + 61_000;
+    const after = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(after.ok).toBe(false);
+    expect(after.code).toBe("capability_pending");
+    const grantAfter = (await store.read()).capabilitiesRegistry!.officecli!;
+    expect(grantAfter.status).toBe("requested");
+    expect(grantAfter.expiresAt).toBeUndefined();
+  });
+
+  it("expiry clears autoConfirm too (a lapsed lease keeps no auto-run)", async () => {
+    let t = BASE;
+    await setup([SEND], { now: () => t });
+    await grant("officecli", {
+      autoConfirm: ["officecli:send_mail"],
+      expiresAt: new Date(BASE + 60_000).toISOString(),
+    });
+    t = BASE + 61_000;
+    const grantAfter = (await store.read()).capabilitiesRegistry!.officecli!;
+    expect(grantAfter.status).toBe("requested");
+    expect(grantAfter.autoConfirm).toBeUndefined();
+  });
+
+  it("renew = re-approve restores a callable grant with a fresh TTL", async () => {
+    let t = BASE;
+    await setup([READ], { now: () => t });
+    await grant("officecli", { expiresAt: new Date(BASE + 60_000).toISOString() });
+    t = BASE + 61_000;
+    await store.read(); // trigger the sweep → requested
+    expect((await store.read()).capabilitiesRegistry!.officecli!.status).toBe("requested");
+    // Renew with a fresh future TTL.
+    const renewed = await grant("officecli", { expiresAt: new Date(t + 60_000).toISOString() });
+    expect(renewed.ok).toBe(true);
+    const res = await req("dashboard.action.invoke", { connector: "officecli", tool: "read_mail" });
+    expect(res.ok).toBe(true);
+  });
+
+  it("REJECTS a past-dated TTL at approve (must be future-dated)", async () => {
+    const t = BASE;
+    await setup([READ], { now: () => t });
+    const res = await grant("officecli", { expiresAt: new Date(BASE - 1000).toISOString() });
+    expect(res.ok).toBe(false);
+  });
+
+  it("fail-closed: park-then-expire-then-confirm is REFUSED", async () => {
+    let t = BASE;
+    await setup([SEND], { now: () => t, ttlMs: 10 * 60_000 });
+    await grant("officecli", { expiresAt: new Date(BASE + 60_000).toISOString() });
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    expect(parked.result.pending).toBe(true);
+    // The grant expires between park and confirm.
+    t = BASE + 61_000;
+    const confirmed = await req("dashboard.action.confirm", {
+      id: parked.result.id,
+      actor: "user",
+    });
+    expect(confirmed.ok).toBe(false);
+    // The mutation NEVER ran (broker saw no call for send_mail).
+    expect(broker.calls.filter((c) => c.id === "officecli:send_mail")).toHaveLength(0);
+  });
+});
+
+describe("async settlement hook (SPEC §18 async settlement, #63)", () => {
+  it("fires onActionSettled on confirm with the tool result", async () => {
+    const settled: Array<{ record: PendingActionRecord; result: ActionSettlementResult }> = [];
+    await setup([SEND], { onActionSettled: (record, result) => settled.push({ record, result }) });
+    await grantAll("officecli");
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    await host.request("dashboard.action.confirm", { id: parked.result.id, actor: "user" });
+    expect(settled).toHaveLength(1);
+    expect(settled[0]!.record.status).toBe("confirmed");
+    expect(settled[0]!.result).toMatchObject({ ok: true });
+  });
+
+  it("fires onActionSettled on deny with a refusal reason", async () => {
+    const settled: Array<{ record: PendingActionRecord; result: ActionSettlementResult }> = [];
+    await setup([SEND], { onActionSettled: (record, result) => settled.push({ record, result }) });
+    await grantAll("officecli");
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    await host.request("dashboard.action.deny", { id: parked.result.id, actor: "user" });
+    expect(settled).toHaveLength(1);
+    expect(settled[0]!.result).toEqual({ ok: false, reason: "denied" });
+  });
+
+  it("a direct (auto-confirmed) execution NEVER fires the settlement hook (it never parked)", async () => {
+    const settled: unknown[] = [];
+    await setup([SEND], { onActionSettled: (record, result) => settled.push({ record, result }) });
+    await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
+    await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
+    expect(settled).toHaveLength(0);
   });
 });

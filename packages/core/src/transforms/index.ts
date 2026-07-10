@@ -34,6 +34,7 @@ export {
   mapApprovals,
   toWidgetApprovalDecision,
   type ApprovalDecision,
+  type ApprovalDecisionOptions,
   type PendingApprovalItem,
   type ApprovalsWidgetSource,
   type ApprovalsModel,

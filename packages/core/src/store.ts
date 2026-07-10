@@ -95,6 +95,14 @@ export function reconcileReplaceApproval(
   // operator re-approves the new surface. Both the RPC replace path
   // (`replaceSanitized`) and the agent-tool path (`sanitizeAgentWorkspaceReplace`)
   // run through here, so this single gate closes both.
+  //
+  // The OPERATOR-ONLY surface of a granted grant is (a) the authorized `tools`/`toolsHash`
+  // (SPEC §17.1), (b) the `autoConfirm` "always allow" set (SPEC §17.2, #62), and (c) the
+  // `expiresAt` TTL (SPEC §17 TTLs, #64). None may be MUTATED through replace/import: an
+  // agent appending a tool, ticking an auto-confirm, or extending a lease is a silent
+  // widening. Any drift in ANY of these on a still-granted grant re-pends the whole grant
+  // to `requested` so the operator re-approves the new surface — the single gate closes
+  // every no-agent-write path (agent workspace.replace, raw RPC replace, import).
   const currentCaps = current.capabilitiesRegistry ?? {};
   const incomingCaps = incoming.capabilitiesRegistry ?? {};
   for (const [name, grant] of Object.entries(incomingCaps)) {
@@ -104,11 +112,17 @@ export function reconcileReplaceApproval(
       grant.status === "granted" &&
       currentGrant?.status === "granted" &&
       (!sameStringSet(grant.tools ?? [], currentGrant.tools ?? []) ||
-        (grant.toolsHash ?? "") !== (currentGrant.toolsHash ?? ""));
+        (grant.toolsHash ?? "") !== (currentGrant.toolsHash ?? "") ||
+        !sameStringSet(grant.autoConfirm ?? [], currentGrant.autoConfirm ?? []) ||
+        (grant.expiresAt ?? "") !== (currentGrant.expiresAt ?? ""));
     if (selfElevated || surfaceMutated) {
       grant.status = "requested";
       delete grant.grantedBy;
       delete grant.grantedAt;
+      // A re-pended grant carries no active auto-run or lease — strip the operator-only
+      // fields so a self-grant smuggled through replace can never resurrect them.
+      delete grant.autoConfirm;
+      delete grant.expiresAt;
     }
   }
   return incoming;
@@ -192,6 +206,51 @@ function sweepExpiredEphemeral(doc: WorkspaceDoc, nowMs: number): WorkspaceDoc |
   return { ...doc, tabs, workspaceVersion: doc.workspaceVersion + 1 };
 }
 
+/**
+ * Re-pend capability grants whose TTL has lapsed (SPEC §17 grant TTLs, #64). A
+ * `granted` grant with an `expiresAt` at or before `nowMs` flips back to `requested`
+ * — the standard re-pend: tools drop from the agent's set next turn, mcp bindings
+ * surface `capability_pending`, and (crucially) `autoConfirm` is cleared so a lapsed
+ * lease can never keep auto-running. `grantedBy`/`grantedAt`/`expiresAt` are stripped,
+ * exactly like import re-pend. Returns a version-bumped doc when anything expired, or
+ * null when nothing did — so `read()` writes exactly once, folded with the ephemeral
+ * sweep. Mirrors `sweepExpiredEphemeral`: SWEEP ON READ is the universal, fail-closed
+ * mechanism (every reader — the engine gate, the agent-tool cache, the approvals view —
+ * goes through `read()`, so none can ever observe a stale-granted lapsed lease).
+ */
+function sweepExpiredGrants(doc: WorkspaceDoc, nowMs: number): WorkspaceDoc | null {
+  const registry = doc.capabilitiesRegistry;
+  if (!registry) {
+    return null;
+  }
+  let expired = false;
+  const next: Record<string, (typeof registry)[string]> = {};
+  for (const [name, grant] of Object.entries(registry)) {
+    const expiresAt = grant.status === "granted" ? grant.expiresAt : undefined;
+    if (expiresAt === undefined) {
+      next[name] = grant;
+      continue;
+    }
+    const expiry = Date.parse(expiresAt);
+    // A validated doc always parses; keep an unparseable stamp rather than guess.
+    if (Number.isNaN(expiry) || expiry > nowMs) {
+      next[name] = grant;
+      continue;
+    }
+    expired = true;
+    const { grantedBy: _by, grantedAt: _at, expiresAt: _exp, autoConfirm: _auto, ...rest } = grant;
+    next[name] = { ...rest, status: "requested" };
+  }
+  if (!expired) {
+    return null;
+  }
+  return {
+    ...doc,
+    capabilitiesRegistry: next,
+    workspaceVersion: doc.workspaceVersion + 1,
+  };
+}
+
 export class DashboardStore {
   readonly stateDir: string;
   readonly dashboardDir: string;
@@ -238,6 +297,15 @@ export class DashboardStore {
     const swept = sweepExpiredEphemeral(doc, this.now());
     if (swept) {
       doc = swept;
+      mustWrite = true;
+    }
+    // Grant TTL (SPEC §17, #64): lapsed capability leases re-pend to `requested` on the
+    // same lazy-read sweep, folded into the one write below. This is the universal,
+    // fail-closed choke point — the engine gate, the agent-tool cache, and the approvals
+    // view all read through here, so none can act on a stale-granted expired lease.
+    const sweptGrants = sweepExpiredGrants(doc, this.now());
+    if (sweptGrants) {
+      doc = sweptGrants;
       mustWrite = true;
     }
     if (mustWrite) {

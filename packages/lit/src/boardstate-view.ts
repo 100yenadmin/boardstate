@@ -962,8 +962,14 @@ function buildBuiltinContext(
     approvals: buildApprovalsSource(
       workspace,
       (name, decision) => void approveWidget(state, transport, { name, decision }),
-      (name, decision, tools) =>
-        void approveCapability(state, transport, { name, decision, tools }),
+      (name, decision, options) =>
+        void approveCapability(state, transport, {
+          name,
+          decision,
+          ...(options?.tools !== undefined ? { tools: options.tools } : {}),
+          ...(options?.autoConfirm !== undefined ? { autoConfirm: options.autoConfirm } : {}),
+          ...(options?.expiresAt !== undefined ? { expiresAt: options.expiresAt } : {}),
+        }),
     ),
     // The chat builtin's inline approval card reads the live pending set (re-supplied
     // on every doc change) and resolves through the same approve path.

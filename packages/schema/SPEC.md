@@ -338,6 +338,38 @@ connector's side-effecting surface. A grant gains two optional fields:
   every non-`readOnly` tool call is SERVER-enforced through pending-action state (§18) and
   requires an operator confirm.
 
+### 17.2 Per-tool auto-confirm + grant TTLs
+
+Two operator-only refinements sit ABOVE the grant: an "always allow" tier per tool, and a
+time-box on the whole grant. Both are settable ONLY through the operator approve verb
+(`dashboard.capability.approve` ∈ `OPERATOR_ONLY_METHODS`) — never over the agent surface,
+never over an unauthenticated networked transport — and both are WIPED by any re-pend.
+
+- **`autoConfirm: string[]` (per-tool auto-confirm).** An optional SUBSET of the grant's
+  granted `tools`: a non-`readOnly` tool in this set executes DIRECTLY on invoke (no park,
+  no operator confirm), audited with outcome `auto-confirmed` (distinct from
+  `executed`-via-confirm) and broadcasting `dashboard.action.changed` `{status:"confirmed",
+autoConfirmed:true}` so the board timeline stays honest. It is STILL rate-limited (the
+  prompt-gate discipline is unchanged). Validation rejects an id outside `tools` and rejects
+  duplicates. Anti-fatigue only: it never widens WHAT is reachable, only removes the
+  per-invocation confirm for a tool the operator already trusts.
+- **`expiresAt: ISO-8601` (grant TTL).** An optional instant, operator-set at approve time
+  and REQUIRED to be future-dated at write. After it passes, the grant re-pends to
+  `requested` — the standard re-pend (tools drop from the agent's set next turn, `mcp`
+  bindings surface `capability_pending`, `autoConfirm` clears, `grantedBy`/`grantedAt` are
+  stripped). Absent ⇒ a permanent grant. Access is a lease, not a deed.
+- **Sweep + fail-closed.** Expiry is swept ON READ (the store re-pends a lapsed grant before
+  any reader — the engine gate, the agent-tool cache, the approvals view — observes it),
+  mirroring the ephemeral-widget sweep; a coarse host timer forces the sweep + a change
+  broadcast while the board is idle. The clock is the host's, injectable in tests. Expiry is
+  fail-closed at the confirm seam: a parked action whose grant expired (or was revoked, or
+  whose manifest drifted) between park and confirm is REFUSED at confirm time and never runs.
+- **Wipe points (single-writer invariant).** `autoConfirm` and `expiresAt` are cleared on
+  EVERY re-pend path — anti-rug-pull manifest drift, `workspace.replace`/import surface
+  mutation (an agent injecting `autoConfirm` or extending `expiresAt` on a granted grant
+  re-pends it), a `tool_search` REQUEST re-pend, TTL expiry, and revoke. An imported board
+  carries neither. No agent-writable path can set or extend either field.
+
 ## 18. Connector broker (normative)
 
 The broker is the host-side MCP **client** manager (`@boardstate/broker`): Boardstate
@@ -362,7 +394,13 @@ status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. The eng
   denies it. `confirmed`/`denied`/`expired` are terminal and single-shot — a replay of a terminal id
   errors. Every invoke rate-limits (server-side, prompt-gate discipline) and appends an audit entry;
   lifecycle transitions broadcast on `dashboard.action.changed`. `confirmAndExecute(id)` is the
-  awaitable an agent-mediated call (M5c-1) blocks on.
+  awaitable an agent-mediated call (M5c-1) blocks on. A confirm re-gates the grant BEFORE executing
+  (§17.2 fail-closed): a grant expired/revoked/drifted between park and confirm refuses the mutation.
+- **Auto-confirmed direct execution (normative, §17.2).** A mutation whose `connector:tool` is in
+  the grant's `autoConfirm` set executes DIRECTLY on invoke — the same single engine gate, no park —
+  audited `auto-confirmed` and broadcasting `{status:"confirmed", autoConfirmed:true}`. It stays
+  rate-limited. `autoConfirm` is operator-only and wiped on any re-pend (§17.2), so this is a
+  confirm-fatigue shortcut, never a second widening surface.
 - **Operator-only confirm (normative).** `dashboard.action.confirm` and `dashboard.action.deny` ∈
   `OPERATOR_ONLY_METHODS`: NOT in the agent tool catalog and unreachable over an unauthenticated
   networked transport. `dashboard.action.invoke` is NOT operator-only — any client may invoke, but a
@@ -444,12 +482,37 @@ them once with `installConnectorWorkspace` (`@boardstate/server/node`):
   Streamable-HTTP aggregators behind env-ref headers, #47). Remote aggregator endpoints/auth had 2026
   cutovers — recipes stay config-only so drift never touches code; re-verify endpoints at setup time.
 
+### 18.4 Async pending actions — confirm after the turn ends (normative-lite)
+
+By default an agent-mediated mutation BLOCKS the turn on `confirmAndExecute` (§18.1). Async mode lets
+the turn end at "awaiting operator"; a later confirm executes and delivers the result forward. It is
+opt-in and changes only WHO is waiting — the engine gate, the single-shot terminal states, and replay
+refusal are UNCHANGED (no second execution path).
+
+- **Adapter (`asyncActions: true`, default false).** With it on, an agent-invoked mutation returns a
+  framed `{ parked: true, id, expiresAt }` tool result IMMEDIATELY instead of blocking. The default
+  blocking path is byte-identical to pre-async behavior. An `autoConfirm` (§17.2) or `readOnly` call
+  executes inline and never parks, so async mode has nothing to defer for those.
+- **Settlement delivery (`onActionSettled(record, result)`).** On EVERY terminal transition of a parked
+  action (operator confirm/deny or TTL expiry) the engine invokes the host callback with the settled
+  `PendingActionRecord` + result (the tool output, or a refusal reason). A direct execution never
+  parked, so it never fires the hook. The host frames the outcome onto the chat surface where the
+  conversation lives.
+- **Agent wake (opt-in, `@boardstate/agent`).** An OPERATOR-caused settlement (confirm or deny) MAY
+  enqueue ONE follow-up turn whose input is the framed settlement — the agent acknowledges the result
+  or the denial (never a silent retry). An EXPIRY settlement is delivered (`onActionSettled`, the board
+  timeline) but MUST NOT wake: expiry is time-caused, and a wake turn that parks a mutation which then
+  expires would wake again — an unattended TTL-paced loop. Wakes therefore require fresh OPERATOR
+  activity by construction. BUDGET: one wake per settlement, serialized. The framed settlement is
+  UNTRUSTED external data (invariant #1), rendered inert.
+
 _Landed: the client manager (#38), the grant lifecycle + partial grants + both-direction
 anti-rug-pull (#40), the pending-action engine (#41), the broker→AgentTool adapter + definition-token
 budget (#42), the `boardstate_tool_search` request/approve loop (#43), `source:"mcp"` host resolution
-(#45), one-call host wiring (`installConnectorWorkspace`), the OfficeCLI first-party preset (#46), and the
-Pipedream + Composio aggregator recipes (#47). The whole loop is proven headless end to end against the
-fake-MCP fixture (`operational-demo.e2e.test.ts`) and runnable in `examples/operational-demo`._
+(#45), one-call host wiring (`installConnectorWorkspace`), the OfficeCLI first-party preset (#46), the
+Pipedream + Composio aggregator recipes (#47), and the trust-tier trio — per-tool auto-confirm (#62),
+grant TTLs (#64), and async pending actions (#63). The whole loop is proven headless end to end against
+the fake-MCP fixture (`operational-demo.e2e.test.ts`) and runnable in `examples/operational-demo`._
 
 ---
 

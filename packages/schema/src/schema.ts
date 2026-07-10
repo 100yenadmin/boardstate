@@ -120,6 +120,24 @@ export type DashboardCapabilityGrant = {
    * before any tool call succeeds. Opaque here (shape validated, never recomputed).
    */
   toolsHash?: string;
+  /**
+   * Per-tool auto-confirm (SPEC §17.2, #62): the SUBSET of granted `tools` the operator
+   * marked "always allow" — a non-readOnly tool in this set executes DIRECTLY (audited
+   * `auto-confirmed`) instead of parking for confirm. OPERATOR-SET ONLY (the approve
+   * verb): the agent/tool_search surface can never touch it. Wiped whenever the grant
+   * re-pends (anti-rug-pull, TTL expiry) or is revoked — a tool that changed under you,
+   * or a lease that lapsed, must not keep auto-run. Every id ⊆ `tools`; validation
+   * rejects outsiders + duplicates.
+   */
+  autoConfirm?: string[];
+  /**
+   * TTL (SPEC §17, #64): an ISO-8601 instant after which the grant expires back to
+   * `requested` (the standard re-pend — tools drop, autoConfirm clears, bindings surface
+   * pending). Operator-set at approve time and must be FUTURE-DATED at write (enforced by
+   * the approve verb; the shape guard accepts any valid instant so a briefly-past grant
+   * survives until the sweep flips it). Absent ⇒ the grant never times out (a deed).
+   */
+  expiresAt?: string;
   /** Human-readable one-liner for the approval card. */
   description?: string;
   grantedBy?: DashboardActor;
@@ -780,7 +798,18 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
   const record = assertRecord(value, path);
   assertKnownKeys(
     record,
-    ["status", "methods", "streams", "tools", "toolsHash", "description", "grantedBy", "grantedAt"],
+    [
+      "status",
+      "methods",
+      "streams",
+      "tools",
+      "toolsHash",
+      "autoConfirm",
+      "expiresAt",
+      "description",
+      "grantedBy",
+      "grantedAt",
+    ],
     path,
   );
   const status = record.status;
@@ -829,6 +858,44 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
   if (toolsHash !== undefined && !TOOLS_HASH_PATTERN.test(toolsHash)) {
     throw new Error(`${path}.toolsHash is invalid`);
   }
+  // `autoConfirm` (SPEC §17.2, #62): the operator-set "always allow" SUBSET of the
+  // grant's `tools`. Shape-validated like tool ids, then constrained to the grant's own
+  // tool set — an id outside `tools` (an ungranted tool auto-running) is rejected, as
+  // are duplicates (canonical form; defends the store's set-comparison re-pend gates).
+  const autoConfirm =
+    record.autoConfirm === undefined
+      ? undefined
+      : requireArray(record.autoConfirm, `${path}.autoConfirm`).map((entry, index) => {
+          if (
+            typeof entry !== "string" ||
+            entry.length > GRANT_TOOL_ID_MAX_LENGTH ||
+            !GRANT_TOOL_ID_PATTERN.test(entry)
+          ) {
+            throw new Error(`${path}.autoConfirm[${index}] is not a valid connector:tool id`);
+          }
+          return entry;
+        });
+  if (autoConfirm !== undefined) {
+    if (new Set(autoConfirm).size !== autoConfirm.length) {
+      throw new Error(`${path}.autoConfirm contains duplicate tool ids`);
+    }
+    const granted = new Set(tools ?? []);
+    for (const id of autoConfirm) {
+      if (!granted.has(id)) {
+        throw new Error(`${path}.autoConfirm[${id}] is not one of the grant's tools`);
+      }
+    }
+  }
+  // `expiresAt` (SPEC §17, #64): an ISO-8601 instant. The shape guard accepts ANY valid
+  // instant (past included) — future-dating is a WRITE-TIME check the approve verb owns,
+  // and a granted grant that just lapsed must still validate until the sweep flips it.
+  const expiresAt = optionalString(record, "expiresAt", path);
+  if (
+    expiresAt !== undefined &&
+    (!ISO_TIMESTAMP_PATTERN.test(expiresAt) || Number.isNaN(Date.parse(expiresAt)))
+  ) {
+    throw new Error(`${path}.expiresAt must be an ISO 8601 timestamp`);
+  }
   const description = optionalString(record, "description", path);
   if (description !== undefined && description.length > 200) {
     throw new Error(`${path}.description must be 200 characters or fewer`);
@@ -844,6 +911,8 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
     streams,
     ...(tools !== undefined ? { tools } : {}),
     ...(toolsHash !== undefined ? { toolsHash } : {}),
+    ...(autoConfirm !== undefined ? { autoConfirm } : {}),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
     ...(description !== undefined ? { description } : {}),
     ...(grantedBy !== undefined ? { grantedBy } : {}),
     ...(grantedAt !== undefined ? { grantedAt } : {}),

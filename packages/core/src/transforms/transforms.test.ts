@@ -532,7 +532,7 @@ describe("approvals mapping", () => {
     const source = buildApprovalsSource(
       ws,
       () => {},
-      (name, decision, tools) => capCalls.push([name, decision, tools]),
+      (name, decision, options) => capCalls.push([name, decision, options?.tools]),
     );
     // Approve-all: no tools option.
     source.onDecide(source.pending[0]!, "approve");

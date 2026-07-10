@@ -165,7 +165,15 @@ export function sanitizeImportedWorkspace(parsed: unknown): Record<string, unkno
   const caps: Record<string, unknown> = {};
   for (const [name, entry] of Object.entries(capsInput)) {
     if (isRecord(entry)) {
-      const { grantedBy: _grantedBy, grantedAt: _grantedAt, ...rest } = entry;
+      // Strip who/when-granted AND the operator-only auto-run + TTL fields (SPEC §17.2/§17
+      // TTLs): an imported board is foreign authoring and carries no active lease.
+      const {
+        grantedBy: _grantedBy,
+        grantedAt: _grantedAt,
+        autoConfirm: _autoConfirm,
+        expiresAt: _expiresAt,
+        ...rest
+      } = entry;
       caps[name] = { ...rest, status: "requested" };
     }
   }

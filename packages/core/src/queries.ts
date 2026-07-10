@@ -196,6 +196,10 @@ function normalizeCapabilityGrant(value: unknown): DashboardCapabilityGrant | nu
     // grant normalizes byte-identically (no new keys).
     ...(Array.isArray(value.tools) ? { tools: strings(value.tools) } : {}),
     ...(typeof value.toolsHash === "string" ? { toolsHash: value.toolsHash } : {}),
+    // `autoConfirm`/`expiresAt` (SPEC §17.2/§17 TTL) carried only when present, so a
+    // pre-#62/#64 grant normalizes byte-identically (no new keys invented on output).
+    ...(Array.isArray(value.autoConfirm) ? { autoConfirm: strings(value.autoConfirm) } : {}),
+    ...(typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}),
     ...(typeof value.description === "string" ? { description: value.description } : {}),
     ...(typeof value.grantedBy === "string" ? { grantedBy: value.grantedBy } : {}),
     ...(typeof value.grantedAt === "string" ? { grantedAt: value.grantedAt } : {}),
