@@ -15,6 +15,13 @@ export {
 } from "./chat-agent.js";
 export { buildSystemPrompt, compositionGuideTool, COMPOSITION_GUIDE } from "./system-prompt.js";
 export {
+  createActionSettlementWake,
+  frameSettlement,
+  type ActionSettlementResult,
+  type ActionSettlementWake,
+  type CreateActionSettlementWakeOptions,
+} from "./action-wake.js";
+export {
   applyToolDefBudget,
   estimateToolDefTokens,
   COLLAPSED_TOOL_HINT,

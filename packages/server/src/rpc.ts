@@ -85,6 +85,12 @@ export type RegisterBoardstateRpcOptions = {
    * ⇒ a partial approve carries the existing `toolsHash` forward.
    */
   capabilityToolsHash?: (connector: string, toolIds: string[]) => string | undefined;
+  /**
+   * Clock (ms) for the grant-TTL future-dating check (SPEC §17 TTLs, #64). Injectable so a
+   * test's faked clock governs both the store sweep AND the approve verb's "must be
+   * future-dated" guard. Defaults to `Date.now`.
+   */
+  now?: () => number;
 };
 
 function respondError(respond: Respond, error: unknown) {
@@ -154,6 +160,51 @@ function readToolsSubset(record: Record<string, unknown>): string[] | undefined 
     }
     return entry;
   });
+}
+
+/**
+ * Read the optional per-tool auto-confirm subset (SPEC §17.2, #62): an array of
+ * `connector:tool` ids the operator marked "always allow". Absent ⇒ the approve sets no
+ * auto-confirm (and clears any prior one — the approve verb is the sole source of truth).
+ * Shape is checked here; the caller intersects it against the granted tools and the
+ * schema validator rejects any id outside the grant.
+ */
+function readAutoConfirmSubset(record: Record<string, unknown>): string[] | undefined {
+  const value = record.autoConfirm;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("autoConfirm must be an array of connector:tool ids");
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || entry.length === 0 || entry.length > 129) {
+      throw new Error(`autoConfirm[${index}] must be a connector:tool id`);
+    }
+    return entry;
+  });
+}
+
+/**
+ * Read the optional grant TTL (SPEC §17 TTLs, #64): an ISO-8601 instant that MUST be
+ * future-dated at write (`nowMs` is the injected clock). Absent ⇒ a permanent grant.
+ */
+function readFutureExpiresAt(record: Record<string, unknown>, nowMs: number): string | undefined {
+  const value = record.expiresAt;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error("expiresAt must be an ISO 8601 timestamp");
+  }
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    throw new Error("expiresAt must be an ISO 8601 timestamp");
+  }
+  if (parsed <= nowMs) {
+    throw new Error("expiresAt must be in the future");
+  }
+  return value;
 }
 
 function readOptionalActor(record: Record<string, unknown>): DashboardActor {
@@ -919,7 +970,14 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
         // Operator-only (SPEC §17): grant or revoke a connector's data/tool capability.
         // Not in the agent tool catalog and covered by OPERATOR_ONLY_METHODS, so an
         // agent or a networked client can never reach it — only the local operator.
-        const params = readParams(opts.params, ["name", "decision", "actor", "tools"]);
+        const params = readParams(opts.params, [
+          "name",
+          "decision",
+          "actor",
+          "tools",
+          "autoConfirm",
+          "expiresAt",
+        ]);
         const name = readRequiredString(params, "name", "name");
         if (!CONNECTOR_NAME_PATTERN.test(name)) {
           throw new Error("name is invalid");
@@ -932,6 +990,12 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
         // `connector:tool` ids. The decision applies to the intersection with the
         // requested set; the granted subset gets its OWN anti-rug-pull hash.
         const toolsSubset = readToolsSubset(params);
+        // Per-tool auto-confirm (SPEC §17.2, #62) + grant TTL (SPEC §17 TTLs, #64) — both
+        // OPERATOR-ONLY, settable only here (this verb is in OPERATOR_ONLY_METHODS, never in
+        // the agent catalog). autoConfirm is intersected with the granted tools below; a TTL
+        // must be future-dated at write.
+        const autoConfirmSubset = readAutoConfirmSubset(params);
+        const expiresAt = readFutureExpiresAt(params, (options.now ?? Date.now)());
         const actor = readOptionalActor(params);
         await respondWrite(
           opts,
@@ -946,11 +1010,15 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                   throw new Error(`no capability request for connector: ${name}`);
                 }
                 if (decision === "revoked") {
+                  // Revoke clears the operator-only auto-run + TTL too (SPEC §17.2/§17 TTLs):
+                  // a revoked grant carries no active lease.
                   registry[name] = {
                     ...existing,
                     status: "revoked",
                     grantedBy: undefined,
                     grantedAt: undefined,
+                    autoConfirm: undefined,
+                    expiresAt: undefined,
                   };
                   return;
                 }
@@ -966,13 +1034,32 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                     ? existing.toolsHash
                     : (options.capabilityToolsHash?.(name, grantedTools ?? []) ??
                       existing.toolsHash);
+                // autoConfirm (SPEC §17.2, #62) must be a SUBSET of the tools actually being
+                // granted — an id outside the granted set is rejected (an ungranted tool can
+                // never auto-run). The approve verb is the sole writer: an absent param
+                // CLEARS any prior auto-confirm (undefined ⇒ dropped by the validator).
+                if (autoConfirmSubset !== undefined) {
+                  if (new Set(autoConfirmSubset).size !== autoConfirmSubset.length) {
+                    throw new Error("autoConfirm contains duplicate tool ids");
+                  }
+                  const granted = new Set(grantedTools ?? []);
+                  for (const id of autoConfirmSubset) {
+                    if (!granted.has(id)) {
+                      throw new Error(`autoConfirm tool "${id}" is not in the granted set`);
+                    }
+                  }
+                }
                 registry[name] = {
                   ...existing,
                   status: "granted",
                   ...(grantedTools !== undefined ? { tools: grantedTools } : {}),
                   ...(toolsHash !== undefined ? { toolsHash } : { toolsHash: undefined }),
+                  // Absent params CLEAR the prior value (undefined ⇒ dropped on validate) so
+                  // this verb is the single source of truth for both operator-only fields.
+                  autoConfirm: autoConfirmSubset,
+                  expiresAt,
                   grantedBy: actor,
-                  grantedAt: new Date().toISOString(),
+                  grantedAt: new Date((options.now ?? Date.now)()).toISOString(),
                 };
               },
               { actor },

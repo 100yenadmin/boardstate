@@ -558,7 +558,15 @@ export async function approveWidget(
 export async function approveCapability(
   state: DashboardUiState,
   transport: Transport | null,
-  params: { name: string; decision: "granted" | "revoked"; tools?: string[] },
+  params: {
+    name: string;
+    decision: "granted" | "revoked";
+    tools?: string[];
+    /** Per-tool auto-confirm subset (SPEC §17.2, #62); ⊆ the granted `tools`. */
+    autoConfirm?: string[];
+    /** Grant TTL (SPEC §17 grant TTLs, #64) — an ISO-8601 instant, future-dated at write. */
+    expiresAt?: string;
+  },
 ): Promise<void> {
   if (!transport) {
     return;
@@ -570,6 +578,8 @@ export async function approveCapability(
       name: params.name,
       decision: params.decision,
       ...(params.tools !== undefined ? { tools: params.tools } : {}),
+      ...(params.autoConfirm !== undefined ? { autoConfirm: params.autoConfirm } : {}),
+      ...(params.expiresAt !== undefined ? { expiresAt: params.expiresAt } : {}),
     });
   } catch (err) {
     state.actionError = formatError(err);

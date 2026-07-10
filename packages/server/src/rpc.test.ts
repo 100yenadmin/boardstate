@@ -667,4 +667,63 @@ describe("dashboard.capability.approve — partial tool grants (SPEC §17.1)", (
       );
     });
   });
+
+  it("persists autoConfirm + expiresAt from the approve params (wire contract, #62/#64)", async () => {
+    await withGrantHost(async ({ host, store }) => {
+      const expiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
+      const res = await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+        tools: ["officecli:send_mail"],
+        autoConfirm: ["officecli:send_mail"],
+        expiresAt,
+      });
+      expect(res.ok).toBe(true);
+      const grant = (await store.read()).capabilitiesRegistry!.officecli!;
+      expect(grant.autoConfirm).toEqual(["officecli:send_mail"]);
+      expect(grant.expiresAt).toBe(expiresAt);
+    });
+  });
+
+  it("rejects an autoConfirm id outside the granted subset (#62)", async () => {
+    await withGrantHost(async ({ host }) => {
+      const res = await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+        tools: ["officecli:read_mail"],
+        autoConfirm: ["officecli:send_mail"],
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("not in the granted set");
+    });
+  });
+
+  it("rejects a past-dated expiresAt at approve time (#64)", async () => {
+    await withGrantHost(async ({ host }) => {
+      const res = await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("future");
+    });
+  });
+
+  it("rejects an unexpected param on the approve verb (fail-closed wire shape)", async () => {
+    await withGrantHost(async ({ host }) => {
+      const res = await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+        // A stray param an agent might smuggle — the verb only knows its 6 keys.
+        surprise: true,
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error?.message).toContain("unexpected param");
+    });
+  });
 });

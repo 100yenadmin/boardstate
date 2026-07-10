@@ -615,4 +615,77 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
       ),
     ).toThrow("duplicate tool ids");
   });
+
+  it("accepts autoConfirm ⊆ tools (SPEC §17.2, #62)", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:read_mail", "officecli:send_mail"],
+        autoConfirm: ["officecli:send_mail"],
+      }),
+    );
+    expect(validated.capabilitiesRegistry!.officecli!.autoConfirm).toEqual(["officecli:send_mail"]);
+  });
+
+  it("rejects an autoConfirm id outside the grant's tools", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail"],
+          autoConfirm: ["officecli:send_mail"],
+        }),
+      ),
+    ).toThrow("is not one of the grant's tools");
+  });
+
+  it("rejects duplicate autoConfirm ids", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:send_mail"],
+          autoConfirm: ["officecli:send_mail", "officecli:send_mail"],
+        }),
+      ),
+    ).toThrow("autoConfirm contains duplicate tool ids");
+  });
+
+  it("accepts an ISO-8601 expiresAt and rejects a malformed one (SPEC §17 TTLs, #64)", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+        expiresAt: "2026-07-11T12:00:00.000Z",
+      }),
+    );
+    expect(validated.capabilitiesRegistry!.officecli!.expiresAt).toBe("2026-07-11T12:00:00.000Z");
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({
+          status: "granted",
+          methods: [],
+          streams: [],
+          expiresAt: "not-a-date",
+        }),
+      ),
+    ).toThrow("expiresAt must be an ISO 8601 timestamp");
+  });
+
+  it("does not invent autoConfirm/expiresAt on a pre-#62/#64 grant (byte-identical)", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({ status: "requested", methods: [], streams: [], tools: ["officecli:read_mail"] }),
+    );
+    const grant = validated.capabilitiesRegistry!.officecli!;
+    expect("autoConfirm" in grant).toBe(false);
+    expect("expiresAt" in grant).toBe(false);
+  });
 });

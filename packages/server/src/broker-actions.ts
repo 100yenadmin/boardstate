@@ -34,9 +34,14 @@ const MAX_ARGS_BYTES = 8 * 1024;
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_RATE_MAX = 10;
 const DEFAULT_RATE_WINDOW_MS = 60_000;
+/** Coarse grant-TTL sweep cadence (SPEC §17 TTLs, #64) — a UX nicety, not the enforcement path. */
+const DEFAULT_GRANT_SWEEP_MS = 30_000;
 
 /** Protocol broadcast for pending-action lifecycle transitions (SPEC §18). */
 export const ACTION_EVENT = "dashboard.action.changed";
+
+/** The standard workspace-changed broadcast (mirrors rpc.ts `broadcastChange`). */
+const WORKSPACE_EVENT = "boardstate.changed";
 
 const randomId = (): string => `act_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 
@@ -83,9 +88,21 @@ export type BrokerActionAuditEntry = {
   connector: string;
   tool: string;
   actor?: string;
-  outcome: "executed" | "pending" | "denied" | "expired" | "error";
+  // `auto-confirmed` (SPEC §17.2, #62): a non-readOnly tool the operator marked
+  // "always allow" executed DIRECTLY, distinct from `executed`-via-operator-confirm — so
+  // the board timeline stays honest about which mutations bypassed the confirm gate.
+  outcome: "executed" | "auto-confirmed" | "pending" | "denied" | "expired" | "error";
   error?: string;
 };
+
+/**
+ * The terminal result delivered to `onActionSettled` (SPEC §18 async settlement, #63):
+ * a confirmed tool's output, or a refusal reason for a denied / expired / errored action.
+ * The `message` on a refusal is UNTRUSTED external text — the host frames it inert.
+ */
+export type ActionSettlementResult =
+  | { ok: true; content: unknown; structuredContent?: unknown }
+  | { ok: false; reason: "denied" | "expired" | "error"; message?: string };
 
 export type InstallBrokerActionsOptions = {
   broker: ActionBroker;
@@ -98,6 +115,22 @@ export type InstallBrokerActionsOptions = {
   invokeRateMax?: number;
   /** Rolling rate window (ms). Default 60 000. */
   invokeRateWindowMs?: number;
+  /**
+   * Coarse grant-TTL sweep cadence (ms) — a background tick that re-reads the store so a
+   * lapsed grant re-pends (SPEC §17 TTLs, #64) and clients are notified even while idle.
+   * Enforcement never depends on it (the store's sweep-on-read is fail-closed). `0`
+   * disables the timer (deterministic tests drive expiry via the injected clock + a read).
+   * Default 30 000.
+   */
+  grantSweepMs?: number;
+  /**
+   * Async settlement hook (SPEC §18 async pending actions, #63). Invoked on EVERY terminal
+   * transition of a parked action (operator confirm/deny or TTL expiry) with the settled
+   * record + result, so a host can deliver the outcome to the chat surface after the
+   * agent's turn ended. Never fires for a direct (readOnly / auto-confirmed) execution —
+   * those never parked. Failures are swallowed (a settlement sink never breaks the engine).
+   */
+  onActionSettled?: (record: PendingActionRecord, result: ActionSettlementResult) => void;
 };
 
 export type BrokerActionsHandle = {
@@ -105,6 +138,12 @@ export type BrokerActionsHandle = {
   ready: Promise<void>;
   /** Re-discover tools and refresh `requested` grants (leaves `granted` grants alone). */
   refreshGrants(): Promise<void>;
+  /**
+   * Run one grant-TTL sweep tick (SPEC §17 TTLs, #64): re-read the store (which re-pends
+   * any lapsed grant) and broadcast `boardstate.changed` if the doc advanced. Called by
+   * the coarse timer; exposed for deterministic tests (advance the clock, then sweep).
+   */
+  sweepGrants(): Promise<void>;
   /**
    * Await an operator's decision on a parked action and resolve with the tool result
    * (SPEC §18 / M5c-1: agent-mediated calls block on confirm). Resolves on confirm,
@@ -222,6 +261,8 @@ export function installBrokerActions(
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const rateMax = options.invokeRateMax ?? DEFAULT_RATE_MAX;
   const rateWindowMs = options.invokeRateWindowMs ?? DEFAULT_RATE_WINDOW_MS;
+  const grantSweepMs = options.grantSweepMs ?? DEFAULT_GRANT_SWEEP_MS;
+  const onActionSettled = options.onActionSettled;
 
   const pending = new Map<string, PendingEntry>();
   const audit: BrokerActionAuditEntry[] = [];
@@ -230,12 +271,32 @@ export function installBrokerActions(
 
   function record(entry: BrokerActionAuditEntry): void {
     audit.push(entry);
+    // An auto-confirmed mutation (SPEC §17.2, #62) never parks, yet the board timeline
+    // must show it reaching a `confirmed` status — flagged `autoConfirmed` so a viewer
+    // can distinguish it from an operator-confirmed one.
+    const autoConfirmed = entry.outcome === "auto-confirmed";
+    const status = autoConfirmed
+      ? "confirmed"
+      : (pending.get(entry.id)?.record.status ?? terminalStatus(entry.event));
     host.broadcast(ACTION_EVENT, {
       id: entry.id,
-      status: pending.get(entry.id)?.record.status ?? terminalStatus(entry.event),
+      status,
       connector: entry.connector,
       tool: entry.tool,
+      ...(autoConfirmed ? { autoConfirmed: true } : {}),
     });
+  }
+
+  /** Deliver a settled action to the async settlement hook (#63); a sink error never escapes. */
+  function notifySettled(rec: PendingActionRecord, result: ActionSettlementResult): void {
+    if (!onActionSettled) {
+      return;
+    }
+    try {
+      onActionSettled(rec, result);
+    } catch {
+      // A settlement sink is best-effort delivery — it can never break the engine gate.
+    }
   }
 
   function terminalStatus(event: BrokerActionAuditEntry["event"]): PendingActionRecord["status"] {
@@ -325,12 +386,14 @@ export function installBrokerActions(
   async function gateCall(
     connector: string,
     tool: string,
-  ): Promise<{ id: string; readOnly: boolean }> {
+  ): Promise<{ id: string; readOnly: boolean; autoConfirm: boolean }> {
     if (!broker.connectorNames().includes(connector)) {
       // Config authorship (SPEC §18): a doc-introduced connector name is inert.
       throw new ActionError("unknown_connector", `connector "${connector}" is not configured`);
     }
     const id = `${connector}:${tool}`;
+    // `store.read()` sweeps a lapsed grant back to `requested` (SPEC §17 TTLs, #64) BEFORE
+    // this gate consults it, so an expired lease fails closed here with no extra check.
     const doc = await store.read();
     const grant = doc.capabilitiesRegistry?.[connector];
     if (grant?.status !== "granted" || !(grant.tools ?? []).includes(id)) {
@@ -343,7 +406,8 @@ export function installBrokerActions(
     const liveHash = broker.hashToolSubset(manifest, grant.tools ?? []);
     if (liveHash !== grant.toolsHash) {
       // The connector changed a granted tool's shape under a live grant — re-pend
-      // before any call succeeds, never a silent widening.
+      // before any call succeeds, never a silent widening. autoConfirm is WIPED with the
+      // re-pend (SPEC §17.2): a tool that changed under you must not keep auto-running.
       await store.mutate(
         (draft) => {
           const entry = draft.capabilitiesRegistry?.[connector];
@@ -351,6 +415,8 @@ export function installBrokerActions(
             entry.status = "requested";
             delete entry.grantedBy;
             delete entry.grantedAt;
+            delete entry.autoConfirm;
+            delete entry.expiresAt;
           }
         },
         { actor: "system" },
@@ -364,7 +430,11 @@ export function installBrokerActions(
     if (!entry) {
       throw new ActionError("unknown_tool", `tool "${id}" is not in the connector manifest`);
     }
-    return { id, readOnly: entry.readOnly === true };
+    return {
+      id,
+      readOnly: entry.readOnly === true,
+      autoConfirm: (grant.autoConfirm ?? []).includes(id),
+    };
   }
 
   function settle(
@@ -431,7 +501,7 @@ export function installBrokerActions(
       const { connector, tool, args } = readInvokeParams(ctx.params);
       const requestedBy = readActor(ctx.params);
       checkRate(connector);
-      const { id, readOnly } = await gateCall(connector, tool);
+      const { id, readOnly, autoConfirm } = await gateCall(connector, tool);
 
       if (readOnly) {
         // A networked client MAY directly execute a granted readOnly tool (SPEC §18).
@@ -444,6 +514,25 @@ export function installBrokerActions(
           tool,
           ...(requestedBy ? { actor: requestedBy } : {}),
           outcome: "executed",
+        });
+        ctx.respond(true, result);
+        return;
+      }
+
+      if (autoConfirm) {
+        // Per-tool auto-confirm (SPEC §17.2, #62): the operator marked this mutation
+        // "always allow", so it executes DIRECTLY (no park) — but is audited
+        // `auto-confirmed` and broadcasts `confirmed`+`autoConfirmed` so the board timeline
+        // stays honest. Still rate-limited (checkRate above ran for every invoke).
+        const result = await broker.callTool(id, args);
+        record({
+          at: new Date(now()).toISOString(),
+          event: "invoke",
+          id,
+          connector,
+          tool,
+          ...(requestedBy ? { actor: requestedBy } : {}),
+          outcome: "auto-confirmed",
         });
         ctx.respond(true, result);
         return;
@@ -468,6 +557,7 @@ export function installBrokerActions(
           return;
         }
         settle(entry, "expired", "expire", undefined, "expired");
+        notifySettled(entry.record, { ok: false, reason: "expired" });
         rejectWaiters(entry, new ActionError("action_expired", `action "${actionId}" expired`));
       }, ttlMs);
       // Node's timer keeps the process alive; the engine is a background gate, not a
@@ -506,17 +596,30 @@ export function installBrokerActions(
     clearTimeout(entry.timer);
     pending.delete(actionId);
     try {
+      // Fail-closed re-gate at confirm time (SPEC §17 TTLs #64 + anti-rug-pull): a grant
+      // that EXPIRED, was revoked, or whose manifest drifted between park and confirm
+      // refuses the mutation here. The synchronous claim above already ran, so this can
+      // never re-park or double-execute; a refused confirm settles as an error terminal.
+      await gateCall(connector, tool);
       const result = await broker.callTool(id, args as Record<string, unknown>);
       settle(entry, "confirmed", "confirm", actor, "executed");
+      notifySettled(entry.record, {
+        ok: true,
+        content: result.content,
+        ...(result.structuredContent !== undefined
+          ? { structuredContent: result.structuredContent }
+          : {}),
+      });
       for (const waiter of entry.waiters) {
         waiter.resolve(result);
       }
       entry.waiters = [];
       return result;
     } catch (error) {
-      // The action WAS confirmed (single-shot terminal), but execution failed — never
-      // re-runnable. Reject the caller + any agent waiter with the broker error.
+      // The action WAS confirmed (single-shot terminal), but execution (or the re-gate)
+      // failed — never re-runnable. Reject the caller + any agent waiter with the error.
       settle(entry, "confirmed", "confirm", actor, "error", formatMessage(error));
+      notifySettled(entry.record, { ok: false, reason: "error", message: formatMessage(error) });
       rejectWaiters(entry, error);
       void actionId;
       throw error;
@@ -547,6 +650,7 @@ export function installBrokerActions(
       const actor = readActor(ctx.params);
       const entry = requirePending(actionId);
       settle(entry, "denied", "deny", actor, "denied");
+      notifySettled(entry.record, { ok: false, reason: "denied" });
       rejectWaiters(entry, new ActionError("action_denied", `action "${actionId}" was denied`));
       ctx.respond(true, { id: actionId, status: "denied" });
     } catch (error) {
@@ -578,11 +682,40 @@ export function installBrokerActions(
     { scope: "read" },
   );
 
+  // Grant-TTL coarse sweep (SPEC §17 TTLs, #64). Enforcement is fail-closed via the
+  // store's sweep-on-read (every gate reads through it); this timer only forces a read
+  // while the board is idle so a lapsed lease re-pends promptly, and broadcasts
+  // `boardstate.changed` when the doc advances so live approvals views refresh their
+  // countdown → expired transition. It never drives correctness — a missed tick just
+  // defers the UI update to the next real read.
+  let lastSweepVersion = -1;
+  async function sweepGrants(): Promise<void> {
+    try {
+      const doc = await store.read();
+      if (doc.workspaceVersion !== lastSweepVersion) {
+        lastSweepVersion = doc.workspaceVersion;
+        host.broadcast(WORKSPACE_EVENT, {
+          workspaceVersion: doc.workspaceVersion,
+          actor: "system",
+        });
+      }
+    } catch {
+      // A transient read failure never crashes the gate; the next tick retries.
+    }
+  }
+
+  let sweepTimer: ReturnType<typeof setInterval> | undefined;
+  if (grantSweepMs > 0) {
+    sweepTimer = setInterval(() => void sweepGrants(), grantSweepMs);
+    (sweepTimer as { unref?: () => void }).unref?.();
+  }
+
   const ready = refreshGrants();
 
   return {
     ready,
     refreshGrants,
+    sweepGrants,
     async confirmAndExecute(actionId, opts) {
       const entry = pending.get(actionId);
       if (!entry || entry.record.status !== "pending") {
@@ -631,6 +764,9 @@ export function installBrokerActions(
     stop() {
       for (const entry of pending.values()) {
         clearTimeout(entry.timer);
+      }
+      if (sweepTimer !== undefined) {
+        clearInterval(sweepTimer);
       }
     },
   };

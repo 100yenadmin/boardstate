@@ -58,8 +58,22 @@ export type InstallConnectorWorkspaceOptions = {
   invokeRateWindowMs?: InstallBrokerActionsOptions["invokeRateWindowMs"];
   /** Clock (ms) for the pending-action engine. Injectable for deterministic tests. */
   now?: InstallBrokerActionsOptions["now"];
+  /** Coarse grant-TTL sweep cadence (ms). `0` disables the timer (SPEC §17 TTLs, #64). */
+  grantSweepMs?: InstallBrokerActionsOptions["grantSweepMs"];
   /** How long an agent-mediated mutation waits for the operator's confirm. Default 5 min. */
   mutationTimeoutMs?: number;
+  /**
+   * Async pending actions (SPEC §18 async settlement, #63). Default `false` (blocking path
+   * byte-identical). When `true`, agent-invoked mutations park + return immediately, and
+   * settlements are delivered via `onActionSettled`.
+   */
+  asyncActions?: boolean;
+  /**
+   * Async settlement hook (#63): invoked on every terminal transition of a parked action
+   * with the settled record + result. Pair with `asyncActions: true` to deliver outcomes
+   * to the chat surface / an agent wake after the turn ended.
+   */
+  onActionSettled?: InstallBrokerActionsOptions["onActionSettled"];
 };
 
 export type ConnectorWorkspaceHandle = {
@@ -101,6 +115,8 @@ export function installConnectorWorkspace(
       ? { invokeRateWindowMs: options.invokeRateWindowMs }
       : {}),
     ...(options.now !== undefined ? { now: options.now } : {}),
+    ...(options.grantSweepMs !== undefined ? { grantSweepMs: options.grantSweepMs } : {}),
+    ...(options.onActionSettled !== undefined ? { onActionSettled: options.onActionSettled } : {}),
   });
 
   // 2. The adapter — granted readOnly tools execute directly; mutations park via the
@@ -112,6 +128,7 @@ export function installConnectorWorkspace(
     ...(options.mutationTimeoutMs !== undefined
       ? { mutationTimeoutMs: options.mutationTimeoutMs }
       : {}),
+    ...(options.asyncActions !== undefined ? { asyncActions: options.asyncActions } : {}),
   });
 
   // 3. The search/request backing — a re-pend broadcasts on the host bus so the next

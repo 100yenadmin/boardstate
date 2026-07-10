@@ -449,9 +449,10 @@ describe("approvals render (wave-ops)", () => {
         approvals: { pending: [item], onDecide },
       }),
     );
-    // Untick the mutating tool, then approve → only the read tool is granted.
+    // Untick the mutating tool's GRANT box, then approve → only the read tool is granted.
+    // (Each tool now carries a grant box + an auto-confirm box, SPEC §17.2 #62.)
     const boxes = container.querySelectorAll<HTMLInputElement>(
-      '[data-test-id="dashboard-approvals-tools"] input[type="checkbox"]',
+      '[data-test-id="dashboard-approvals-tools"] input.dashboard-approvals__grant',
     );
     expect(boxes).toHaveLength(2);
     boxes[1]!.checked = false;

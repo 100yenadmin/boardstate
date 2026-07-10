@@ -25,6 +25,17 @@ export type ApprovalDecisionOptions = {
    * set). Ignored for `widget`/`action` items.
    */
   tools?: string[];
+  /**
+   * For `capability` items: the SUBSET of granted tools the operator marked "always
+   * allow" (SPEC §17.2 per-tool auto-confirm, #62). Each id ⊆ the granted `tools`. Absent
+   * ⇒ no auto-confirm (and CLEARS any prior — the approve verb is the sole writer).
+   */
+  autoConfirm?: string[];
+  /**
+   * For `capability` items: an ISO-8601 TTL the operator set on the grant (SPEC §17 grant
+   * TTLs, #64) — the grant re-pends to `requested` after this instant. Absent ⇒ permanent.
+   */
+  expiresAt?: string;
 };
 
 /** One pending approval row rendered by the `approvals` builtin. */
@@ -50,6 +61,21 @@ export type PendingApprovalItem = {
    * as a subset (SPEC §17.1). Empty/omitted ⇒ a data-only grant (no per-tool ticks).
    */
   tools?: string[];
+  /**
+   * For a GRANTED `capability` management row (#62/#64): the grant is live, not pending —
+   * the row offers per-tool auto-confirm toggles, renew, and revoke rather than approve.
+   */
+  granted?: boolean;
+  /**
+   * For `capability` items: the tools currently marked "always allow" (SPEC §17.2, #62),
+   * so the widget can pre-tick the auto-confirm toggles.
+   */
+  autoConfirm?: string[];
+  /**
+   * For a time-boxed `capability` grant (SPEC §17 grant TTLs, #64): the ISO-8601 instant
+   * it expires, so the widget can render a live countdown.
+   */
+  expiresAt?: string;
 };
 
 /**
@@ -126,32 +152,60 @@ export type ResolveActionDecision = (id: string, decision: "confirm" | "deny") =
 export function buildApprovalsSource(
   workspace: DashboardWorkspace,
   resolveWidget: (name: string, decision: "approved" | "rejected") => void,
-  resolveCapability: (name: string, decision: "granted" | "revoked", tools?: string[]) => void,
+  resolveCapability: (
+    name: string,
+    decision: "granted" | "revoked",
+    options?: ApprovalDecisionOptions,
+  ) => void,
   actions?: { pending: PendingActionInput[]; resolve: ResolveActionDecision },
 ): ApprovalsWidgetSource {
   const widgets = buildWidgetApprovalsSource(workspace, resolveWidget).pending;
-  const capabilities: PendingApprovalItem[] = Object.entries(workspace.capabilitiesRegistry ?? {})
+  const grants = Object.entries(workspace.capabilitiesRegistry ?? {});
+  const reachOf = (grant: DashboardWorkspace["capabilitiesRegistry"][string]): string => {
+    const tools = grant.tools ?? [];
+    const reach = [
+      grant.methods.length
+        ? `${grant.methods.length} read${grant.methods.length === 1 ? "" : "s"}`
+        : null,
+      grant.streams.length
+        ? `${grant.streams.length} stream${grant.streams.length === 1 ? "" : "s"}`
+        : null,
+      tools.length ? `${tools.length} tool${tools.length === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+    return grant.description ?? (reach.length ? `wants ${reach.join(" + ")}` : "data access");
+  };
+  // Requested grants await an approve decision (SPEC §17.1); the operator may grant a
+  // subset, mark tools auto-confirm (#62), and set a TTL (#64) — the renderer collects
+  // those into the decision options.
+  const requested: PendingApprovalItem[] = grants
     .filter(([, grant]) => grant.status === "requested")
-    .map(([name, grant]) => {
-      const tools = grant.tools ?? [];
-      const reach = [
-        grant.methods.length
-          ? `${grant.methods.length} read${grant.methods.length === 1 ? "" : "s"}`
-          : null,
-        grant.streams.length
-          ? `${grant.streams.length} stream${grant.streams.length === 1 ? "" : "s"}`
-          : null,
-        tools.length ? `${tools.length} tool${tools.length === 1 ? "" : "s"}` : null,
-      ].filter(Boolean);
-      return {
-        id: name,
-        kind: "capability" as const,
-        title: name,
-        requestedBy: null,
-        detail: grant.description ?? (reach.length ? `wants ${reach.join(" + ")}` : "data access"),
-        ...(tools.length ? { tools } : {}),
-      };
-    });
+    .map(([name, grant]) => ({
+      id: name,
+      kind: "capability" as const,
+      title: name,
+      requestedBy: null,
+      detail: reachOf(grant),
+      ...((grant.tools ?? []).length ? { tools: grant.tools } : {}),
+    }));
+  // GRANTED tool-grants surface as MANAGEMENT rows (SPEC §17.2/§17 TTLs): per-tool
+  // auto-confirm toggles, a renew (re-approve) affordance for time-boxed grants, and a
+  // one-click revoke. A pure data grant (no tools, no TTL) needs no management surface.
+  const granted: PendingApprovalItem[] = grants
+    .filter(
+      ([, grant]) =>
+        grant.status === "granted" && ((grant.tools ?? []).length > 0 || grant.expiresAt),
+    )
+    .map(([name, grant]) => ({
+      id: name,
+      kind: "capability" as const,
+      title: name,
+      requestedBy: null,
+      granted: true,
+      detail: reachOf(grant),
+      ...((grant.tools ?? []).length ? { tools: grant.tools } : {}),
+      ...((grant.autoConfirm ?? []).length ? { autoConfirm: grant.autoConfirm } : {}),
+      ...(grant.expiresAt ? { expiresAt: grant.expiresAt } : {}),
+    }));
   const pendingActions: PendingApprovalItem[] = (actions?.pending ?? []).map((action) => ({
     id: action.id,
     kind: "action" as const,
@@ -160,14 +214,14 @@ export function buildApprovalsSource(
     detail: "awaiting confirm",
   }));
   return {
-    // Actions first: a consequential side-effect awaiting confirm is the most urgent
-    // row in the operator queue, ahead of grant requests and widget approvals.
-    pending: [...pendingActions, ...capabilities, ...widgets],
+    // Actions first (a consequential side-effect awaiting confirm is the most urgent),
+    // then requested grants + widget approvals, then live-grant management rows last.
+    pending: [...pendingActions, ...requested, ...widgets, ...granted],
     onDecide: (item, decision, options) => {
       if (item.kind === "action") {
         actions?.resolve(item.id, decision === "approve" ? "confirm" : "deny");
       } else if (item.kind === "capability") {
-        resolveCapability(item.id, decision === "approve" ? "granted" : "revoked", options?.tools);
+        resolveCapability(item.id, decision === "approve" ? "granted" : "revoked", options);
       } else {
         resolveWidget(item.id, toWidgetApprovalDecision(decision));
       }
