@@ -236,6 +236,18 @@ describe("chart mapping", () => {
   it("honors a valid props.type and falls back on an unknown one", () => {
     expect(mapChart(widget({ props: { type: "bar" } }), [1, 2]).type).toBe("bar");
     expect(mapChart(widget({ props: { type: "pie" } }), [1, 2]).type).toBe("line");
+    expect(mapChart(widget({ props: { type: "sparkline" } }), [1, 2]).type).toBe("sparkline");
+  });
+
+  it("resolves detail/label only from an explicit true (default off)", () => {
+    const plain = mapChart(widget(), [1, 2]);
+    expect(plain.detail).toBe(false);
+    expect(plain.label).toBe(false);
+    const rich = mapChart(widget({ props: { detail: true, label: true } }), [1, 2]);
+    expect(rich.detail).toBe(true);
+    expect(rich.label).toBe(true);
+    // Only a strict boolean true opts in — truthy strings do not.
+    expect(mapChart(widget({ props: { detail: "yes" } }), [1, 2]).detail).toBe(false);
   });
 });
 

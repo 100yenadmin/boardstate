@@ -71,7 +71,11 @@ export const WIDGET_CATALOG: readonly WidgetCatalogEntry[] = [
     kind: "builtin:chart",
     summary: "Trends, comparisons, budgets — a small inline chart.",
     bindings: [{ key: "value", shape: "number[] (or labeled points {label,value}[])" }],
-    props: { type: '"line" | "bar" | "area" | "sparkline" | "gauge" (default line)' },
+    props: {
+      type: '"line" | "bar" | "area" | "sparkline" | "gauge" (default line)',
+      detail: "true adds labeled axes, gridlines, and value tooltips (line/bar/area)",
+      label: "sparkline only: true shows the trailing value as an end label",
+    },
     example: {
       id: "revenue-trend",
       kind: "builtin:chart",
@@ -82,6 +86,28 @@ export const WIDGET_CATALOG: readonly WidgetCatalogEntry[] = [
       bindings: { value: { source: "static", value: [8, 12, 10, 18, 24, 21, 30, 35, 41, 52] } },
       props: { type: "area" },
     },
+    examples: [
+      {
+        id: "signups-spark",
+        kind: "builtin:chart",
+        title: "Signups",
+        grid: grid(0, 7, 3, 2),
+        collapsed: false,
+        hidden: false,
+        bindings: { value: { source: "static", value: [12, 9, 14, 11, 17, 15, 22] } },
+        props: { type: "sparkline", label: true },
+      },
+      {
+        id: "latency-detail",
+        kind: "builtin:chart",
+        title: "p95 latency (ms)",
+        grid: grid(0, 9, 8, 5),
+        collapsed: false,
+        hidden: false,
+        bindings: { value: { source: "static", value: [180, 220, 190, 240, 210, 260, 230] } },
+        props: { type: "line", detail: true },
+      },
+    ],
   },
   {
     kind: "builtin:table",
