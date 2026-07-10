@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/broker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The MCP client manager: connect outward to external MCP servers, discover their tools, and call them behind a narrow, provider-safe API",
   "type": "module",
   "license": "MIT",

@@ -1,5 +1,17 @@
 # @boardstate/core
 
+## 1.5.0
+
+### Minor Changes
+
+- [#65](https://github.com/100yenadmin/boardstate/pull/65) [`85e129c`](https://github.com/100yenadmin/boardstate/commit/85e129c9a4dbb4b553e22802d7428c371c38b6ed) Thanks [@100yenadmin](https://github.com/100yenadmin)! - feat(chart): distinct sparkline model + opt-in detail mode ([#10](https://github.com/100yenadmin/boardstate/issues/10), [#4](https://github.com/100yenadmin/boardstate/issues/4))
+
+  `mapChart` now resolves two new props onto `ChartModel`: `detail` (labeled axes,
+  gridlines, and value tooltips) and `label` (a sparkline's trailing value badge). Both
+  opt in only on a strict `true`, so every existing chart doc maps to the same model as
+  before — `detail`/`label` default off. The catalog's `builtin:chart` entry documents the
+  two props and ships copy-pasteable `sparkline` and `detail` examples (both honesty-gated).
+
 ## 1.3.0
 
 ### Minor Changes

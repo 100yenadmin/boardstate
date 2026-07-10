@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/core",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "description": "Headless Boardstate runtime: store, bindings, grid math, history",
   "type": "module",
   "license": "MIT",

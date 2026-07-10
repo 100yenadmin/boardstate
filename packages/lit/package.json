@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/lit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "The Boardstate reference view — <boardstate-view> and 15 builtin widgets as custom elements",
   "type": "module",
   "license": "MIT",
