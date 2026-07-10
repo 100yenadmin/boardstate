@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "pomodoro",
+  "title": "Pomodoro",
+  "entrypoint": "index.html",
+  "bindings": [],
+  "capabilities": [
+    "state:persist"
+  ],
+  "preferredSize": {
+    "w": 3,
+    "h": 5
+  }
+}

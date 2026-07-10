@@ -1,0 +1,406 @@
+<!doctype html>
+<!--
+  habit-tracker — a rolling 7-day check-in grid, and another starter that
+  exercises the `state:persist` capability (like twenty48 and pomodoro). On boot
+  it asks the parent for its saved blob (dashboard:getState) and restores which
+  days were completed plus the habit's name; each tap toggles a day and writes a
+  tiny blob back (dashboard:setState). The grid is keyed by local calendar date,
+  so the window rolls forward on its own and a completed day stays completed
+  across reloads. Both messages are gated by the "state:persist" capability in
+  widget.json — without it the parent replies capability_denied and the tracker
+  runs in-memory (checks reset on remount). No bindings, no network of any kind:
+  everything below is self-contained.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Habit Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        /* Theme tokens: default to system Canvas/CanvasText, overridden by the
+           parent's dashboard:theme reply (--bg/--card/--text/--accent/--border). */
+        --bg: Canvas;
+        --card: color-mix(in srgb, var(--text) 8%, Canvas);
+        --text: CanvasText;
+        --accent: #4f8cff;
+        --border: color-mix(in srgb, var(--text) 22%, transparent);
+        --muted: color-mix(in srgb, var(--text) 55%, transparent);
+        --cell: color-mix(in srgb, var(--text) 12%, transparent);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        padding: 12px;
+        font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: 0.3px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      h1:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 3px;
+      }
+      .streak {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+      }
+      .streak b {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--accent);
+      }
+      .streak span {
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        opacity: 0.7;
+        font-weight: 600;
+      }
+      #grid {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+      }
+      .day {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 6px 2px;
+        border-radius: 8px;
+        background: var(--cell);
+        border: 1px solid transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        min-height: 0;
+      }
+      .day:hover {
+        border-color: var(--border);
+      }
+      .day .dow {
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        opacity: 0.7;
+        font-weight: 700;
+      }
+      .day .dom {
+        font-size: 0.7rem;
+        opacity: 0.55;
+        font-variant-numeric: tabular-nums;
+      }
+      /* The check dot fills in when a day is completed. */
+      .day .dot {
+        width: 40%;
+        max-width: 26px;
+        aspect-ratio: 1 / 1;
+        border-radius: 50%;
+        border: 2px solid var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        color: #fff8f0;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          transform 0.12s ease;
+      }
+      .day.done .dot {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .day.today {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, var(--cell));
+      }
+      .day:active .dot {
+        transform: scale(0.85);
+      }
+      footer {
+        flex: 0 0 auto;
+        font-size: 0.62rem;
+        opacity: 0.6;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title" title="Click to rename">Daily habit</h1>
+      <div class="streak"><b id="streak">0</b><span>day streak</span></div>
+    </header>
+
+    <div id="grid" role="group" aria-label="Last 7 days"></div>
+
+    <footer>sandboxed · no network · state:persist</footer>
+
+    <script>
+      "use strict";
+
+      // ---- postMessage bridge helpers (v1 envelope, see packages/host/src/bridge.ts) ----
+      var reqSeq = 0;
+      function nextReqId() {
+        return "hab-" + Date.now().toString(36) + "-" + reqSeq++;
+      }
+      function post(type, extra) {
+        window.parent.postMessage(Object.assign({ v: 1, type: type }, extra || {}), "*");
+      }
+
+      // ---- state ----
+      var DAYS = 7;
+      var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      var name = "Daily habit";
+      var done = {}; // { "YYYY-MM-DD": true } — completed days
+
+      // Local-calendar date key (not UTC): the window should follow the viewer's day.
+      function keyOf(d) {
+        return (
+          d.getFullYear() +
+          "-" +
+          ("0" + (d.getMonth() + 1)).slice(-2) +
+          "-" +
+          ("0" + d.getDate()).slice(-2)
+        );
+      }
+      function dayOffset(n) {
+        var d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + n);
+        return d;
+      }
+
+      // The 7 visible dates, oldest first, ending today.
+      function windowDates() {
+        var out = [];
+        for (var i = DAYS - 1; i >= 0; i--) out.push(dayOffset(-i));
+        return out;
+      }
+
+      // Current streak: consecutive completed days ending at today, or at
+      // yesterday if today isn't checked yet (so an untouched today doesn't
+      // zero out a run in progress).
+      function computeStreak() {
+        var start = 0;
+        if (!done[keyOf(dayOffset(0))]) start = -1; // today blank → count up to yesterday
+        var count = 0;
+        for (var i = start; i > start - 400; i--) {
+          if (done[keyOf(dayOffset(i))]) count++;
+          else break;
+        }
+        return count;
+      }
+
+      // ---- rendering ----
+      var gridEl = document.getElementById("grid");
+      var titleEl = document.getElementById("title");
+      var streakEl = document.getElementById("streak");
+      var todayKey = "";
+
+      function render() {
+        todayKey = keyOf(dayOffset(0));
+        gridEl.textContent = "";
+        var dates = windowDates();
+        for (var i = 0; i < dates.length; i++) {
+          gridEl.appendChild(dayCell(dates[i]));
+        }
+        titleEl.textContent = name;
+        streakEl.textContent = computeStreak();
+      }
+
+      function dayCell(date) {
+        var key = keyOf(date);
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "day" + (done[key] ? " done" : "") + (key === todayKey ? " today" : "");
+        btn.setAttribute("aria-pressed", done[key] ? "true" : "false");
+        btn.setAttribute("aria-label", DOW[date.getDay()] + " " + date.getDate());
+
+        var dow = document.createElement("div");
+        dow.className = "dow";
+        dow.textContent = DOW[date.getDay()];
+
+        var dot = document.createElement("div");
+        dot.className = "dot";
+        dot.textContent = done[key] ? "✓" : "";
+
+        var dom = document.createElement("div");
+        dom.className = "dom";
+        dom.textContent = date.getDate();
+
+        btn.appendChild(dow);
+        btn.appendChild(dot);
+        btn.appendChild(dom);
+        btn.onclick = function () {
+          toggle(key);
+        };
+        return btn;
+      }
+
+      function toggle(key) {
+        if (done[key]) delete done[key];
+        else done[key] = true;
+        render();
+        saveState(true);
+      }
+
+      // ---- rename (persisted habit name) ----
+      titleEl.addEventListener("click", function () {
+        titleEl.contentEditable = "true";
+        titleEl.focus();
+        var range = document.createRange();
+        range.selectNodeContents(titleEl);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      titleEl.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          titleEl.blur();
+        }
+      });
+      titleEl.addEventListener("blur", function () {
+        titleEl.contentEditable = "false";
+        var next = titleEl.textContent.replace(/\s+/g, " ").trim().slice(0, 40) || "Daily habit";
+        var changed = next !== name;
+        name = next;
+        titleEl.textContent = name;
+        if (changed) saveState(true);
+      });
+
+      // ---- state:persist (dashboard:getState / dashboard:setState) ----
+      var saveTimer = null;
+      var haveState = false; // did the parent ever answer? (else run in-memory)
+
+      // Keep the blob small: only persist completions from the last ~90 days.
+      function prune() {
+        var cutoff = keyOf(dayOffset(-90));
+        for (var k in done) {
+          if (Object.prototype.hasOwnProperty.call(done, k) && k < cutoff) delete done[k];
+        }
+      }
+      function serialize() {
+        prune();
+        return { name: name, done: done };
+      }
+      function saveState(immediate) {
+        if (saveTimer) {
+          clearTimeout(saveTimer);
+          saveTimer = null;
+        }
+        var doSave = function () {
+          saveTimer = null;
+          post("dashboard:setState", { requestId: nextReqId(), state: serialize() });
+        };
+        if (immediate) doSave();
+        else saveTimer = setTimeout(doSave, 400);
+      }
+
+      function restore(state) {
+        haveState = true;
+        if (!state || typeof state !== "object") return false;
+        if (typeof state.name === "string" && state.name.trim()) {
+          name = state.name.trim().slice(0, 40);
+        }
+        if (state.done && typeof state.done === "object") {
+          var next = {};
+          for (var k in state.done) {
+            if (
+              Object.prototype.hasOwnProperty.call(state.done, k) &&
+              /^\d{4}-\d{2}-\d{2}$/.test(k) &&
+              state.done[k]
+            ) {
+              next[k] = true;
+            }
+          }
+          done = next;
+        }
+        return true;
+      }
+
+      // ---- theme ----
+      function hexLuminance(value) {
+        if (typeof value !== "string" || value.charAt(0) !== "#") return null;
+        var hex = value.slice(1);
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+        var r = parseInt(hex.slice(0, 2), 16);
+        var g = parseInt(hex.slice(2, 4), 16);
+        var b = parseInt(hex.slice(4, 6), 16);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      }
+      function applyTheme(tokens) {
+        if (!tokens) return;
+        var root = document.documentElement.style;
+        ["--bg", "--card", "--text", "--accent", "--border", "--muted"].forEach(function (k) {
+          if (tokens[k]) root.setProperty(k, tokens[k]);
+        });
+        var lum = hexLuminance(tokens["--bg"]);
+        if (lum !== null) root.colorScheme = lum < 0.5 ? "dark" : "light";
+      }
+
+      // ---- inbound messages (ignore anything without the v:1 envelope) ----
+      var stateReqId = nextReqId();
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (!msg || msg.v !== 1) return;
+        if (msg.type === "dashboard:theme") {
+          applyTheme(msg.tokens);
+        } else if (msg.type === "dashboard:state") {
+          if (!haveState && msg.requestId === stateReqId) {
+            restore(msg.state);
+            render();
+          }
+        } else if (msg.type === "dashboard:error") {
+          if (!haveState) haveState = true;
+        }
+      });
+
+      // ---- boot ----
+      render();
+      post("dashboard:ready");
+      post("dashboard:getTheme", { requestId: nextReqId() });
+      post("dashboard:getState", { requestId: stateReqId });
+      setTimeout(function () {
+        if (!haveState) haveState = true; // standalone: no host, keep in-memory
+      }, 400);
+    </script>
+  </body>
+</html>

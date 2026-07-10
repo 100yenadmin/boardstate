@@ -1,0 +1,514 @@
+<!doctype html>
+<!--
+  pomodoro — a work/break focus timer, and the SECOND starter that exercises the
+  `state:persist` capability end-to-end (twenty48 is the first). On boot it asks
+  the parent for its saved blob (dashboard:getState) and restores the phase, the
+  remaining seconds, the completed-session count, and the configured work/break
+  durations; whenever any of those change it writes a tiny blob back
+  (dashboard:setState). Both messages are gated by the "state:persist" capability
+  in widget.json — without it the parent replies capability_denied and the timer
+  just runs in-memory (sessions reset on remount). A restored timer comes back
+  PAUSED: there is no trustworthy wall clock across a remount, so we show the
+  saved remaining time and let you resume rather than silently drifting. No
+  bindings, no network of any kind: everything below is self-contained.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pomodoro</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        /* Theme tokens: default to system Canvas/CanvasText, overridden by the
+           parent's dashboard:theme reply (--bg/--card/--text/--accent/--border).
+           Derived tokens read from --text so the pushed theme drives them. */
+        --bg: Canvas;
+        --card: color-mix(in srgb, var(--text) 8%, Canvas);
+        --text: CanvasText;
+        --accent: #e2504a;
+        --border: color-mix(in srgb, var(--text) 22%, transparent);
+        --muted: color-mix(in srgb, var(--text) 60%, transparent);
+        --track: color-mix(in srgb, var(--text) 14%, transparent);
+        /* Phase colors: work leans on the theme accent; break is a calm green
+           that keeps contrast on both light and dark. */
+        --work: var(--accent);
+        --break: #2fa37a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        padding: 10px;
+        font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: 0.4px;
+        flex: 1;
+      }
+      .phase {
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        color: #fff8f0;
+        background: var(--phase, var(--work));
+      }
+      .icon-btn {
+        font: inherit;
+        font-size: 0.95rem;
+        line-height: 1;
+        padding: 5px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: inherit;
+        cursor: pointer;
+      }
+      .icon-btn:hover {
+        border-color: var(--accent);
+      }
+      /* The ring scales to the smaller of the remaining width / height so it
+         always fits the widget cell regardless of aspect ratio. */
+      #stage {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        container-type: size;
+      }
+      #dial {
+        position: relative;
+        width: min(100%, 100cqh);
+        aspect-ratio: 1 / 1;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+      .track {
+        fill: none;
+        stroke: var(--track);
+        stroke-width: 7;
+      }
+      .progress {
+        fill: none;
+        stroke: var(--phase, var(--work));
+        stroke-width: 7;
+        stroke-linecap: round;
+        transition:
+          stroke-dashoffset 0.3s linear,
+          stroke 0.2s ease;
+      }
+      .readout {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+      .time {
+        font-size: 20cqmin;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .sessions {
+        font-size: 5.5cqmin;
+        opacity: 0.7;
+        letter-spacing: 0.4px;
+      }
+      .controls {
+        display: flex;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      .controls button {
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 7px 10px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: inherit;
+        cursor: pointer;
+        flex: 1;
+      }
+      .controls button:hover {
+        border-color: var(--accent);
+      }
+      .controls .primary {
+        background: var(--phase, var(--work));
+        border-color: transparent;
+        color: #fff8f0;
+      }
+      /* Settings drawer — configurable, persisted work/break minutes. */
+      #settings {
+        display: none;
+        gap: 8px;
+        flex: 0 0 auto;
+        padding: 8px;
+        border-radius: 7px;
+        background: var(--card);
+        border: 1px solid var(--border);
+      }
+      #settings.show {
+        display: flex;
+      }
+      #settings label {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 0.75;
+        font-weight: 600;
+      }
+      #settings input {
+        font: inherit;
+        font-size: 0.9rem;
+        width: 100%;
+        padding: 4px 6px;
+        border-radius: 5px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: inherit;
+      }
+      footer {
+        flex: 0 0 auto;
+        font-size: 0.62rem;
+        opacity: 0.6;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Pomodoro</h1>
+      <span class="phase" id="phase-label">Focus</span>
+      <button class="icon-btn" id="gear" type="button" title="Settings" aria-label="Settings">
+        ⚙
+      </button>
+    </header>
+
+    <div id="settings">
+      <label
+        >Focus min
+        <input id="work-min" type="number" min="1" max="90" step="1" inputmode="numeric" />
+      </label>
+      <label
+        >Break min
+        <input id="break-min" type="number" min="1" max="60" step="1" inputmode="numeric" />
+      </label>
+    </div>
+
+    <div id="stage">
+      <div id="dial">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="45" />
+          <circle class="progress" id="ring" cx="50" cy="50" r="45" />
+        </svg>
+        <div class="readout">
+          <div class="time" id="time">25:00</div>
+          <div class="sessions" id="sessions">0 sessions</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="toggle" type="button">Start</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="skip" type="button">Skip</button>
+    </div>
+
+    <footer>sandboxed · no network · state:persist</footer>
+
+    <script>
+      "use strict";
+
+      // ---- postMessage bridge helpers (v1 envelope, see packages/host/src/bridge.ts) ----
+      var reqSeq = 0;
+      function nextReqId() {
+        return "pom-" + Date.now().toString(36) + "-" + reqSeq++;
+      }
+      function post(type, extra) {
+        window.parent.postMessage(Object.assign({ v: 1, type: type }, extra || {}), "*");
+      }
+
+      // ---- timer state ----
+      var DEFAULTS = { workMin: 25, breakMin: 5 };
+      var workMin = DEFAULTS.workMin;
+      var breakMin = DEFAULTS.breakMin;
+      var phase = "work"; // "work" | "break"
+      var remaining = workMin * 60; // seconds left in the current phase
+      var running = false;
+      var sessions = 0; // completed focus sessions (persisted)
+      var ticker = null;
+
+      var CIRC = 2 * Math.PI * 45; // circumference of the r=45 ring
+
+      function phaseSeconds() {
+        return (phase === "work" ? workMin : breakMin) * 60;
+      }
+
+      // ---- rendering ----
+      var ringEl = document.getElementById("ring");
+      var timeEl = document.getElementById("time");
+      var sessionsEl = document.getElementById("sessions");
+      var phaseEl = document.getElementById("phase-label");
+      var toggleEl = document.getElementById("toggle");
+      var dialEl = document.getElementById("dial");
+
+      ringEl.style.strokeDasharray = CIRC;
+
+      function two(n) {
+        return (n < 10 ? "0" : "") + n;
+      }
+      function render() {
+        var total = phaseSeconds();
+        var mins = Math.floor(remaining / 60);
+        var secs = remaining % 60;
+        timeEl.textContent = two(mins) + ":" + two(secs);
+        // Ring depletes as time runs down (full = time left, empty = done).
+        var frac = total > 0 ? remaining / total : 0;
+        ringEl.style.strokeDashoffset = CIRC * (1 - frac);
+
+        var color = phase === "work" ? "var(--work)" : "var(--break)";
+        dialEl.parentElement.style.setProperty("--phase", color);
+        document.documentElement.style.setProperty("--phase", color);
+        phaseEl.textContent = phase === "work" ? "Focus" : "Break";
+        sessionsEl.textContent = sessions + (sessions === 1 ? " session" : " sessions");
+        toggleEl.textContent = running ? "Pause" : "Start";
+      }
+
+      // ---- timer engine ----
+      function tick() {
+        if (remaining > 0) {
+          remaining -= 1;
+          render();
+          if (remaining <= 0) advancePhase();
+          else if (remaining % 15 === 0) saveState(false); // periodic durable checkpoint
+        }
+      }
+
+      // A phase reached zero: count a completed focus session, flip work<->break,
+      // and roll straight into the next phase (classic pomodoro auto-advance).
+      function advancePhase() {
+        if (phase === "work") sessions += 1;
+        phase = phase === "work" ? "break" : "work";
+        remaining = phaseSeconds();
+        render();
+        saveState(true);
+      }
+
+      function start() {
+        if (running) return;
+        if (remaining <= 0) remaining = phaseSeconds();
+        running = true;
+        ticker = setInterval(tick, 1000);
+        render();
+        saveState(true);
+      }
+      function pause() {
+        if (!running) return;
+        running = false;
+        if (ticker) {
+          clearInterval(ticker);
+          ticker = null;
+        }
+        render();
+        saveState(true);
+      }
+      function toggle() {
+        if (running) pause();
+        else start();
+      }
+      function reset() {
+        pause();
+        remaining = phaseSeconds();
+        render();
+        saveState(true);
+      }
+      function skip() {
+        // Jump to the other phase without counting the current one as complete.
+        phase = phase === "work" ? "break" : "work";
+        remaining = phaseSeconds();
+        render();
+        saveState(true);
+      }
+
+      // ---- settings (configurable, persisted durations) ----
+      var settingsEl = document.getElementById("settings");
+      var workInput = document.getElementById("work-min");
+      var breakInput = document.getElementById("break-min");
+
+      function syncInputs() {
+        workInput.value = workMin;
+        breakInput.value = breakMin;
+      }
+      function clampMin(value, fallback, hi) {
+        var n = Math.round(Number(value));
+        if (!isFinite(n) || n < 1) return fallback;
+        return n > hi ? hi : n;
+      }
+      function applySettings() {
+        var nextWork = clampMin(workInput.value, workMin, 90);
+        var nextBreak = clampMin(breakInput.value, breakMin, 60);
+        var changed = nextWork !== workMin || nextBreak !== breakMin;
+        workMin = nextWork;
+        breakMin = nextBreak;
+        // A running phase keeps counting down; an idle/full phase adopts the new
+        // length immediately so the change is visible without a reset.
+        if (!running && remaining >= phaseSeconds()) remaining = phaseSeconds();
+        if (remaining > phaseSeconds()) remaining = phaseSeconds();
+        syncInputs();
+        render();
+        if (changed) saveState(true);
+      }
+
+      document.getElementById("gear").onclick = function () {
+        settingsEl.classList.toggle("show");
+      };
+      workInput.addEventListener("change", applySettings);
+      breakInput.addEventListener("change", applySettings);
+
+      // ---- state:persist (dashboard:getState / dashboard:setState) ----
+      var saveTimer = null;
+      var haveState = false; // did the parent ever answer? (else run in-memory)
+      function serialize() {
+        return {
+          phase: phase,
+          remaining: remaining,
+          sessions: sessions,
+          workMin: workMin,
+          breakMin: breakMin,
+        };
+      }
+      function saveState(immediate) {
+        if (saveTimer) {
+          clearTimeout(saveTimer);
+          saveTimer = null;
+        }
+        var doSave = function () {
+          saveTimer = null;
+          post("dashboard:setState", { requestId: nextReqId(), state: serialize() });
+        };
+        if (immediate) doSave();
+        else saveTimer = setTimeout(doSave, 500);
+      }
+
+      function restore(state) {
+        haveState = true;
+        if (!state || typeof state !== "object") return false;
+        if (typeof state.workMin === "number")
+          workMin = clampMin(state.workMin, DEFAULTS.workMin, 90);
+        if (typeof state.breakMin === "number")
+          breakMin = clampMin(state.breakMin, DEFAULTS.breakMin, 60);
+        if (state.phase === "break" || state.phase === "work") phase = state.phase;
+        if (typeof state.sessions === "number" && state.sessions >= 0)
+          sessions = Math.floor(state.sessions);
+        if (typeof state.remaining === "number" && state.remaining >= 0) {
+          remaining = Math.min(Math.floor(state.remaining), phaseSeconds());
+        } else {
+          remaining = phaseSeconds();
+        }
+        // Always resume paused — there is no trustworthy elapsed-time source across
+        // a remount, so we never silently keep counting down.
+        running = false;
+        return true;
+      }
+
+      // ---- theme ----
+      // Relative luminance (0..1) of a #rgb / #rrggbb color; null for anything non-hex.
+      function hexLuminance(value) {
+        if (typeof value !== "string" || value.charAt(0) !== "#") return null;
+        var hex = value.slice(1);
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+        var r = parseInt(hex.slice(0, 2), 16);
+        var g = parseInt(hex.slice(2, 4), 16);
+        var b = parseInt(hex.slice(4, 6), 16);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      }
+      function applyTheme(tokens) {
+        if (!tokens) return;
+        var root = document.documentElement.style;
+        ["--bg", "--card", "--text", "--accent", "--border", "--muted"].forEach(function (k) {
+          if (tokens[k]) root.setProperty(k, tokens[k]);
+        });
+        var lum = hexLuminance(tokens["--bg"]);
+        if (lum !== null) root.colorScheme = lum < 0.5 ? "dark" : "light";
+      }
+
+      // ---- inbound messages (ignore anything without the v:1 envelope) ----
+      var stateReqId = nextReqId();
+      window.addEventListener("message", function (event) {
+        var msg = event.data;
+        if (!msg || msg.v !== 1) return;
+        if (msg.type === "dashboard:theme") {
+          applyTheme(msg.tokens);
+        } else if (msg.type === "dashboard:state") {
+          // reply to our boot getState (or the echo of a setState). Only the first,
+          // matching our boot getState, seeds the timer.
+          if (!haveState && msg.requestId === stateReqId) {
+            restore(msg.state);
+            syncInputs();
+            render();
+          }
+        } else if (msg.type === "dashboard:error") {
+          // capability_denied (state:persist off) or similar — fall back to an
+          // in-memory timer so the widget still works when opened standalone.
+          if (!haveState) haveState = true;
+        }
+      });
+
+      // ---- wire up + boot ----
+      document.getElementById("toggle").onclick = toggle;
+      document.getElementById("reset").onclick = reset;
+      document.getElementById("skip").onclick = skip;
+
+      syncInputs();
+      render();
+
+      // Announce, request theme, and ask for our persisted blob. If no host is
+      // listening (standalone open) nothing replies — we simply run in-memory.
+      post("dashboard:ready");
+      post("dashboard:getTheme", { requestId: nextReqId() });
+      post("dashboard:getState", { requestId: stateReqId });
+      setTimeout(function () {
+        if (!haveState) haveState = true; // standalone: no host, keep defaults
+      }, 400);
+    </script>
+  </body>
+</html>

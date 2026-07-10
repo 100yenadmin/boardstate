@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "workspaceVersion": 1,
+  "tabs": [
+    {
+      "slug": "focus",
+      "title": "Focus",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "focus-sessions",
+          "kind": "builtin:stat-card",
+          "title": "Focus Sessions Today",
+          "grid": { "x": 0, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 4, "format": "int", "label": "Sessions Today" }
+        },
+        {
+          "id": "focus-minutes",
+          "kind": "builtin:stat-card",
+          "title": "Deep-Work Minutes",
+          "grid": { "x": 4, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 125, "format": "int", "label": "Minutes" }
+        },
+        {
+          "id": "focus-streak",
+          "kind": "builtin:stat-card",
+          "title": "Habit Streak",
+          "grid": { "x": 8, "y": 0, "w": 4, "h": 2 },
+          "collapsed": false,
+          "hidden": false,
+          "props": { "value": 9, "format": "int", "label": "Day Streak" }
+        },
+        {
+          "id": "focus-log-session",
+          "kind": "builtin:action-form",
+          "title": "Log a Focus Session",
+          "grid": { "x": 0, "y": 2, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "template": "Log a completed focus session: worked on \"{task}\" for {minutes} minutes at {energy} energy. Add it to today's log and note anything worth remembering for next time.",
+            "buttonLabel": "Log session",
+            "fields": [
+              {
+                "name": "task",
+                "label": "What did you focus on?",
+                "type": "text",
+                "maxLength": 120
+              },
+              { "name": "minutes", "label": "Minutes", "type": "number" },
+              {
+                "name": "energy",
+                "label": "Energy",
+                "type": "select",
+                "options": ["Low", "Medium", "High"]
+              }
+            ]
+          }
+        },
+        {
+          "id": "focus-intentions",
+          "kind": "builtin:notes",
+          "title": "Today's Intentions",
+          "grid": { "x": 5, "y": 2, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "text": "Top 3 for today:\n1. Ship the pomodoro widget PR\n2. 90 min deep work on the schema refactor (no Slack)\n3. Review one design doc\n\nEnergy is best 9–11am — protect it. Batch shallow work after lunch."
+          }
+        },
+        {
+          "id": "focus-starter-widgets",
+          "kind": "builtin:markdown",
+          "title": "Add the timer + tracker widgets",
+          "grid": { "x": 0, "y": 8, "w": 12, "h": 3 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## Make this board interactive\n\nThis template is built from **builtin** widgets so it loads anywhere with no extra setup. To add the live productivity tools, open the view's **Widget gallery** dialog and install two `state:persist` starters:\n\n- **Pomodoro** — a work/break focus timer with a countdown ring and a persisted session count.\n- **Habit Tracker** — a rolling 7-day check-in grid with a streak count.\n\nBoth ship in the starter registry (`registry/index.json`). Point the gallery at your hosted copy — the live demo serves one at `https://100yenadmin.github.io/boardstate/registry/index.json`."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "review",
+      "title": "Review",
+      "hidden": false,
+      "createdBy": "system",
+      "widgets": [
+        {
+          "id": "review-minutes-trend",
+          "kind": "builtin:chart",
+          "title": "Deep-Work Minutes This Week",
+          "grid": { "x": 0, "y": 0, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": { "source": "static", "value": [95, 120, 60, 140, 125, 40, 80] }
+          },
+          "props": { "type": "area" }
+        },
+        {
+          "id": "review-sessions-by-day",
+          "kind": "builtin:chart",
+          "title": "Sessions by Day",
+          "grid": { "x": 6, "y": 0, "w": 6, "h": 5 },
+          "collapsed": false,
+          "hidden": false,
+          "bindings": {
+            "value": { "source": "static", "value": [3, 4, 2, 5, 4, 1, 2] }
+          },
+          "props": { "type": "bar" }
+        },
+        {
+          "id": "review-recent-sessions",
+          "kind": "builtin:table",
+          "title": "Recent Sessions",
+          "grid": { "x": 0, "y": 5, "w": 7, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "columns": ["day", "task", "minutes", "energy"],
+            "limit": 8,
+            "rows": [
+              { "day": "Mon", "task": "Schema refactor", "minutes": 50, "energy": "High" },
+              { "day": "Mon", "task": "Inbox + planning", "minutes": 25, "energy": "Medium" },
+              { "day": "Tue", "task": "Pomodoro widget", "minutes": 50, "energy": "High" },
+              { "day": "Tue", "task": "Design review", "minutes": 25, "energy": "Medium" },
+              { "day": "Wed", "task": "Bug triage", "minutes": 25, "energy": "Low" },
+              { "day": "Thu", "task": "Deep-work: renderer", "minutes": 50, "energy": "High" },
+              { "day": "Thu", "task": "Docs pass", "minutes": 50, "energy": "Medium" },
+              { "day": "Fri", "task": "Weekly review", "minutes": 25, "energy": "Medium" }
+            ]
+          }
+        },
+        {
+          "id": "review-reflection",
+          "kind": "builtin:markdown",
+          "title": "Weekly Reflection",
+          "grid": { "x": 7, "y": 5, "w": 5, "h": 6 },
+          "collapsed": false,
+          "hidden": false,
+          "props": {
+            "markdown": "## This week\n\n**Went well**\n- Protected the 9–11am block four days out of five.\n- Shipped two widgets.\n\n**Drained focus**\n- Wednesday was all context-switching — no block over 25 min.\n- Skipped breaks twice and paid for it after lunch.\n\n**Next week**\n- Default to a Pomodoro for anything over 20 min.\n- One meeting-free morning."
+          }
+        }
+      ]
+    }
+  ],
+  "widgetsRegistry": {},
+  "prefs": { "tabOrder": ["focus", "review"] }
+}
