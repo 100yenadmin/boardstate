@@ -110,8 +110,10 @@ double-execution race, and a read binding that parked mutations into the operato
 
 ## v0.1 — Extraction (2026-07-10)
 
-The initial extraction from the OpenClaw modular-dashboard system into a standalone,
-MIT-licensed monorepo: `schema` (the document + SPEC), `core` (headless store, bindings,
+The initial extraction from the modular-dashboard system its authors built for
+[OpenClaw](https://github.com/openclaw/openclaw)
+([upstream roadmap & PRs](https://github.com/openclaw/openclaw/issues/101136) — that
+plugin remains the first conformant host) into a standalone, MIT-licensed monorepo: `schema` (the document + SPEC), `core` (headless store, bindings,
 grid math, history), `server` (the `dashboard.*` control plane + agent tools + CLI), `host`
 (sandbox mount + postMessage bridge), `lit` (the `<boardstate-view>` reference UI + builtin
 widgets), `react` (typed wrappers), `mcp` (the MCP server), and `conformance` (the

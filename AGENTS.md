@@ -70,6 +70,14 @@ in the conversation.
   and fix what it finds — the self-building loop.
 - **Provenance is tracked.** Every tab/widget carries a `createdBy` actor; write honest ones.
 
+**Ready-made skill:** all of the above is packaged as
+[`.claude/skills/using-boardstate/SKILL.md`](.claude/skills/using-boardstate/SKILL.md) —
+Claude Code picks it up automatically in this repo; copy it into your own project's
+`.claude/skills/` (or `~/.claude/skills/`) to teach any Claude session, or paste it into
+the system prompt of a bare-API harness (GLM, any OpenAI-compatible loop). If you embed
+`@boardstate/agent`, you don't need it — its system prompt already carries these
+conventions.
+
 ## 2. Embed a chat agent in your host (`@boardstate/agent`)
 
 `@boardstate/agent` is the embeddable agent loop the [live app](https://100yenadmin.github.io/boardstate/app/)

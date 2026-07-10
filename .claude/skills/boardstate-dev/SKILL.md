@@ -6,7 +6,7 @@ description: The Boardstate development loop — monorepo commands, scoped testi
 # Boardstate development
 
 Read [AGENTS.md](../../../AGENTS.md) §5 first (layout, commands, read-first list). This
-skill adds the *process* that isn't obvious from the tree.
+skill adds the _process_ that isn't obvious from the tree.
 
 ## The loop
 

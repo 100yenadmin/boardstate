@@ -25,7 +25,7 @@ Boardstate is a protocol and runtime for **agent-composable dashboards**. The en
 - 🔒 **A security ladder, not a warning label** — trusted builtins vs. sandboxed customs (opaque origin, CSP `connect-src 'none'`, capability manifest, approval-gated mount, server-side 404 for anything unapproved).
 - 🔌 **Your dashboard can DO things** — Boardstate is also an MCP _client_: point it at OfficeCLI, Pipedream, Composio, or any MCP server and the board reads their tools as live data and runs their tools as operator-confirmed actions (see below).
 
-## Your dashboard can DO things (M5)
+## Your dashboard can DO things
 
 Boardstate is an MCP **client**, not just an MCP server. Give it an operator-authored
 connector config (`@boardstate/broker`) and it connects outward to an external tool server —
@@ -175,7 +175,7 @@ host, **`@boardstate/conformance`** is the transport test suite that tells you i
 conformant — the reference implementation also ships as an OpenClaw plugin, the first
 conformant host.
 
-### Polish that's included, not promised
+### Batteries included
 
 A complete default theme (**Graphite**, light + dark) plus two drop-in alternates and a
 fully tokenized `--bs-*` custom-property system ([THEME.md](packages/lit/THEME.md));
@@ -340,7 +340,11 @@ external tools. **[AGENTS.md](AGENTS.md)** is the complete guide: setting up eac
 surface (Claude Code / Claude Desktop config, the embeddable `@boardstate/agent` with
 provider adapters, the connector grant loop), the full 20-tool catalog, the composition
 conventions that make agent-built boards good, the security invariants agents operate
-under — and the house rules for coding agents contributing to this repo.
+under — and the house rules for coding agents contributing to this repo. There's also a
+**ready-made agent skill** —
+[`.claude/skills/using-boardstate/SKILL.md`](.claude/skills/using-boardstate/SKILL.md) —
+copy it into your project's skills (or paste it into a bare-API harness's system prompt)
+and your agent knows how to drive the board.
 
 ## Learn more
 
@@ -360,16 +364,10 @@ under — and the house rules for coding agents contributing to this repo.
 
 ## Status
 
-**Active, and past the extraction phase.** Boardstate originated as the modular-dashboard
-system its authors built for [OpenClaw](https://github.com/openclaw/openclaw)
-([roadmap & PRs](https://github.com/openclaw/openclaw/issues/101136)) — that plugin is the
-first conformant host. Since extraction, five milestone arcs have shipped as attested npm
-releases (see **[CHANGELOG.md](CHANGELOG.md)**): the substrate, the agent layer (chat +
-embeddable agent + the live app), the hardened WS transport, the trusted-workspace arc
-(capability broker, MCP Apps board view, the self-building loop), and **M5 — the
-Operational Workspace** (Boardstate as an MCP _client_: external tools as live data +
-operator-confirmed actions). The protocol is [SPEC](packages/schema/SPEC.md) v0.2-draft:
-stable enough to build a host against, with the conformance suite to prove it.
+**Actively developed.** The protocol is [SPEC](packages/schema/SPEC.md) v0.2-draft —
+stable enough to build a host against, with [`@boardstate/conformance`](conformance) to
+prove your host is conformant. Every release ships to npm with provenance; the full
+history is in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ## License
 
