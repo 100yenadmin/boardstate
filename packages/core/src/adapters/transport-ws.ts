@@ -186,6 +186,8 @@ export function createWsTransport(
       if (!subscribers) {
         return;
       }
+      // Snapshot before dispatch: a listener may (un)subscribe while handling an event.
+      // oxlint-disable-next-line no-useless-spread
       for (const fn of [...subscribers]) {
         fn(record.payload);
       }

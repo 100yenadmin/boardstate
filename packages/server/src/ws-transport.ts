@@ -130,6 +130,8 @@ export function attachWsTransport(
     },
     close() {
       httpServer.off("upgrade", onUpgrade);
+      // Snapshot: each close() removes the connection from the set mid-iteration.
+      // oxlint-disable-next-line no-useless-spread
       for (const connection of [...connections]) {
         connection.close();
       }
