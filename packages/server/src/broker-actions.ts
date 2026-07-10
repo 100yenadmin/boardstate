@@ -23,7 +23,7 @@
 import type { DashboardActor, JsonValue, PendingActionRecord } from "@boardstate/schema";
 import { validatePendingAction } from "@boardstate/schema";
 import type { DashboardStore } from "@boardstate/core";
-import type { ServerHost } from "./host.js";
+import type { RpcHandlerContext, ServerHost } from "./host.js";
 
 const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 const CONNECTOR_TOOL_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
@@ -116,6 +116,15 @@ export type InstallBrokerActionsOptions = {
   /** Rolling rate window (ms). Default 60 000. */
   invokeRateWindowMs?: number;
   /**
+   * Per-agent invoke budget (SPEC §17.3, #59): the actor dimension of the rate limit. When
+   * set, an authenticated agent's effective ceiling is `min(connector budget, this)` — a
+   * call must fit BOTH the connector window and this agent's own window. UNSET (default) ⇒
+   * only the connector window applies, byte-identical to pre-§17.3 behavior. An
+   * unauthenticated networked caller (no server-bound actor) is bounded by the connector
+   * window alone (there is no agent to key a per-agent window on).
+   */
+  perAgentInvokeRateMax?: number;
+  /**
    * Coarse grant-TTL sweep cadence (ms) — a background tick that re-reads the store so a
    * lapsed grant re-pends (SPEC §17 TTLs, #64) and clients are notified even while idle.
    * Enforcement never depends on it (the store's sweep-on-read is fail-closed). `0`
@@ -194,6 +203,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Resolve the SERVER-BOUND acting agent for capability scope (SPEC §17.3, #59) from the
+ * transport-threaded request context — NEVER from a request param. Returns `undefined` when
+ * the caller carries no bound identity (a raw networked client), so a scoped grant fails
+ * closed for it. Normalization matches `actorFromContext` (tools.ts) so a bound actor equals
+ * the `agent:<id>` a tool call stamps as `createdBy` for the same session — otherwise the
+ * operator-picked scope would never match the acting agent.
+ */
+export function boundAgentActor(ctx: {
+  agentId?: string;
+  sessionKey?: string;
+}): DashboardActor | undefined {
+  const raw = ctx.agentId ?? ctx.sessionKey;
+  if (!raw) {
+    return undefined;
+  }
+  const normalized = raw
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+  return normalized ? (`agent:${normalized}` as DashboardActor) : undefined;
+}
+
 /** Read + shape-check `{ connector, tool, args? }` invoke params (fail-closed). */
 function readInvokeParams(params: unknown): {
   connector: string;
@@ -261,12 +293,16 @@ export function installBrokerActions(
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const rateMax = options.invokeRateMax ?? DEFAULT_RATE_MAX;
   const rateWindowMs = options.invokeRateWindowMs ?? DEFAULT_RATE_WINDOW_MS;
+  const perAgentRateMax = options.perAgentInvokeRateMax;
   const grantSweepMs = options.grantSweepMs ?? DEFAULT_GRANT_SWEEP_MS;
   const onActionSettled = options.onActionSettled;
 
   const pending = new Map<string, PendingEntry>();
   const audit: BrokerActionAuditEntry[] = [];
   const rateWindows = new Map<string, number[]>();
+  // Per-agent invoke windows (SPEC §17.3), keyed `${connector} ${actor}`. Only touched
+  // when `perAgentRateMax` is configured, so the default path never allocates here.
+  const agentRateWindows = new Map<string, number[]>();
   let cachedManifest: ActionToolManifest | undefined;
 
   function record(entry: BrokerActionAuditEntry): void {
@@ -312,15 +348,35 @@ export function installBrokerActions(
     }
   }
 
-  function checkRate(connector: string): void {
+  /** Slide + test one rolling window; throws `rate_limited` and does NOT record on overflow. */
+  function admit(windows: Map<string, number[]>, key: string, max: number, message: string): void {
     const cutoff = now() - rateWindowMs;
-    const stamps = (rateWindows.get(connector) ?? []).filter((ts) => ts > cutoff);
-    if (stamps.length >= rateMax) {
-      rateWindows.set(connector, stamps);
-      throw new ActionError("rate_limited", `too many invocations for connector "${connector}"`);
+    const stamps = (windows.get(key) ?? []).filter((ts) => ts > cutoff);
+    if (stamps.length >= max) {
+      windows.set(key, stamps);
+      throw new ActionError("rate_limited", message);
     }
     stamps.push(now());
-    rateWindows.set(connector, stamps);
+    windows.set(key, stamps);
+  }
+
+  /**
+   * Enforce the invoke rate limit. The connector window is always checked (byte-identical
+   * to pre-§17.3). When a per-agent budget is configured AND the caller is an authenticated
+   * agent, its own window is also checked — the effective ceiling is `min(connector,
+   * per-agent)` (SPEC §17.3, #59). The connector window is charged FIRST so an agent that
+   * trips it never also consumes its per-agent budget on the same refused call.
+   */
+  function checkRate(connector: string, actingAgent: DashboardActor | undefined): void {
+    admit(rateWindows, connector, rateMax, `too many invocations for connector "${connector}"`);
+    if (perAgentRateMax !== undefined && actingAgent) {
+      admit(
+        agentRateWindows,
+        `${connector} ${actingAgent}`,
+        perAgentRateMax,
+        `too many invocations for agent "${actingAgent}" on connector "${connector}"`,
+      );
+    }
   }
 
   /** List tools, cache the manifest for the approve-time hash resolver, return it. */
@@ -379,13 +435,18 @@ export function installBrokerActions(
   }
 
   /**
-   * Resolve the grant + live manifest for a call, enforcing the AND-gate and BOTH
-   * anti-rug-pull directions BEFORE any tool runs. Re-pends the grant (in the write
-   * lock) and throws `capability_pending` on a manifest-hash mismatch (SPEC §17.1).
+   * Resolve the grant + live manifest for a call, enforcing the AND-gate (tool granted +
+   * connector configured + manifest hash unchanged + the acting agent within the grant's
+   * per-agent scope) and BOTH anti-rug-pull directions BEFORE any tool runs. Re-pends the
+   * grant (in the write lock) and throws `capability_pending` on a manifest-hash mismatch
+   * (SPEC §17.1). `actingAgent` is the SERVER-BOUND acting agent (SPEC §17.3): a scoped
+   * grant fails closed for any other actor — and for `undefined` (an unauthenticated
+   * networked caller that carries no server-bound identity).
    */
   async function gateCall(
     connector: string,
     tool: string,
+    actingAgent: DashboardActor | undefined,
   ): Promise<{ id: string; readOnly: boolean; autoConfirm: boolean }> {
     if (!broker.connectorNames().includes(connector)) {
       // Config authorship (SPEC §18): a doc-introduced connector name is inert.
@@ -400,6 +461,20 @@ export function installBrokerActions(
       throw new ActionError(
         "capability_pending",
         `tool "${id}" is not granted — request and approve it first`,
+      );
+    }
+    // Per-agent scope (SPEC §17.3, #59): the actor dimension of the AND-gate. A scoped grant
+    // (`agents` present) passes ONLY for a listed, SERVER-BOUND actor. An out-of-scope agent
+    // — or an unauthenticated caller with no bound identity (`actingAgent === undefined`,
+    // e.g. a raw WS client, which can never be trusted to name its own agent) — fails closed
+    // with the same `capability_pending` an ungranted tool returns.
+    if (
+      grant.agents !== undefined &&
+      (actingAgent === undefined || !grant.agents.includes(actingAgent))
+    ) {
+      throw new ActionError(
+        "capability_pending",
+        `tool "${id}" is not granted to this agent — request and approve it for this agent`,
       );
     }
     const manifest = await listAndCache();
@@ -417,6 +492,8 @@ export function installBrokerActions(
             delete entry.grantedAt;
             delete entry.autoConfirm;
             delete entry.expiresAt;
+            // Per-agent scope is operator-only and re-scoped on re-approval (SPEC §17.3).
+            delete entry.agents;
           }
         },
         { actor: "system" },
@@ -473,14 +550,14 @@ export function installBrokerActions(
    * refreshing read binding can never spawn pending actions (a read must have no
    * side effect — SPEC §18). A readOnly granted tool executes and returns its value.
    */
-  async function read(ctx: {
-    params: unknown;
-    respond: (ok: boolean, result?: unknown, error?: { code: string; message: string }) => void;
-  }): Promise<void> {
+  async function read(
+    ctx: Pick<RpcHandlerContext, "params" | "respond" | "agentId" | "sessionKey">,
+  ): Promise<void> {
     try {
       const { connector, tool, args } = readInvokeParams(ctx.params);
-      checkRate(connector);
-      const { id, readOnly } = await gateCall(connector, tool);
+      const actingAgent = boundAgentActor(ctx);
+      checkRate(connector, actingAgent);
+      const { id, readOnly } = await gateCall(connector, tool, actingAgent);
       if (!readOnly) {
         throw new ActionError(
           "not_readonly",
@@ -493,15 +570,18 @@ export function installBrokerActions(
     }
   }
 
-  async function invoke(ctx: {
-    params: unknown;
-    respond: (ok: boolean, result?: unknown, error?: { code: string; message: string }) => void;
-  }): Promise<void> {
+  async function invoke(
+    ctx: Pick<RpcHandlerContext, "params" | "respond" | "agentId" | "sessionKey">,
+  ): Promise<void> {
     try {
       const { connector, tool, args } = readInvokeParams(ctx.params);
-      const requestedBy = readActor(ctx.params);
-      checkRate(connector);
-      const { id, readOnly, autoConfirm } = await gateCall(connector, tool);
+      // Actor authenticity (SPEC §17.3, #59): the acting agent is bound SERVER-SIDE from the
+      // transport context, never a request param — a networked client can never claim
+      // another agent's identity to pass its scope. `readInvokeParams` already rejects an
+      // `actor` param outright, so provenance here is authentic by construction.
+      const requestedBy = boundAgentActor(ctx);
+      checkRate(connector, requestedBy);
+      const { id, readOnly, autoConfirm } = await gateCall(connector, tool, requestedBy);
 
       if (readOnly) {
         // A networked client MAY directly execute a granted readOnly tool (SPEC §18).
@@ -596,11 +676,15 @@ export function installBrokerActions(
     clearTimeout(entry.timer);
     pending.delete(actionId);
     try {
-      // Fail-closed re-gate at confirm time (SPEC §17 TTLs #64 + anti-rug-pull): a grant
-      // that EXPIRED, was revoked, or whose manifest drifted between park and confirm
-      // refuses the mutation here. The synchronous claim above already ran, so this can
-      // never re-park or double-execute; a refused confirm settles as an error terminal.
-      await gateCall(connector, tool);
+      // Fail-closed re-gate at confirm time (SPEC §17 TTLs #64 + anti-rug-pull + §17.3
+      // scope): a grant that EXPIRED, was revoked, whose manifest drifted, or that was
+      // re-scoped to exclude the ORIGINAL requesting agent between park and confirm refuses
+      // the mutation here. Scope is re-checked against the parked action's `requestedBy` (the
+      // server-bound agent that parked it), NOT the confirming operator — the operator's
+      // confirm authorizes the agent's action, it does not become the actor. The synchronous
+      // claim above already ran, so this can never re-park or double-execute; a refused
+      // confirm settles as an error terminal.
+      await gateCall(connector, tool, entry.record.requestedBy);
       const result = await broker.callTool(id, args as Record<string, unknown>);
       settle(entry, "confirmed", "confirm", actor, "executed");
       notifySettled(entry.record, {

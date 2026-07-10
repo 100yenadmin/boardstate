@@ -21,6 +21,7 @@ import {
 import { icons } from "./icons.js";
 import { getBuiltinRenderer, type BuiltinWidgetContext } from "./renderers/index.js";
 import { t } from "./strings.js";
+import type { AgentChipModel } from "./agent-provenance.js";
 
 export type DashboardWidgetCellCallbacks = {
   onToggleCollapse: (widget: DashboardWidget) => void;
@@ -88,6 +89,14 @@ export type DashboardWidgetCellProps = {
   callbacks: DashboardWidgetCellCallbacks;
   /** Present for `custom:` widgets only; builtin widgets leave this undefined. */
   custom?: DashboardCustomWidgetContext;
+  /**
+   * Multi-agent provenance chip (SPEC §17.3, #59) — set by the view ONLY on a
+   * multi-agent board (≥2 distinct agent authors) for an agent-authored widget.
+   * Replaces the plain "AI" chip with a per-agent coloured one; `dimmed` reflects the
+   * active header filter. Absent ⇒ the plain provenance chip (single-agent boards read
+   * exactly as before).
+   */
+  agentChip?: AgentChipModel;
 };
 
 /**
@@ -99,11 +108,35 @@ export function displayWidgetTitle(title: string): string {
   return title.replace(/\s*\(custom\)\s*$/iu, "").trim() || title;
 }
 
-/** Renders the provenance chip when a widget was authored by an agent. */
-function renderProvenanceChip(widget: DashboardWidget): TemplateResult | typeof nothing {
+/**
+ * Renders the provenance chip when a widget was authored by an agent. On a MULTI-AGENT
+ * board the view passes an `agentChip` and this renders the per-agent COLOURED chip
+ * (short id, full actor on hover, deterministic hue) — the distinguishing affordance of
+ * SPEC §17.3 (#59). Otherwise it falls back to the plain "AI" chip.
+ */
+function renderProvenanceChip(
+  widget: DashboardWidget,
+  agentChip: AgentChipModel | undefined,
+): TemplateResult | typeof nothing {
   const agentId = dashboardAgentProvenance(widget.createdBy);
   if (!agentId) {
     return nothing;
+  }
+  if (agentChip) {
+    // The hue drives both text + a translucent fill via a CSS custom property, so the
+    // stylesheet owns the exact colour math (readable in light + dark). Full actor on
+    // hover; the visible label is the short id.
+    const classes = agentChip.dimmed
+      ? "dashboard-widget__agent dashboard-widget__agent--dimmed"
+      : "dashboard-widget__agent";
+    return html`<span
+      class=${classes}
+      style="--dashboard-agent-hue: ${agentChip.hue}"
+      data-test-id="dashboard-widget-agent-chip"
+      data-agent=${agentChip.actor}
+      title=${t("dashboard.widget.agentChipTooltip", { agent: agentChip.actor })}
+      >${agentChip.short}</span
+    >`;
   }
   return html`<span
     class="dashboard-widget__provenance"
@@ -361,6 +394,9 @@ export function renderWidgetCell(props: DashboardWidgetCellProps): TemplateResul
     props.pending ? "dashboard-widget--pending" : "",
     props.dragging ? "dashboard-widget--dragging" : "",
     props.dragging && props.dragTransform ? "dashboard-widget--carried" : "",
+    // Filter highlight (SPEC §17.3, #59): dim a widget whose agent is not the one the
+    // operator is currently filtering to, so the highlighted agent's widgets stand out.
+    props.agentChip?.dimmed ? "dashboard-widget--agent-dimmed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -395,7 +431,7 @@ export function renderWidgetCell(props: DashboardWidgetCellProps): TemplateResul
         <span class="dashboard-widget__title" title=${widget.title}
           >${displayWidgetTitle(widget.title)}</span
         >
-        ${renderProvenanceChip(widget)} ${renderEphemeralBadge(widget)}
+        ${renderProvenanceChip(widget, props.agentChip)} ${renderEphemeralBadge(widget)}
         <span
           class="dashboard-widget__handle"
           role="button"

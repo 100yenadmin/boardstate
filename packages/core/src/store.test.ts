@@ -322,6 +322,7 @@ describe("DashboardStore", () => {
           toolsHash: "hash-send",
           autoConfirm: ["officecli:send_mail"],
           expiresAt: new Date(1_000).toISOString(),
+          agents: ["agent:alice"],
           grantedBy: "user",
           grantedAt: new Date(500).toISOString(),
         },
@@ -330,7 +331,7 @@ describe("DashboardStore", () => {
       return result.doc.workspaceVersion;
     }
 
-    it("re-pends a lapsed grant on read — clears autoConfirm + expiresAt, bumps version once", async () => {
+    it("re-pends a lapsed grant on read — clears autoConfirm + expiresAt + agents, bumps version once", async () => {
       await withTempStateDir(async (stateDir) => {
         const seededVersion = await seedGrant(stateDir);
         const reader = storeAt(stateDir, { now: () => 2_000 });
@@ -339,6 +340,7 @@ describe("DashboardStore", () => {
         expect(grant.status).toBe("requested");
         expect(grant.autoConfirm).toBeUndefined();
         expect(grant.expiresAt).toBeUndefined();
+        expect(grant.agents).toBeUndefined();
         expect(grant.grantedBy).toBeUndefined();
         // Tools survive (the operator re-approves the SAME surface); version bumped once.
         expect(grant.tools).toEqual(["officecli:send_mail"]);
@@ -583,6 +585,45 @@ describe("replaceSanitized (approval gate, SPEC §8.2)", () => {
     const out = reconcileReplaceApproval(incoming, current);
     expect(out.capabilitiesRegistry!.officecli!.status).toBe("requested");
     expect(out.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
+  });
+
+  it("re-pends + strips a granted grant whose per-agent scope drifts via replace (SPEC §17.3, #59)", () => {
+    // Both a WIDEN (dropping the scope entirely) and a re-scope are silent widenings
+    // through the agent path — the single reconcile gate re-pends and strips `agents`.
+    const grant = (agents: string[] | undefined) => ({
+      capabilitiesRegistry: {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail"],
+          toolsHash: "hash-x",
+          grantedBy: "user",
+          ...(agents ? { agents } : {}),
+        },
+      },
+    });
+    // A) dropping the scope (scoped -> all agents) re-pends.
+    const widened = reconcileReplaceApproval(
+      grant(undefined) as never,
+      grant(["agent:alice"]) as never,
+    );
+    expect(widened.capabilitiesRegistry!.officecli!.status).toBe("requested");
+    expect(widened.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
+    // B) re-scoping to a different agent re-pends + strips.
+    const rescoped = reconcileReplaceApproval(
+      grant(["agent:bob"]) as never,
+      grant(["agent:alice"]) as never,
+    );
+    expect(rescoped.capabilitiesRegistry!.officecli!.status).toBe("requested");
+    expect(rescoped.capabilitiesRegistry!.officecli!.agents).toBeUndefined();
+    // An UNCHANGED scope survives untouched (no false re-pend).
+    const noop = reconcileReplaceApproval(
+      grant(["agent:alice"]) as never,
+      grant(["agent:alice"]) as never,
+    );
+    expect(noop.capabilitiesRegistry!.officecli!.status).toBe("granted");
+    expect(noop.capabilitiesRegistry!.officecli!.agents).toEqual(["agent:alice"]);
   });
 });
 

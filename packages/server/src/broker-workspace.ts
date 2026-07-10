@@ -56,6 +56,14 @@ export type InstallConnectorWorkspaceOptions = {
   invokeRateMax?: InstallBrokerActionsOptions["invokeRateMax"];
   /** Rolling rate window (ms). Default 60 000. */
   invokeRateWindowMs?: InstallBrokerActionsOptions["invokeRateWindowMs"];
+  /** Per-agent invoke budget (SPEC §17.3, #59) — `min(connector, this)`. Unset ⇒ connector-only. */
+  perAgentInvokeRateMax?: InstallBrokerActionsOptions["perAgentInvokeRateMax"];
+  /**
+   * The server-bound agent id this workspace's agent-tool adapter serves (SPEC §17.3, #59).
+   * Threaded into the invoke gate as an authentic actor and used to scope the granted-tool
+   * assembly. Unset ⇒ an unbound adapter (scoped grants fail closed, unscoped work as today).
+   */
+  agentId?: string;
   /** Clock (ms) for the pending-action engine. Injectable for deterministic tests. */
   now?: InstallBrokerActionsOptions["now"];
   /** Coarse grant-TTL sweep cadence (ms). `0` disables the timer (SPEC §17 TTLs, #64). */
@@ -114,6 +122,9 @@ export function installConnectorWorkspace(
     ...(options.invokeRateWindowMs !== undefined
       ? { invokeRateWindowMs: options.invokeRateWindowMs }
       : {}),
+    ...(options.perAgentInvokeRateMax !== undefined
+      ? { perAgentInvokeRateMax: options.perAgentInvokeRateMax }
+      : {}),
     ...(options.now !== undefined ? { now: options.now } : {}),
     ...(options.grantSweepMs !== undefined ? { grantSweepMs: options.grantSweepMs } : {}),
     ...(options.onActionSettled !== undefined ? { onActionSettled: options.onActionSettled } : {}),
@@ -125,6 +136,7 @@ export function installConnectorWorkspace(
     broker,
     store,
     actions,
+    ...(options.agentId !== undefined ? { agentId: options.agentId } : {}),
     ...(options.mutationTimeoutMs !== undefined
       ? { mutationTimeoutMs: options.mutationTimeoutMs }
       : {}),

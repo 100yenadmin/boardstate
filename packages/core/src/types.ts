@@ -111,6 +111,8 @@ export type DashboardCapabilityGrant = {
   autoConfirm?: string[];
   /** ISO-8601 instant after which the grant re-pends to `requested` (SPEC §17, #64). */
   expiresAt?: string;
+  /** Operator-set per-agent scope (SPEC §17.3, #59): agent actors this grant is usable by. */
+  agents?: string[];
   description?: string;
   grantedBy?: DashboardCreatedBy;
   grantedAt?: string;

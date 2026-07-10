@@ -469,6 +469,38 @@ describe("approvals render (wave-ops)", () => {
     expect(onDecide).toHaveBeenCalledWith(item, "approve");
   });
 
+  it("renders the per-agent scope of a capability row (SPEC §17.3, #59)", () => {
+    const scoped = {
+      id: "officecli",
+      kind: "capability" as const,
+      title: "officecli",
+      requestedBy: null,
+      granted: true,
+      tools: ["officecli:send_mail"],
+      agents: ["agent:alice", "agent:bob"],
+    };
+    const container = renderToContainer(
+      renderApprovals(widget({ kind: "builtin:approvals" }), null, {
+        ...STRICT_EMBED,
+        approvals: { pending: [scoped], onDecide: vi.fn() },
+      }),
+    );
+    const scope = container.querySelector('[data-test-id="dashboard-approvals-scope"]');
+    expect(scope?.getAttribute("data-agents")).toBe("agent:alice,agent:bob");
+    expect(scope?.textContent).toContain("agent:alice, agent:bob");
+    // An UNSCOPED grant reads "All agents" rather than a blank.
+    const unscoped = { ...scoped, agents: undefined };
+    const c2 = renderToContainer(
+      renderApprovals(widget({ kind: "builtin:approvals" }), null, {
+        ...STRICT_EMBED,
+        approvals: { pending: [unscoped], onDecide: vi.fn() },
+      }),
+    );
+    expect(c2.querySelector('[data-test-id="dashboard-approvals-scope"]')?.textContent).toContain(
+      "All agents",
+    );
+  });
+
   it("confirms a pending action row (SPEC §18) with the Confirm affordance", () => {
     const onDecide = vi.fn();
     const item = {

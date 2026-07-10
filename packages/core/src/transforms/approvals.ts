@@ -76,6 +76,12 @@ export type PendingApprovalItem = {
    * it expires, so the widget can render a live countdown.
    */
   expiresAt?: string;
+  /**
+   * For a per-agent-scoped `capability` grant (SPEC §17.3, #59): the agent actors the
+   * grant is scoped to. Absent ⇒ all agents (the grant is unscoped); present ⇒ the widget
+   * renders the scope so the operator sees WHICH agents may use the granted tools.
+   */
+  agents?: string[];
 };
 
 /**
@@ -205,6 +211,7 @@ export function buildApprovalsSource(
       ...((grant.tools ?? []).length ? { tools: grant.tools } : {}),
       ...((grant.autoConfirm ?? []).length ? { autoConfirm: grant.autoConfirm } : {}),
       ...(grant.expiresAt ? { expiresAt: grant.expiresAt } : {}),
+      ...((grant.agents ?? []).length ? { agents: grant.agents } : {}),
     }));
   const pendingActions: PendingApprovalItem[] = (actions?.pending ?? []).map((action) => ({
     id: action.id,

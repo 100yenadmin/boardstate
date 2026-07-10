@@ -364,11 +364,44 @@ autoConfirmed:true}` so the board timeline stays honest. It is STILL rate-limite
   broadcast while the board is idle. The clock is the host's, injectable in tests. Expiry is
   fail-closed at the confirm seam: a parked action whose grant expired (or was revoked, or
   whose manifest drifted) between park and confirm is REFUSED at confirm time and never runs.
-- **Wipe points (single-writer invariant).** `autoConfirm` and `expiresAt` are cleared on
-  EVERY re-pend path — anti-rug-pull manifest drift, `workspace.replace`/import surface
-  mutation (an agent injecting `autoConfirm` or extending `expiresAt` on a granted grant
-  re-pends it), a `tool_search` REQUEST re-pend, TTL expiry, and revoke. An imported board
-  carries neither. No agent-writable path can set or extend either field.
+- **Wipe points (single-writer invariant).** `autoConfirm`, `expiresAt`, and `agents`
+  (§17.3) are cleared on EVERY re-pend path — anti-rug-pull manifest drift,
+  `workspace.replace`/import surface mutation (an agent injecting `autoConfirm`, extending
+  `expiresAt`, or widening `agents` on a granted grant re-pends it), a `tool_search` REQUEST
+  re-pend, TTL expiry, and revoke. An imported board carries none. No agent-writable path
+  can set or extend any of these fields.
+
+### 17.3 Per-agent grant scoping + rate (normative)
+
+Several agents may share one board (#59). A grant gains an OPTIONAL actor dimension so a
+capability can be governed per agent, and the acting agent is bound from SERVER-side
+identity so scope cannot be spoofed.
+
+- **`agents: string[]` (per-agent scope).** An optional list of agent actors (`agent:<id>`;
+  never `user`/`system`) the grant's tools are usable by. ABSENT ⇒ every agent (back-compat,
+  zero migration); PRESENT ⇒ ONLY those actors pass the AND-gate — the ACTOR dimension added
+  to the existing tool + connector + manifest-hash gate. Validation rejects a non-agent
+  actor, an empty list (absent already means "all"), and duplicates. OPERATOR-SET ONLY
+  through the approve verb: a `tool_search` REQUEST, `workspace.replace`, and import can
+  never write or widen it. Operator-side NARROWING is legitimate (the approve verb carries
+  operator intent); through the agent/reconcile path ANY scope drift on a still-granted grant
+  re-pends the whole grant (mirrors `autoConfirm`/`expiresAt`), and every re-pend strips it.
+- **AND-gate (two enforcement points).** A scoped grant passes for an agent only if the
+  actor is listed — checked BOTH at tool-set assembly (the agent-tool adapter surfaces a
+  scoped grant only to a bound, listed agent — which also governs the direct `readOnly`
+  path that never re-hits the invoke gate) AND at invoke/read time (`dashboard.action.invoke`
+  / `dashboard.connector.read` re-check as a fail-safe). A parked mutation records the
+  server-bound requesting agent; the confirm-time re-gate re-checks scope against IT (the
+  original agent), not the confirming operator.
+- **Actor authenticity (load-bearing).** The acting agent is bound from the transport's
+  server-side session/tool-registration identity, NEVER from a request param. The WS
+  transport threads no identity, so an unauthenticated networked caller carries NO bound
+  agent — a scoped grant FAILS CLOSED for it (`capability_pending`), and a client-claimed
+  `actor` param can never satisfy a scope. Scoping is only as strong as this binding.
+- **Per-agent rate.** The per-connector invoke rate limit gains an actor dimension: an
+  agent's effective ceiling is `min(connector budget, per-agent budget)`. The per-agent
+  budget is opt-in; UNSET leaves the connector-only limit byte-identical to pre-§17.3
+  behavior. An unauthenticated caller is bounded by the connector window alone.
 
 ## 18. Connector broker (normative)
 

@@ -518,6 +518,35 @@ describe("approvals mapping", () => {
     expect(source.pending[0]!.tools).toEqual(["officecli:send_mail"]);
   });
 
+  it("surfaces a granted grant's per-agent scope on the management row (SPEC §17.3, #59)", () => {
+    const ws = workspace();
+    ws.capabilitiesRegistry = {
+      officecli: {
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+        agents: ["agent:alice", "agent:bob"],
+      },
+    };
+    const source = buildApprovalsSource(
+      ws,
+      () => {},
+      () => {},
+    );
+    const row = source.pending.find((item) => item.id === "officecli");
+    expect(row?.granted).toBe(true);
+    expect(row?.agents).toEqual(["agent:alice", "agent:bob"]);
+    // An unscoped granted grant carries no `agents` (the row renders "All agents").
+    ws.capabilitiesRegistry.officecli!.agents = undefined;
+    const source2 = buildApprovalsSource(
+      ws,
+      () => {},
+      () => {},
+    );
+    expect(source2.pending.find((item) => item.id === "officecli")?.agents).toBeUndefined();
+  });
+
   it("threads a partial-grant tools subset through onDecide to resolveCapability (§17.1)", () => {
     const ws = workspace();
     ws.capabilitiesRegistry = {
