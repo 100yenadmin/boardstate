@@ -33,6 +33,12 @@ export type WidgetCatalogEntry = {
   props: Record<string, string>;
   /** A complete, schema-valid widget object an agent can copy and adapt. */
   example: DashboardWidget;
+  /**
+   * Extra copy-pasteable variants for a widget with more than one mode (e.g. an
+   * action-form's `tool` mode alongside the default `prompt` example). Each is
+   * schema-valid — the honesty-gate test validates these exactly like `example`.
+   */
+  examples?: DashboardWidget[];
 };
 
 /** A small grid rect helper so the examples read uniformly. */
@@ -169,6 +175,10 @@ export const WIDGET_CATALOG: readonly WidgetCatalogEntry[] = [
       template: "the message sent on submit; `{{fieldName}}` interpolates a field (single pass)",
       fields: 'array of { name, label, type: "text"|"number"|"select", options?, maxLength? }',
       buttonLabel: "the submit button text (optional)",
+      mode: '"prompt" (default: submit the template to the agent) or "tool" (invoke a granted external tool)',
+      connector: "tool mode only: the granted connector name (SPEC §17 v2)",
+      tool: "tool mode only: the tool to invoke on that connector",
+      argsFrom: "tool mode only: map of tool-arg name → declared field name",
     },
     example: {
       id: "ask-agent",
@@ -181,6 +191,58 @@ export const WIDGET_CATALOG: readonly WidgetCatalogEntry[] = [
         template: "Summarize {{topic}} for the board.",
         fields: [{ name: "topic", label: "Topic", type: "text" }],
         buttonLabel: "Ask",
+      },
+    },
+    examples: [
+      {
+        id: "file-ticket",
+        kind: "builtin:action-form",
+        title: "File a ticket",
+        grid: grid(0, 0, 4, 4),
+        collapsed: false,
+        hidden: false,
+        props: {
+          mode: "tool",
+          connector: "linear",
+          tool: "create_issue",
+          template: "Create issue: {title}",
+          fields: [
+            { name: "title", label: "Title", type: "text", maxLength: 120 },
+            {
+              name: "priority",
+              label: "Priority",
+              type: "select",
+              options: ["low", "med", "high"],
+            },
+          ],
+          argsFrom: { title: "title", priority: "priority" },
+          buttonLabel: "Create",
+        },
+      },
+    ],
+  },
+  {
+    kind: "builtin:action-button",
+    summary: "One click → invoke a granted external tool with fixed args (operator-confirmed).",
+    bindings: [],
+    props: {
+      connector: "the granted connector name (SPEC §17 v2)",
+      tool: "the tool to invoke on that connector",
+      args: "fixed argument object passed on click (optional)",
+      label: "button text (optional)",
+    },
+    example: {
+      id: "restart-worker",
+      kind: "builtin:action-button",
+      title: "Restart worker",
+      grid: grid(0, 0, 3, 2),
+      collapsed: false,
+      hidden: false,
+      props: {
+        connector: "officecli",
+        tool: "restart_service",
+        args: { service: "worker" },
+        label: "Restart",
       },
     },
   },

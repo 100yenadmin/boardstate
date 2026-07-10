@@ -50,7 +50,8 @@ function normalizeBinding(value: unknown): DashboardBinding | null {
     source !== "file" &&
     source !== "static" &&
     source !== "stream" &&
-    source !== "computed"
+    source !== "computed" &&
+    source !== "mcp"
   ) {
     return null;
   }
@@ -67,6 +68,9 @@ function normalizeBinding(value: unknown): DashboardBinding | null {
       ? { inputs: value.inputs.filter((input): input is string => typeof input === "string") }
       : {}),
     ...(typeof value.arg === "string" ? { arg: value.arg } : {}),
+    ...(typeof value.connector === "string" ? { connector: value.connector } : {}),
+    ...(typeof value.tool === "string" ? { tool: value.tool } : {}),
+    ...(isRecord(value.args) ? { args: value.args } : {}),
   };
 }
 
@@ -188,6 +192,10 @@ function normalizeCapabilityGrant(value: unknown): DashboardCapabilityGrant | nu
     status: status as DashboardCapabilityStatus,
     methods: strings(value.methods),
     streams: strings(value.streams),
+    // `tools`/`toolsHash` (SPEC §17 v2) carried only when present, so a pre-§17
+    // grant normalizes byte-identically (no new keys).
+    ...(Array.isArray(value.tools) ? { tools: strings(value.tools) } : {}),
+    ...(typeof value.toolsHash === "string" ? { toolsHash: value.toolsHash } : {}),
     ...(typeof value.description === "string" ? { description: value.description } : {}),
     ...(typeof value.grantedBy === "string" ? { grantedBy: value.grantedBy } : {}),
     ...(typeof value.grantedAt === "string" ? { grantedAt: value.grantedAt } : {}),

@@ -40,7 +40,7 @@ Top level (unknown keys MUST be rejected):
 
 ### 3.1 Widget kinds
 
-`builtin:<name>` where `<name>` ∈ the host's builtin registry (reference set: `stat-card`, `markdown`, `table`, `iframe-embed`, `sessions`, `usage`, `cron`, `instances`, `activity`, `chart`, `notes`, `action-form`, `preview`, `agent-status`, `approvals`, `chat`), or `custom:<name>` where `<name>` is a `widgetsRegistry` key. A UI MUST NOT instantiate a `custom:` widget whose registry status is not `approved` (§8, §11-I3).
+`builtin:<name>` where `<name>` ∈ the host's builtin registry (reference set: `stat-card`, `markdown`, `table`, `iframe-embed`, `sessions`, `usage`, `cron`, `instances`, `activity`, `chart`, `notes`, `action-form`, `action-button`, `preview`, `agent-status`, `approvals`, `chat`), or `custom:<name>` where `<name>` is a `widgetsRegistry` key. A UI MUST NOT instantiate a `custom:` widget whose registry status is not `approved` (§8, §11-I3).
 
 ### 3.2 Size limits
 
@@ -81,11 +81,12 @@ A binding declares _what data a widget sees_; resolution is performed by the tru
 
 | Source     | Shape                                       | Resolved by                      | Rules                                                                                                                                                                                                                                    |
 | ---------- | ------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rpc`      | `{ source:"rpc", method }`                  | client                           | `method` MUST be in the host's read-methods allowlist (reference: 17 read-only methods); no caller-controlled `params` may be persisted in a binding. The server MUST reject resolving `rpc` bindings itself (`binding_client_resolved`) |
+| `rpc`      | `{ source:"rpc", method }`                  | client                           | `method` MUST be in the host's read-methods allowlist (reference: 18 read-only methods); no caller-controlled `params` may be persisted in a binding. The server MUST reject resolving `rpc` bindings itself (`binding_client_resolved`) |
 | `file`     | `{ source:"file", path, pointer? }`         | server via `dashboard.data.read` | path jailed under the host's dashboard data dir; ≤ 1 MB; JSON pointer applied server-side                                                                                                                                                |
 | `static`   | `{ source:"static", value }`                | either                           | ≤ 8 KB                                                                                                                                                                                                                                   |
 | `stream`   | `{ source:"stream", event, pointer? }`      | client                           | `event` MUST be in the host's event allowlist; no arbitrary subscription                                                                                                                                                                 |
 | `computed` | `{ source:"computed", op, inputs[], arg? }` | client                           | `op` from a fixed enumerated set — **no expression evaluation, no eval**                                                                                                                                                                 |
+| `mcp`      | `{ source:"mcp", connector, tool, args? }`  | host broker (§18)                | reads a GRANTED external tool (§17.1); `connector` MUST resolve to an operator-configured connector (§18); `args` ≤ 8 KB. Shape-validated here; host resolution is implementation-pending                                                |
 
 The rpc/event allowlists are host policy; the reference lists are normative for the reference host and a ceiling, not a floor — hosts SHOULD start narrower. Client and server copies of an allowlist MUST be drift-guarded by a test that imports both.
 
@@ -300,6 +301,75 @@ methods: string[], streams: string[], description?, grantedBy?, grantedAt? }`. A
   and carries no active capability.
 - **Revocation** is re-checked at resolution (never cached in widget state): revoking a
   grant stops all its bindings immediately.
+
+### 17.1 Tool grants (v2)
+
+v2 extends the §17 grant from DATA sources (read methods + stream channels) to
+external MCP **tools** (§18), so the same operator-approval spine governs a
+connector's side-effecting surface. A grant gains two optional fields:
+
+- **`tools: string[]`** — the external tools this grant authorizes, each a namespaced
+  `connector:tool` id (connector segment per `CONNECTOR_NAME_PATTERN`; the whole id
+  ≤ 64 chars). UNLIKE `methods`/`streams`, tool ids are validated for SHAPE ONLY — the
+  tool space is per-connector and dynamic, so tools are NOT drawn from a frozen schema
+  allowlist. `DATA_READ_RPC_ALLOWLIST` stays the read security model and is untouched.
+- **`toolsHash: string`** — an opaque digest over the connector's declared tool manifest
+  at grant time (anti-rug-pull; see below). Validated for shape, never recomputed here.
+
+- **Required keys never relax.** `methods` and `streams` stay REQUIRED, exactly as
+  v1 — a grant omitting them is rejected, so every pre-v2 verdict is unchanged. A
+  tools-only grant declares them as explicit empty arrays (`methods: [], streams: []`).
+  Only the NEW keys are optional: a data-only grant simply omits `tools`/`toolsHash`,
+  and they are never invented on output.
+- **Request → approve.** A connector REQUESTS the tools it needs (grant lands
+  `requested`, snapshotting `tools` + `toolsHash`); an OPERATOR approves. Approve/confirm
+  stay operator-only (`OPERATOR_ONLY_METHODS`) and unreachable over an unauthenticated
+  networked transport — an agent can never grant its own tools.
+- **Partial grants.** The operator MAY approve a SUBSET: the granted `tools` is exactly
+  the approve-time subset the operator ticked, not necessarily the full requested set.
+  A later call to a tool outside the granted subset is ungranted (re-request).
+- **Anti-rug-pull (both directions).** A `granted` grant re-pends to `requested` before
+  any call succeeds when EITHER (a) the connector's live manifest hash differs from the
+  stored `toolsHash` (the connector changed its tool shape under a live grant), OR (b) the
+  doc's granted `tools`/`toolsHash` is mutated (import/`workspace.replace` can never widen
+  a grant — mirrors §17's no-self-elevation for status). A manifest-hash mismatch ⇒
+  re-pend, never a silent widening.
+- **Enforcement.** A networked client MAY directly execute only `readOnly` granted tools;
+  every non-`readOnly` tool call is SERVER-enforced through pending-action state (§18) and
+  requires an operator confirm.
+
+## 18. Connector broker (normative)
+
+The broker is the host-side MCP **client** manager (`@boardstate/broker`): Boardstate
+connects OUTWARD to external MCP servers, imports their read-ish tools as board data
+(`source:"mcp"` bindings, §6) and their side-effecting tools as agent/widget actions,
+all governed by the §17 grant spine. The broker is node-side ONLY — browser bundles stay
+MCP-free, and secrets never leave the node side (not in the doc, not in bindings, not to
+browsers).
+
+- **Config authorship (normative).** The broker connects ONLY to connectors named in its
+  OPERATOR-AUTHORED startup config. A connector name introduced by the agent-writable doc
+  (a grant key, an `mcp` binding's `connector`, an action widget's `connector`) is INERT
+  until it matches an operator-configured connector: no command, URL, or env can ever
+  originate from the doc. The doc references connectors; it never defines them.
+- **Pending-action lifecycle (normative).** A non-`readOnly` tool invocation is parked as a
+  persisted `PendingActionRecord` `{ id, connector, tool, args, requestedBy?, createdAt,
+expiresAt, status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. A
+  parked action executes only after an OPERATOR confirm; it is otherwise denied or expires
+  past `expiresAt`. This schema train contributes the TYPE + shape guard
+  (`validatePendingAction`); the lifecycle engine is implementation-pending.
+- **Operator-only confirm (normative).** `dashboard.action.confirm` ∈ `OPERATOR_ONLY_METHODS`:
+  it is NOT in the agent tool catalog and is unreachable over an unauthenticated networked
+  transport. A networked client can directly execute ONLY `readOnly` granted tools; anything
+  consequential goes through the confirm gate.
+- **External text is DATA.** Tool descriptions and results are rendered inert — never
+  re-interpolated into control-plane verbs, never able to mutate the board outside gated
+  verbs.
+
+_Implementation-pending (this train lands only the schema surface): the client manager
+(#38), the broker→AgentTool adapter + definition-token budget (#42), `boardstate_tool_search`
+request/approve loop (#43), the pending-action engine (#41), `source:"mcp"` host resolution
+(#45), and first-party connector presets (#46)._
 
 ---
 

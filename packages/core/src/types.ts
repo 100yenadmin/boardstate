@@ -12,7 +12,7 @@ export type DashboardCreatedBy = string;
 
 export type DashboardWidgetKind = string;
 
-export type DashboardBindingSource = "rpc" | "file" | "static" | "stream" | "computed";
+export type DashboardBindingSource = "rpc" | "file" | "static" | "stream" | "computed" | "mcp";
 
 export type DashboardBinding = {
   source: DashboardBindingSource;
@@ -31,6 +31,11 @@ export type DashboardBinding = {
   op?: string;
   inputs?: string[];
   arg?: string;
+  /** `mcp` bindings (SPEC §18) name a granted external tool: `connector` + `tool`. */
+  connector?: string;
+  tool?: string;
+  /** `mcp` binding call arguments (host-resolved via the broker; #45). */
+  args?: Record<string, unknown>;
 };
 
 export type DashboardGridRect = {
@@ -98,6 +103,10 @@ export type DashboardCapabilityGrant = {
   status: DashboardCapabilityStatus;
   methods: string[];
   streams: string[];
+  /** External `connector:tool` ids this grant authorizes (SPEC §17 v2). */
+  tools?: string[];
+  /** Anti-rug-pull digest over the connector's tool manifest at grant time. */
+  toolsHash?: string;
   description?: string;
   grantedBy?: DashboardCreatedBy;
   grantedAt?: string;

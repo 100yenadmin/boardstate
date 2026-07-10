@@ -156,6 +156,15 @@ export async function resolveBinding(
       `${binding.source} dashboard bindings are resolved by the Control UI client`,
     );
   }
+  if (binding.source === "mcp") {
+    // `mcp` bindings (SPEC §18) resolve host-side through the connector broker,
+    // which lands with the broker read path (#45). This module only validated the
+    // shape; there is no resolver here yet.
+    throw new DashboardBindingResolutionError(
+      "binding_client_resolved",
+      "mcp dashboard bindings are resolved host-side by the connector broker",
+    );
+  }
   // `file`: node-only. A browser host has no resolver → surface it as client-resolved.
   if (!options.resolveFile) {
     throw new DashboardBindingResolutionError(
