@@ -561,13 +561,22 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
 
   it("rejects a tool id without a connector:tool namespace", () => {
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: ["read_sheet"] })),
+      validateWorkspaceDoc(
+        withGrant({ status: "requested", methods: [], streams: [], tools: ["read_sheet"] }),
+      ),
     ).toThrow("tools[0] is not a valid connector:tool id");
   });
 
   it("rejects a tool id over 64 characters", () => {
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: [`c:${"t".repeat(64)}`] })),
+      validateWorkspaceDoc(
+        withGrant({
+          status: "requested",
+          methods: [],
+          streams: [],
+          tools: [`c:${"t".repeat(64)}`],
+        }),
+      ),
     ).toThrow("tools[0] is not a valid connector:tool id");
   });
 
@@ -575,7 +584,14 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
     // A grant's `tools` are external tool ids, not read RPCs — a namespaced id that
     // is nowhere in DATA_READ_RPC_ALLOWLIST is still valid.
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: ["stripe:create_charge"] })),
+      validateWorkspaceDoc(
+        withGrant({
+          status: "requested",
+          methods: [],
+          streams: [],
+          tools: ["stripe:create_charge"],
+        }),
+      ),
     ).not.toThrow();
   });
 
