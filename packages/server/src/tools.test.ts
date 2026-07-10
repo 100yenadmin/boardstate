@@ -53,6 +53,7 @@ describe("dashboard tools", () => {
         "dashboard_layout_set",
         "dashboard_workspace_replace",
         "dashboard_undo",
+        "dashboard_widget_catalog",
         "dashboard_design_review",
         "dashboard_widget_scaffold",
         "dashboard_data_read",
@@ -60,6 +61,7 @@ describe("dashboard tools", () => {
       const validSamples: Record<string, unknown> = {
         dashboard_workspace_get: {},
         dashboard_design_review: {},
+        dashboard_widget_catalog: {},
         dashboard_tab_create: { title: "Finance" },
         dashboard_tab_update: { slug: "main", hidden: true },
         dashboard_tab_delete: { slug: "old" },
@@ -177,6 +179,50 @@ describe("dashboard tools", () => {
         status: "pending",
         createdBy: "agent:main",
       });
+    });
+  });
+
+  it("coerces JSON-encoded-string props back to the object, and rejects garbage props", async () => {
+    // Models routinely double-encode props; a string is a valid JsonValue so it used
+    // to sail through and silently strip format/type/labels from every renderer.
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      const tools = toolsByName(store);
+      await tools.get("dashboard_tab_create")?.execute("c1", { title: "Ops", slug: "ops" });
+      await tools.get("dashboard_widget_add")?.execute("c2", {
+        tab: "ops",
+        id: "kpi",
+        kind: "builtin:stat-card",
+        grid: { x: 0, y: 0, w: 3, h: 2 },
+        bindings: { value: { source: "static", value: 42184 } },
+        props: '{"format": "usd", "label": "Pipeline"}',
+      });
+      const stored = (await store.read()).tabs
+        .find((tab) => tab.slug === "ops")!
+        .widgets.find((widget) => widget.id === "kpi")!;
+      expect(stored.props).toEqual({ format: "usd", label: "Pipeline" });
+
+      // A string that isn't a JSON object is rejected loudly, not stored.
+      await expect(
+        tools.get("dashboard_widget_add")?.execute("c3", {
+          tab: "ops",
+          id: "bad",
+          kind: "builtin:stat-card",
+          grid: { x: 3, y: 0, w: 3, h: 2 },
+          props: "not json",
+        }),
+      ).rejects.toThrow("props must be a JSON object");
+
+      // The update/patch path coerces the same way.
+      await tools.get("dashboard_widget_update")?.execute("c4", {
+        tab: "ops",
+        id: "kpi",
+        props: '{"format": "int"}',
+      });
+      const patched = (await store.read()).tabs
+        .find((tab) => tab.slug === "ops")!
+        .widgets.find((widget) => widget.id === "kpi")!;
+      expect(patched.props).toEqual({ format: "int" });
     });
   });
 

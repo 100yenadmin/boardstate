@@ -22,7 +22,12 @@ import {
   type JsonValue,
   type WorkspaceDoc,
 } from "@boardstate/schema";
-import { reviewWorkspace, type DashboardStore } from "@boardstate/core";
+import {
+  DATA_SOURCE_WIDGET_KINDS,
+  reviewWorkspace,
+  WIDGET_CATALOG,
+  type DashboardStore,
+} from "@boardstate/core";
 import { Type } from "typebox";
 import { toolJson, type AgentTool, type ToolContext } from "./host.js";
 
@@ -240,6 +245,31 @@ function readEphemeralInput(value: unknown): DashboardEphemeral {
   return { expiresAt: readRequiredString(value, "expiresAt", "ephemeral.expiresAt") };
 }
 
+/**
+ * Read a widget `props` input, coercing a JSON-ENCODED-STRING object back to the
+ * object. Models routinely double-encode props (`"{\"format\": \"usd\"}"`); a string
+ * is a valid JsonValue so it sails through schema validation, then every renderer's
+ * `widgetProps` ignores non-record props and the widget silently loses its
+ * format/type/labels. Coerce when unambiguous; reject other non-object shapes loudly.
+ */
+function readPropsInput(value: unknown): JsonValue {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (isRecord(parsed)) {
+        return parsed as JsonValue;
+      }
+    } catch {
+      // Fall through to the loud error below.
+    }
+    throw new Error('props must be a JSON object (e.g. { "format": "usd" }), not a string');
+  }
+  if (value !== undefined && !isRecord(value)) {
+    throw new Error("props must be a JSON object");
+  }
+  return value as JsonValue;
+}
+
 function slugBase(value: string): string {
   return value
     .trim()
@@ -348,7 +378,7 @@ function readWidgetInput(value: unknown, doc: WorkspaceDoc): DashboardWidget {
     collapsed: readOptionalBoolean(record, "collapsed") ?? false,
     hidden: readOptionalBoolean(record, "hidden") ?? false,
     ...(bindings !== undefined ? { bindings } : {}),
-    ...(record.props !== undefined ? { props: record.props as JsonValue } : {}),
+    ...(record.props !== undefined ? { props: readPropsInput(record.props) } : {}),
     ...(record.ephemeral !== undefined ? { ephemeral: readEphemeralInput(record.ephemeral) } : {}),
   };
 }
@@ -373,7 +403,7 @@ function readWidgetPatch(value: unknown): Partial<DashboardWidget> {
     ...(collapsed !== undefined ? { collapsed } : {}),
     ...(hidden !== undefined ? { hidden } : {}),
     ...(bindings !== undefined ? { bindings } : {}),
-    ...(record.props !== undefined ? { props: record.props as JsonValue } : {}),
+    ...(record.props !== undefined ? { props: readPropsInput(record.props) } : {}),
     // `ephemeral: null` clears the flag (Pin); an object sets it. The resulting
     // `undefined` is dropped by validateWorkspaceDoc so the field leaves the doc.
     ...(Object.hasOwn(record, "ephemeral")
@@ -718,7 +748,13 @@ export function createDashboardCoreTools(params: DashboardCoreToolParams): Agent
         ]);
         const tabSlug = readSlug(record, "tab");
         const id = readWidgetId(record);
-        const patch = readWidgetPatch(record);
+        // Strip the addressing fields before the patch reader (its allowlist is
+        // patch-fields only) — without this every widget_update call threw
+        // "unexpected param: tab" and agents could never patch a widget.
+        const patchInput = { ...record };
+        delete patchInput.tab;
+        delete patchInput.id;
+        const patch = readWidgetPatch(patchInput);
         return await runMutation({
           ...mutationBase,
           changedTabSlug: tabSlug,
@@ -874,6 +910,38 @@ export function createDashboardCoreTools(params: DashboardCoreToolParams): Agent
         const doc = await store.undo();
         broadcastChange(broadcast, { doc, actor });
         return toolJson({ doc, workspaceVersion: doc.workspaceVersion });
+      },
+    },
+    {
+      name: "dashboard_widget_catalog",
+      label: "Dashboard Widget Catalog",
+      readOnly: true,
+      description:
+        "The builtin-widget catalog: per kind, the EXACT binding keys + value shapes, " +
+        "props, and a copy-pasteable schema-valid example. Read this BEFORE composing " +
+        "widgets — do not guess prop or binding shapes (a table binds `rows`, a markdown " +
+        'binds `content`, data goes in bindings.<key> as { source: "static", value }, ' +
+        "never in props).",
+      parameters: Type.Object(
+        {
+          kind: Type.Optional(
+            Type.String({
+              description: 'Filter to one kind (e.g. "builtin:chart"). Omit for all.',
+            }),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      execute: async (_toolCallId, rawParams) => {
+        const record = readRecord(rawParams, ["kind"]);
+        const kind = readOptionalString(record, "kind");
+        const entries = kind
+          ? WIDGET_CATALOG.filter((entry) => entry.kind === kind)
+          : WIDGET_CATALOG;
+        const dataSources = kind
+          ? DATA_SOURCE_WIDGET_KINDS.filter((entry) => entry.kind === kind)
+          : DATA_SOURCE_WIDGET_KINDS;
+        return toolJson({ widgets: entries, dataSourceWidgets: dataSources });
       },
     },
     {

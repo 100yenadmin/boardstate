@@ -26,6 +26,7 @@ export {
   type CreateWsTransportOptions,
 } from "./adapters/transport-ws.js";
 
+export * from "./widget-catalog.js";
 export * from "./store.js";
 export * from "./data-read.js";
 export * from "./manifest.js";

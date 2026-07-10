@@ -20,7 +20,12 @@
 // types + tool names, and a self-check refuses to print anything containing a
 // credential substring.
 
-import { MemoryStorageAdapter, DashboardStore } from "../packages/core/dist/index.js";
+import {
+  MemoryStorageAdapter,
+  DashboardStore,
+  mapChart,
+  mapStatCard,
+} from "../packages/core/dist/index.js";
 import {
   createInProcessHost,
   registerBoardstateRpc,
@@ -167,6 +172,33 @@ try {
 }
 const insights = doc.tabs.find((tab) => tab.slug === "insights");
 const widgetCount = insights?.widgets.length ?? 0;
+
+// Render-model check (R2): run the same pure transforms the view uses and require the
+// chart/stat-card to produce NON-EMPTY models — catches "mounted but empty" (wrong
+// binding key / data left in props) that doc validation alone cannot see.
+const staticValue = (widget, key = "value") => {
+  const binding = widget?.bindings?.[key];
+  return binding && binding.source === "static" ? binding.value : undefined;
+};
+let rendersNonEmpty = true;
+for (const widget of insights?.widgets ?? []) {
+  if (widget.kind === "builtin:chart") {
+    const model = mapChart(widget, staticValue(widget));
+    if (!model.values || model.values.length < 3) {
+      rendersNonEmpty = false;
+      say(`  render check FAIL: chart ${widget.id} has ${model.values?.length ?? 0} points`);
+      say(`    widget: ${JSON.stringify({ bindings: widget.bindings, props: widget.props })}`);
+    }
+  }
+  if (widget.kind === "builtin:stat-card") {
+    const model = mapStatCard(widget, staticValue(widget));
+    if (model.display === null || model.display === undefined || model.display === "") {
+      rendersNonEmpty = false;
+      say(`  render check FAIL: stat-card ${widget.id} resolves empty`);
+      say(`    widget: ${JSON.stringify({ bindings: widget.bindings, props: widget.props })}`);
+    }
+  }
+}
 const created = toolCalls.filter((name) => name.includes("tab_create")).length;
 const added = toolCalls.filter((name) => name.includes("widget_add")).length;
 
@@ -174,10 +206,16 @@ say(
   `events: ${events.length} · toolCalls: ${toolCalls.length} (${created} tab_create, ${added} widget_add)`,
 );
 say(
-  `insights tab: ${insights ? "present" : "MISSING"} with ${widgetCount} widgets · doc valid: ${valid}`,
+  `insights tab: ${insights ? "present" : "MISSING"} with ${widgetCount} widgets · doc valid: ${valid} · renders non-empty: ${rendersNonEmpty}`,
 );
 
-let pass = created >= 1 && added >= 2 && widgetCount >= 3 && valid && events.at(-1) === "turn-end";
+let pass =
+  created >= 1 &&
+  added >= 2 &&
+  widgetCount >= 3 &&
+  valid &&
+  rendersNonEmpty &&
+  events.at(-1) === "turn-end";
 if (selfReview) {
   const reviewed = toolCalls.includes("dashboard_design_review");
   const singleTurn =

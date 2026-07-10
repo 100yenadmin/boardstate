@@ -413,6 +413,16 @@ exports[`@boardstate/mcp server > emits a standard JSON Schema inputSchema for e
     ],
     "type": "object",
   },
+  "boardstate_widget_catalog": {
+    "additionalProperties": false,
+    "properties": {
+      "kind": {
+        "description": "Filter to one kind (e.g. "builtin:chart"). Omit for all.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
   "boardstate_widget_move": {
     "additionalProperties": false,
     "properties": {

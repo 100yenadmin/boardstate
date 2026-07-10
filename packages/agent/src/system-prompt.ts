@@ -16,14 +16,14 @@ export const COMPOSITION_GUIDE = `# Composing a Boardstate dashboard
 Principle: the platform ships the VOCABULARY (builtins), you write the sentences.
 Reach for a builtin first; scaffold a custom widget only when no builtin fits.
 
-## Builtin widgets (kind → use for → value/props essentials)
-- builtin:stat-card — one number that matters — value: number|string; props.format "usd"|plain; props.metric label
-- builtin:table — rows and columns — rows/columns via props; keep <= ~10 visible rows
-- builtin:chart — trends, comparisons, budgets — value: number array (or labeled points); props.type area|bar|line|gauge
-- builtin:activity — event feed — value: { entries: [{ ts, jobName, status, summary }] }
-- builtin:markdown — prose, explanations, small md tables — value: markdown string (sanitized)
+## Builtin widgets (kind → use for → binding key + shape essentials)
+- builtin:stat-card — one number that matters — bindings.value: number|string; props.format "usd"|"int"|"percent"|"raw"; props.metric picks a field from a structured payload
+- builtin:table — rows and columns — bindings.rows: array of objects (NOT \`value\`); props.columns picks keys; keep <= ~10 visible rows
+- builtin:chart — trends, comparisons, budgets — bindings.value: number array (or labeled points); props.type line|bar|area|sparkline|gauge
+- builtin:activity — event feed — bindings.value: { entries: [{ ts, jobName, status, summary }] }
+- builtin:markdown — prose, explanations, small md tables — bindings.content: markdown string (NOT \`value\`), or props.markdown inline
 - builtin:notes — operator scratch text — props.text starter content
-- builtin:action-form — the chat<->dashboard loop — form fields in props; submits back through the control plane
+- builtin:action-form — the chat<->dashboard loop — props: { template, fields: [{name,label,type}], buttonLabel? }; submits back through the control plane
 - builtin:sessions — who/what is running — value rows { key, label, status, hasActiveRun, updatedAt }; props.limit
 - builtin:agent-status — agents + goals/progress — sessions shape + goal { objective, tokensUsed, tokenBudget }
 - builtin:usage — cost/token totals — value: { totals: { totalCost, totalTokens }, days? }
@@ -33,7 +33,9 @@ Reach for a builtin first; scaffold a custom widget only when no builtin fits.
 - builtin:preview / builtin:iframe-embed — a live page — props.url (same-origin ok; cross-origin needs host opt-in)
 - builtin:chat — talk to the agent, watch it work — ignores bindings
 
-Every builtin takes bindings.value from any source: static, rpc, file, stream, computed.
+Data goes in bindings.<key> as { source: "static", value: … } (or rpc/file/stream/computed) —
+never inline in props. When a dashboard_widget_catalog tool is available, call it for the
+exact per-kind shapes plus a copy-pasteable valid example; do not guess.
 
 ## Rules of thumb
 1. Lead with the number, follow with the why — stat cards top-left, chart/table beside, prose last. 12-column grid; don't overlap.
@@ -69,10 +71,16 @@ export function buildSystemPrompt(tools: AgentTool[]): string {
     toolNames.length > 0 ? toolNames.map((name) => `- ${name}`).join("\n") : "- (none)";
   const hasGuide = toolNames.includes("dashboard_composition_guide");
   const hasWorkspaceGet = toolNames.includes("dashboard_workspace_get");
+  const hasCatalog = toolNames.includes("dashboard_widget_catalog");
 
   const notes: string[] = [];
   if (hasWorkspaceGet) {
     notes.push("- Pull the current board with `dashboard_workspace_get` before you mutate it.");
+  }
+  if (hasCatalog) {
+    notes.push(
+      "- Call `dashboard_widget_catalog` before your first `widget_add` — it returns the EXACT binding keys, prop shapes, and a valid example per kind. Do not guess shapes (a table binds `rows`, a markdown binds `content`; data goes in bindings, not props).",
+    );
   }
   if (hasGuide) {
     notes.push(

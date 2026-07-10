@@ -296,6 +296,29 @@ function readEphemeralInput(value: unknown): DashboardEphemeral {
   return { expiresAt: readRequiredString(value, "expiresAt", "widget.ephemeral.expiresAt") };
 }
 
+/**
+ * Coerce a JSON-encoded-string props object back to the object (models routinely
+ * double-encode); reject other non-object props loudly instead of letting them
+ * silently strip every renderer's format/type/labels.
+ */
+function readPropsInput(value: unknown): JsonValue {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (isRecord(parsed)) {
+        return parsed as JsonValue;
+      }
+    } catch {
+      // Fall through to the loud error below.
+    }
+    throw new Error('props must be a JSON object (e.g. { "format": "usd" }), not a string');
+  }
+  if (value !== undefined && !isRecord(value)) {
+    throw new Error("props must be a JSON object");
+  }
+  return value as JsonValue;
+}
+
 function readWidgetInput(value: unknown, doc: WorkspaceDoc): DashboardWidget {
   if (!isRecord(value)) {
     throw new Error("widget must be an object");
@@ -328,7 +351,7 @@ function readWidgetInput(value: unknown, doc: WorkspaceDoc): DashboardWidget {
     ...(value.bindings !== undefined
       ? { bindings: value.bindings as Record<string, DashboardBinding> }
       : {}),
-    ...(value.props !== undefined ? { props: value.props as JsonValue } : {}),
+    ...(value.props !== undefined ? { props: readPropsInput(value.props) } : {}),
     ...(value.ephemeral !== undefined ? { ephemeral: readEphemeralInput(value.ephemeral) } : {}),
   };
 }
@@ -402,7 +425,7 @@ function readWidgetPatch(value: unknown): Partial<DashboardWidget> {
     ...(patch.bindings !== undefined
       ? { bindings: patch.bindings as Record<string, DashboardBinding> }
       : {}),
-    ...(patch.props !== undefined ? { props: patch.props as JsonValue } : {}),
+    ...(patch.props !== undefined ? { props: readPropsInput(patch.props) } : {}),
     // `ephemeral: null` pins the widget (clears the flag); an object sets it. The
     // resulting `undefined` is stripped by validateWorkspaceDoc on write.
     ...(Object.hasOwn(patch, "ephemeral")
