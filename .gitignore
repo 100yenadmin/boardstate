@@ -5,5 +5,6 @@ dist/
 .artifacts/
 coverage/
 
-# Local editor / preview config
-.claude/
+# Local editor / preview config — but committed agent skills ride along
+.claude/*
+!.claude/skills/

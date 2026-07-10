@@ -88,6 +88,101 @@ sequenceDiagram
   Note over Frame: no origin · no network · no credentials
 ```
 
+## Features
+
+### The document is the whole product
+
+Everything below operates on one validated JSON document (≤ 256 KB, schema v1). Because the
+board _is_ data, you get for free: **undo** (a 20-entry ring), **export/import** (a board is
+a file you can email), **templates** ([`templates/`](templates) — Agent HQ, Showcase,
+small-business, OSS-maintainer), **provenance** (every tab and widget records its `createdBy`
+actor — human, system, or which agent), and **diffability** (review an agent's board the way
+you review a PR). Mutations go through `dashboard.*` methods with per-method allowed-keys
+whitelists — unknown keys are rejected at the wire, which catches contract drift before it
+ships.
+
+### Widgets: a trusted tier and a sandboxed tier
+
+**17 builtin widgets** cover the common jobs: `stat-card`, `chart`, `table`, `markdown`,
+`notes`, `iframe-embed`, `preview`, `activity`, `sessions`, `usage`, `cron`, `instances`,
+`agent-status`, `chat` (talk to the agent inside the board), `approvals` (the operator's
+grant + pending-action console), `action-form`, and `action-button` (governed actions —
+see below). Every builtin has a schema-valid example in the **widget catalog**
+(`boardstate_widget_catalog`), honesty-gated in CI so the examples can never rot.
+
+**Custom widgets** are agent- or user-authored HTML that renders live — safely, _by
+construction_: opaque-origin iframe, `connect-src 'none'` (no network), a capability
+manifest that declares exactly which bindings it may read, an operator approval gate before
+first mount, and server-side 404s for unapproved assets. A scaffolded widget lands as a
+pending card, not running code.
+
+### Data bindings: six sources, one model
+
+Any widget can bind live data. A binding declares a source; the host resolves and refreshes it:
+
+| Source     | What it does                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------- |
+| `static`   | Inline JSON (≤ 8 KB) — fixtures, thresholds, copy                                                    |
+| `file`     | Reads from the host's state dir — reports, scratch data                                              |
+| `rpc`      | Calls a whitelisted host method — anything your host exposes                                         |
+| `stream`   | Subscribes to a host event stream — tickers, logs, agent output; updates push live                   |
+| `computed` | Derives from other bindings with a pure expression — totals, deltas, ratios                          |
+| `mcp`      | Reads a **granted external MCP tool** through the connector broker (readOnly-only, side-effect-free) |
+
+### The agent layer
+
+- **`@boardstate/mcp`** — the full tool set for any MCP client; `--serve` gives you a live
+  page of the board being built, and `boardstate_board_view` renders it inside MCP-Apps
+  clients like Claude Desktop.
+- **`@boardstate/agent`** — the embeddable chat agent: streaming tool loop, provider
+  adapters (Anthropic, or any OpenAI-compatible endpoint — GLM, OpenAI, Ollama, vLLM),
+  the composition system prompt, and a definition-token budget so big tool catalogs can't
+  blow the context.
+- **`builtin:chat`** — the conversation lives _on the board_, next to what it's building.
+- **The self-building loop** — `boardstate_design_review` + `selfReview:"once"`: the agent
+  screenshots the board it just built, critiques it, and fixes what it finds.
+- **The conventions** — [living answers](docs/living-answers.md) (answer visual questions
+  with widgets, not prose) and [composition patterns](docs/composition-patterns.md) (which
+  widget for which job). See **[AGENTS.md](AGENTS.md)** for the full agent guide.
+
+### Actions & the operate loop (the trust spine)
+
+Side effects are first-class and _governed_. The capability broker tracks per-connector,
+per-tool **grants** (`requested → granted / denied / revoked`): an agent can discover and
+**request** tools (`boardstate_tool_search`) but never grant them; the operator approves a
+subset in the approvals widget. Granted `readOnly` tools execute directly; **mutations park**
+as pending actions that only the local operator can confirm — a networked client is refused
+at the transport (`OPERATOR_ONLY`). Grants **re-pend automatically** if the external server
+changes a tool's surface underneath them (anti-rug-pull, both directions), and every invoke
+is rate-limited and audit-logged. Reads and actions are different verbs: a `source:"mcp"`
+binding resolves through a pure-read verb that structurally cannot trigger a side effect.
+
+### Connectors
+
+`@boardstate/broker` manages outbound MCP connections from an operator-authored config
+(stdio or streamable HTTP; secrets as `${ENV}` refs, resolved node-side only — never in the
+document, never in the browser). First-party presets: **OfficeCLI** (native, stdio),
+**Pipedream** and **Composio** (remote aggregators — thousands of SaaS tools behind one
+connector). `installConnectorWorkspace` wires the whole stack into your host in one call.
+Setup guides: [`docs/connectors/`](docs/connectors.md).
+
+### Hosts, transports, conformance
+
+Run it your way: fully in-browser (the live demo persists to IndexedDB-like storage via the
+core store), a Node host over the hardened **WebSocket transport**, or in-process. The
+**`boardstate` CLI** drives the same control plane from your shell. If you build your own
+host, **`@boardstate/conformance`** is the transport test suite that tells you it's actually
+conformant — the reference implementation also ships as an OpenClaw plugin, the first
+conformant host.
+
+### Polish that's included, not promised
+
+A complete default theme (**Graphite**, light + dark) plus two drop-in alternates and a
+fully tokenized `--bs-*` custom-property system ([THEME.md](packages/lit/THEME.md));
+**20-language localization** with runtime switching; drag & drop with lift-and-carry
+ergonomics; typed React wrappers; and a keyboard-reachable, `prefers-color-scheme`-honoring
+reference UI.
+
 ## Packages
 
 | Package                                  | What it is                                                                          |
@@ -101,6 +196,25 @@ sequenceDiagram
 | [`@boardstate/mcp`](packages/mcp)        | MCP server: give any AI the full dashboard tool set                                 |
 | [`@boardstate/conformance`](conformance) | The transport conformance suite — run it against _your_ host                        |
 
+## Installation
+
+Pick the entry point that matches what you're building — each is one install:
+
+| You want…                                   | Install                                       | Start here                                                        |
+| ------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| Any AI building boards (Claude, etc.)       | `npx -y @boardstate/mcp` (no install)         | [Give an AI the board](#usage) · [AGENTS.md](AGENTS.md)           |
+| The dashboard UI in your web app            | `npm i @boardstate/lit @boardstate/core`      | [Embed the view](#usage)                                          |
+| …with React                                 | `npm i @boardstate/react`                     | [React](#usage)                                                   |
+| A networked Node host (multi-client, WS)    | `npm i @boardstate/server`                    | [Run a host](#usage)                                              |
+| An embedded chat agent (bring your own key) | `npm i @boardstate/agent`                     | [AGENTS.md §2](AGENTS.md)                                         |
+| The board acting through external tools     | `npm i @boardstate/broker`                    | [Connect outward](#usage) · [docs/connectors](docs/connectors.md) |
+| A shell workflow / scripting                | `npx --package @boardstate/server boardstate` | [CLI](#usage)                                                     |
+| To verify your own host implementation      | `npm i -D @boardstate/conformance`            | [ARCHITECTURE.md](docs/ARCHITECTURE.md)                           |
+
+All packages are MIT, ESM, and published with npm provenance (Sigstore-attested).
+Requires Node ≥ 20 for the Node-side packages; the browser packages are framework-free
+custom elements (Lit under the hood).
+
 ## Quick start
 
 Zero-install: open the **[live demo](https://100yenadmin.github.io/boardstate/)**. Locally:
@@ -113,20 +227,63 @@ pnpm --filter boardstate-example-standalone dev   # the 60-second demo
 
 Either way, press **“simulate agent”**, and watch: a tab appears, charts bind, a custom widget lands as a pending card, you approve it, the sandboxed iframe mounts and renders live. Then drag things around — you and the agent are editing the same document.
 
-To give an AI the tools directly:
+## Usage
+
+**Give an AI the board** — the fastest path; any MCP client gets all 20 tools
+(full guide + tool catalog: **[AGENTS.md](AGENTS.md)**):
+
+```sh
+claude mcp add boardstate -- npx -y @boardstate/mcp   # Claude Code
+npx @boardstate/mcp --serve 4400                      # + a live page of the board it builds
+```
 
 ![A real Claude, connected over MCP, builds a SaaS-metrics board live — tab, stat cards, chart, highlights, table — no human hands](docs/media/mcp-demo.gif)
 
 _That's a real Claude session connected to `@boardstate/mcp` — every widget lands via a `boardstate_*` tool call ([video](docs/media/mcp-demo.mp4))._
 
-```sh
-npx @boardstate/mcp --serve 4400    # MCP stdio server + a live host page
+**Embed the view** — `<boardstate-view>` is a custom element; hand it a transport:
+
+```js
+import "@boardstate/lit/browser";
+import "@boardstate/lit/styles.css";
+import { createWsTransport } from "@boardstate/core";
+
+const view = document.createElement("boardstate-view");
+view.transport = createWsTransport(`ws://${location.host}/ws`);
+view.connected = true;
+document.getElementById("app").append(view);
 ```
 
-Or drive the same control plane from your shell with the **`boardstate`** CLI (from `@boardstate/server`). It reads/writes a local state dir (`$BOARDSTATE_STATE_DIR`, else `~/.boardstate`):
+React: `import { BoardstateView } from "@boardstate/react"` — the same element, typed.
+
+**Run a networked host** — the `dashboard.*` control plane over WebSocket, with the
+operator boundary enforced at the transport (see
+[`examples/operational-demo/demo.mjs`](examples/operational-demo/demo.mjs) for a complete
+~350-line host, and [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the seams):
+
+```js
+import {
+  createInProcessHost,
+  registerBoardstateRpc,
+  attachWsTransport,
+  nodeRpcDeps,
+} from "@boardstate/server/node";
+```
+
+**Connect outward** (the operate loop — external tools as data + governed actions):
 
 ```sh
-npx --package @boardstate/server boardstate tab add sales   # add a workspace tab
+node examples/operational-demo/demo.mjs   # keyless demo: approve → table fills → park → confirm
+```
+
+Real connectors are a config file + env refs away — OfficeCLI, Pipedream, Composio guides
+in [`docs/connectors/`](docs/connectors.md).
+
+**Script it** — the `boardstate` CLI drives the same control plane from your shell
+(state dir: `$BOARDSTATE_STATE_DIR`, default `~/.boardstate` — shared with the MCP server):
+
+```sh
+npx --package @boardstate/server boardstate tab add sales
 npx --package @boardstate/server boardstate dashboard tabs list
 ```
 
@@ -175,8 +332,20 @@ view.strings = de; // or any BoardstateStrings partial of your own
 
 The live demo's **Lang** menu switches all 20 at runtime.
 
+## Agents
+
+Boardstate is agent-native in both directions — agents **build** the board (MCP server,
+embedded chat agent), and the board **acts** through agent-requested, operator-granted
+external tools. **[AGENTS.md](AGENTS.md)** is the complete guide: setting up each agent
+surface (Claude Code / Claude Desktop config, the embeddable `@boardstate/agent` with
+provider adapters, the connector grant loop), the full 20-tool catalog, the composition
+conventions that make agent-built boards good, the security invariants agents operate
+under — and the house rules for coding agents contributing to this repo.
+
 ## Learn more
 
+- **[CHANGELOG.md](CHANGELOG.md)** — the release history by milestone: what each train shipped and why; per-package changelogs hold the granular record.
+- **[AGENTS.md](AGENTS.md)** — the agent guide: setup, the tool catalog, conventions, and the invariants.
 - **[docs/ROADMAP.md](docs/ROADMAP.md)** — where this is going: substrate → the agent layer (plug in a provider — GLM, Anthropic, any OpenAI-compatible endpoint — and the AI builds the board live), the streaming spec, and phased milestones. Pickup-ready for any contributor.
 - **[SPEC.md](packages/schema/SPEC.md)** — the protocol: document format, `dashboard.*` methods, bridge protocol v1, capability & approval model, the security invariants.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the implementation: package graph, the three seams (storage / transport / server-host), the request lifecycle, and how to build your own host.
@@ -185,12 +354,22 @@ The live demo's **Lang** menu switches all 20 at runtime.
 - **[docs/living-answers.md](docs/living-answers.md)** — the agent convention: answer visual questions with live widgets, not prose.
 - **[docs/design-review.md](docs/design-review.md)** — the agent workflow for reviewing and refining a layout it built.
 - **[templates/](templates)** — workspace templates (Agent HQ, the all-builtins Showcase, small-business, OSS-maintainer), starter custom widgets — including **twenty48**, a sandboxed game you can install from the demo's gallery, and a ready-to-use **widget-gallery registry** (`templates/registry/` — the live demo's gallery points at its hosted copy; point yours at `https://100yenadmin.github.io/boardstate/registry/index.json`).
+- **[docs/connectors.md](docs/connectors.md)** — the outward direction: connector setup for OfficeCLI, Pipedream, and Composio, the grant model, and the operational demo.
 - **[docs/demo-script.md](docs/demo-script.md)** — the acceptance walkthrough: a scripted Do/Observe tour proving every feature, for maintainers and PR reviewers.
 - **[GitHub Discussions](https://github.com/100yenadmin/boardstate/discussions)** — questions, ideas, show-and-tell.
 
 ## Status
 
-**v0.1 (extraction in progress).** Boardstate is extracted from the modular-dashboard system its authors built for [OpenClaw](https://github.com/openclaw/openclaw) ([roadmap & PRs](https://github.com/openclaw/openclaw/issues/101136)) — that plugin is the first conformant host. The protocol is stable enough to read; the packages land in dependency order (schema → core → server → host → lit).
+**Active, and past the extraction phase.** Boardstate originated as the modular-dashboard
+system its authors built for [OpenClaw](https://github.com/openclaw/openclaw)
+([roadmap & PRs](https://github.com/openclaw/openclaw/issues/101136)) — that plugin is the
+first conformant host. Since extraction, five milestone arcs have shipped as attested npm
+releases (see **[CHANGELOG.md](CHANGELOG.md)**): the substrate, the agent layer (chat +
+embeddable agent + the live app), the hardened WS transport, the trusted-workspace arc
+(capability broker, MCP Apps board view, the self-building loop), and **M5 — the
+Operational Workspace** (Boardstate as an MCP _client_: external tools as live data +
+operator-confirmed actions). The protocol is [SPEC](packages/schema/SPEC.md) v0.2-draft:
+stable enough to build a host against, with the conformance suite to prove it.
 
 ## License
 
