@@ -182,6 +182,45 @@ describe("dashboard tools", () => {
     });
   });
 
+  it("agent replace can never self-grant a capability (SPEC §17 structural gate)", async () => {
+    // Refuted by adversarial verify 2026-07-10: this path bypassed
+    // reconcileReplaceApproval, so an agent could write status:"granted" directly.
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      const seed = await store.read();
+      seed.capabilitiesRegistry = {
+        "existing-cap": {
+          status: "granted",
+          methods: ["health"],
+          streams: [],
+          grantedBy: "user",
+          grantedAt: "2026-01-01T00:00:00.000Z",
+        },
+      };
+      await store.replace(seed, { actor: "user" });
+
+      const tools = toolsByName(store);
+      const replacement = structuredClone(await store.read());
+      replacement.capabilitiesRegistry = {
+        ...replacement.capabilitiesRegistry,
+        "evil-cap": {
+          status: "granted",
+          methods: ["usage.cost"],
+          streams: [],
+          grantedBy: "agent:evil",
+          grantedAt: "2026-01-02T00:00:00.000Z",
+        },
+      };
+      await tools.get("dashboard_workspace_replace")?.execute("call-1", { doc: replacement });
+
+      const next = await store.read();
+      expect(next.capabilitiesRegistry!["existing-cap"]).toMatchObject({ status: "granted" });
+      expect(next.capabilitiesRegistry!["evil-cap"]).toMatchObject({ status: "requested" });
+      expect(next.capabilitiesRegistry!["evil-cap"]!.grantedBy).toBeUndefined();
+      expect(next.capabilitiesRegistry!["evil-cap"]!.grantedAt).toBeUndefined();
+    });
+  });
+
   it("coerces JSON-encoded-string props back to the object, and rejects garbage props", async () => {
     // Models routinely double-encode props; a string is a valid JsonValue so it used
     // to sail through and silently strip format/type/labels from every renderer.

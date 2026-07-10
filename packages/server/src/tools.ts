@@ -24,6 +24,7 @@ import {
 } from "@boardstate/schema";
 import {
   DATA_SOURCE_WIDGET_KINDS,
+  reconcileReplaceApproval,
   reviewWorkspace,
   WIDGET_CATALOG,
   type DashboardStore,
@@ -487,14 +488,21 @@ function sanitizeAgentWorkspaceReplace(params: {
       createdBy: params.actor,
     };
   }
-  return {
-    ...params.doc,
-    tabs: params.doc.tabs.map((tab) => ({
-      ...tab,
-      createdBy: existingTabs.get(tab.slug)?.createdBy ?? params.actor,
-    })),
-    widgetsRegistry,
-  };
+  // The widget registry above is agent-strict (current entry or pending), but the
+  // rest of the doc — capabilitiesRegistry in particular — must still pass the
+  // structural replace gate (SPEC §8.2/§17): without it this path let an agent
+  // self-grant capabilities that only dashboard.capability.approve may grant.
+  return reconcileReplaceApproval(
+    {
+      ...params.doc,
+      tabs: params.doc.tabs.map((tab) => ({
+        ...tab,
+        createdBy: existingTabs.get(tab.slug)?.createdBy ?? params.actor,
+      })),
+      widgetsRegistry,
+    },
+    params.current,
+  );
 }
 
 function broadcastChange(
