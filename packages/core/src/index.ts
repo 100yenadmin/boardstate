@@ -18,6 +18,13 @@
 export type { StorageAdapter } from "./adapters/storage.js";
 export type { Transport } from "./adapters/transport.js";
 export { MemoryStorageAdapter } from "./adapters/storage-memory.js";
+export {
+  createWsTransport,
+  WsTransportClosedError,
+  WsTransportUnavailableError,
+  type WsTransport,
+  type CreateWsTransportOptions,
+} from "./adapters/transport-ws.js";
 
 export * from "./store.js";
 export * from "./data-read.js";

@@ -33,6 +33,13 @@ export {
 export { createWidgetHttpRouteHandler } from "./http-route.js";
 
 export {
+  attachWsTransport,
+  DEFAULT_FORWARDED_EVENTS,
+  type AttachWsTransportOptions,
+  type WsTransportHandle,
+} from "./ws-transport.js";
+
+export {
   installWidgetBundle,
   WIDGET_BUNDLE_MAX_BYTES,
   WIDGET_BUNDLE_MAX_FILES,

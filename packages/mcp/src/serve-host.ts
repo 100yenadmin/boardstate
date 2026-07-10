@@ -8,27 +8,44 @@
 // It shares the SAME store + host as the MCP server, so the SSE stream reflects the
 // agent's writes as they happen.
 //
-// NOTE on `<boardstate-view>`: the packet asks the demo page to mount the built
-// `@boardstate/lit` element. That element's dependency chain (`@boardstate/core`) is a
-// Node-targeted dist that imports node builtins (`node:crypto`, …), so it cannot be
-// loaded in a plain browser without a browser-targeted bundle — out of scope for this
-// thin runtime demo (it needs a build step, not a runtime server). The host page
-// therefore renders the live workspace JSON over SSE, which is the load-bearing "watch
-// the agent build live" mechanism; hydrating the real element is left to a future
-// browser bundle of `@boardstate/lit`. See the manifest note.
+// `<boardstate-view>` rendering: when the browser-standalone bundle of `@boardstate/lit`
+// is built (`@boardstate/lit/browser` → `dist/browser.js`), the host page loads it and
+// mounts the REAL element over a tiny fetch/SSE transport — so `boardstate-mcp --serve`
+// renders the live board standalone. When the bundle is absent (not built), it falls
+// back to the SSE-driven live JSON view. (Earlier this was blocked; the blocker was not
+// Node builtins — the browser chain imports zero `node:*` — but that the default
+// `@boardstate/lit` entry ships bare `lit`/`@boardstate/*` specifiers a plain browser
+// can't resolve. The `browser` entry is a self-contained bundle that fixes exactly that.)
 
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
   type Server as HttpServer,
   type ServerResponse,
 } from "node:http";
+import { fileURLToPath } from "node:url";
 import type { DashboardStore } from "@boardstate/core";
 import {
   createWidgetHttpRouteHandler,
   formatError,
   type InProcessHost,
 } from "@boardstate/server/node";
+
+/** Resolve the built `@boardstate/lit` browser bundle + its stylesheet, or null. */
+function resolveLitBundle(): { jsPath: string; cssPath: string } | null {
+  try {
+    // `import.meta.resolve` honors the package `exports` map (the `import` condition
+    // the `./browser` entry ships). `existsSync` then degrades cleanly to the JSON
+    // fallback when the bundle has not been built (`dist/browser.js` absent).
+    const jsPath = fileURLToPath(import.meta.resolve("@boardstate/lit/browser"));
+    const cssPath = fileURLToPath(import.meta.resolve("@boardstate/lit/styles.css"));
+    return existsSync(jsPath) ? { jsPath, cssPath } : null;
+  } catch {
+    return null;
+  }
+}
 
 export type ServeHostOptions = {
   store: DashboardStore;
@@ -86,6 +103,71 @@ function hostPage(): string {
 </html>`;
 }
 
+/**
+ * The full host page: mounts the REAL `<boardstate-view>` from the browser bundle over
+ * a minimal fetch(`/rpc`) + EventSource(`/events`) transport. Served only when the
+ * bundle is present; otherwise {@link hostPage} (the JSON fallback) is served instead.
+ */
+function renderedHostPage(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Boardstate host</title>
+<link rel="stylesheet" href="/boardstate.css" />
+<style>
+  html { color-scheme: dark; }
+  body { margin: 0; background: #0b0b0c; }
+  #app { min-height: 100vh; }
+</style>
+</head>
+<body data-theme="dark">
+<div id="app"></div>
+<script type="module">
+  // Defining the custom elements (import is awaited before the rest of this module runs).
+  import "/boardstate.js";
+
+  // A minimal networked Transport for the demo: control-plane over POST /rpc, live
+  // change events over the SSE /events stream. (The full protocol event set is
+  // available over the WebSocket transport; this demo mirrors boardstate.changed.)
+  const listeners = new Map();
+  const events = new EventSource("/events");
+  events.addEventListener("boardstate.changed", (event) => {
+    let payload = {};
+    try { payload = JSON.parse(event.data); } catch { /* keep {} */ }
+    for (const fn of listeners.get("boardstate.changed") ?? new Set()) fn(payload);
+  });
+  const transport = {
+    async request(method, params) {
+      const res = await fetch("/rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method, params }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.error) throw new Error(body.error ?? ("rpc failed: " + method));
+      return body.result;
+    },
+    addEventListener(event, fn) {
+      const set = listeners.get(event) ?? new Set();
+      set.add(fn);
+      listeners.set(event, set);
+      return () => set.delete(fn);
+    },
+  };
+
+  const view = document.createElement("boardstate-view");
+  view.transport = transport;
+  view.connected = true;
+  // Approved custom widgets resolve under the server's own /widgets route.
+  view.basePath = "";
+  document.getElementById("app").appendChild(view);
+</script>
+</body>
+</html>`;
+}
+
 function send(res: ServerResponse, status: number, type: string, body: string): void {
   res.statusCode = status;
   res.setHeader("Content-Type", type);
@@ -111,6 +193,9 @@ async function readBody(req: IncomingMessage): Promise<string> {
  */
 export async function startServeHost(options: ServeHostOptions): Promise<ServeHostHandle> {
   const widgetRoute = createWidgetHttpRouteHandler({ store: options.store });
+  // Resolved once at startup: present ⇒ the page mounts the real element; absent ⇒
+  // the SSE-driven JSON fallback. Files are read per-request so a rebuild is picked up.
+  const litBundle = resolveLitBundle();
   const sseClients = new Set<ServerResponse>();
   const unsubscribe = options.host.addEventListener("boardstate.changed", (payload) => {
     const data = JSON.stringify(payload ?? {});
@@ -138,7 +223,19 @@ export async function startServeHost(options: ServeHostOptions): Promise<ServeHo
     }
 
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-      send(res, 200, "text/html; charset=utf-8", hostPage());
+      // The full element when the browser bundle is built; the JSON view otherwise.
+      send(res, 200, "text/html; charset=utf-8", litBundle ? renderedHostPage() : hostPage());
+      return;
+    }
+
+    // The browser bundle + its stylesheet, served straight from `@boardstate/lit` when
+    // built. Read per-request (small, and picks up a rebuild without a restart).
+    if (litBundle && req.method === "GET" && url.pathname === "/boardstate.js") {
+      send(res, 200, "text/javascript; charset=utf-8", await readFile(litBundle.jsPath, "utf8"));
+      return;
+    }
+    if (litBundle && req.method === "GET" && url.pathname === "/boardstate.css") {
+      send(res, 200, "text/css; charset=utf-8", await readFile(litBundle.cssPath, "utf8"));
       return;
     }
 

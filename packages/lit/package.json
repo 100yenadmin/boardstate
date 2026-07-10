@@ -22,6 +22,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
     "./styles.css": "./src/styles/boardstate.css",
     "./themes/aurora.css": "./src/styles/themes/aurora.css",
     "./themes/vibrancy.css": "./src/styles/themes/vibrancy.css",

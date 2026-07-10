@@ -38,6 +38,7 @@
     "@boardstate/schema": "workspace:*",
     "@boardstate/core": "workspace:*",
     "@boardstate/server": "workspace:*",
+    "@boardstate/lit": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "repository": {
