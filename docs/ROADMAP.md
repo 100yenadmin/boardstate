@@ -343,10 +343,21 @@ the six #49 seeds graduated to spec'd issues.
 | ---- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | P1   | Polish + built-in content (4 parallel lanes)   | [#10](https://github.com/100yenadmin/boardstate/issues/10) [#11](https://github.com/100yenadmin/boardstate/issues/11) [#12](https://github.com/100yenadmin/boardstate/issues/12) [#4](https://github.com/100yenadmin/boardstate/issues/4) | 🔨     |
 | P2   | Trust-model trio: auto-confirm + TTLs + async  | [#62](https://github.com/100yenadmin/boardstate/issues/62) [#64](https://github.com/100yenadmin/boardstate/issues/64) [#63](https://github.com/100yenadmin/boardstate/issues/63)                                                          | ✅     |
-| P3   | Multi-agent workspaces                         | [#59](https://github.com/100yenadmin/boardstate/issues/59)                                                                                                                                                                                | 🔨     |
-| P4   | Template gallery as programs + board-as-memory | [#60](https://github.com/100yenadmin/boardstate/issues/60) [#61](https://github.com/100yenadmin/boardstate/issues/61)                                                                                                                     | 🔨     |
+| P3   | Multi-agent workspaces                         | [#59](https://github.com/100yenadmin/boardstate/issues/59)                                                                                                                                                                                | ✅     |
+| P4   | Template gallery as programs + board-as-memory | [#60](https://github.com/100yenadmin/boardstate/issues/60) [#61](https://github.com/100yenadmin/boardstate/issues/61)                                                                                                                     | ✅     |
 
 Sequencing is by shared surface, not priority: P2 runs parallel to P1 (no file overlap);
 P3 waits on P2 (both extend the grant record + approvals widget + engine gate); P4 waits
 on P1's content lane (templates/registry) and P1's view lane (gallery UI). One release
 train per wave-batch as PRs land.
+
+**Act 4 COMPLETE (2026-07-11).** Four trains, all attested (final: schema/core/host/server
+@1.8.0, agent@0.5.0, lit@0.9.0). Shipped: sparkline + chart detail mode; history previews +
+counts-only change summaries; gallery scroll affordance; RTL logical-props audit; demo
+toast; 5 locales at 100%; pomodoro + habit-tracker widgets + Focus template; per-tool
+auto-confirm; grant TTLs; async pending actions (operator-caused wakes only); multi-agent
+workspaces (server-bound actor scoping, fail-closed over the wire, provenance chips,
+per-agent rate budgets); installable template recipes (install = import, grants arrive
+requested — three recipes shipped incl. the keyless ops board); and board-as-agent-memory
+(capped, framed, human-edits-are-ground-truth). Adversarial verify caught 8 more real
+defects across the act — every one fixed with a delta-sensitive regression before merge.
