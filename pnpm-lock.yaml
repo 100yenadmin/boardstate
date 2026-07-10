@@ -152,6 +152,9 @@ importers:
       '@boardstate/core':
         specifier: workspace:*
         version: link:../core
+      '@boardstate/lit':
+        specifier: workspace:*
+        version: link:../lit
       '@boardstate/schema':
         specifier: workspace:*
         version: link:../schema
