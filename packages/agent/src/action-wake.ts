@@ -103,6 +103,15 @@ export function createActionSettlementWake(
       if (!enabled) {
         return;
       }
+      // ONLY operator-caused settlements (confirm/deny) wake the agent. An EXPIRY
+      // settlement still reaches onActionSettled/the board, but must never wake:
+      // a wake turn that parks a mutation which then expires would otherwise wake
+      // again — a TTL-paced infinite loop needing ZERO human participation
+      // (adversarial verify 2026-07-11; issue #63's "no cascades without new
+      // operator activity" means exactly this).
+      if (!result.ok && result.reason === "expired") {
+        return;
+      }
       const framed = frameSettlement(record, result);
       chain = chain.then(async () => {
         try {

@@ -244,6 +244,28 @@ describe("broker→AgentTool adapter (#42)", () => {
     expect(h.broker.calls).toEqual([{ id: "acme:send", args }]);
   });
 
+  it("default (asyncActions off) BLOCKS: execute() stays unresolved until confirm and never returns a parked frame", async () => {
+    // Discriminating pin (adversarial verify 2026-07-11): the prior test's assertions
+    // would pass even if the default flipped to async. This one fails on a flip —
+    // (a) the promise must NOT settle before the operator confirms, (b) the resolved
+    // frame carries the RESULT, never `parked:true`.
+    const h = await setup();
+    await grant(h, ["acme:send"]);
+    const pending = getTool(h, "acme__send")!.execute("c-block", { to: "x" });
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+    const id = await nextPendingId(h);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false); // still awaiting the operator — blocking semantics
+    await h.host.request("dashboard.action.confirm", { id });
+    const { details } = (await pending) as { details: Record<string, unknown> };
+    expect(settled).toBe(true);
+    expect(details.parked).toBeUndefined(); // a parked frame in default mode = async leak
+    expect(details.result ?? details.content ?? details).toBeTruthy();
+  });
+
   it("returns a model-legible refusal (not a throw) when the operator denies", async () => {
     const h = await setup();
     await grant(h, ["acme:send"]);

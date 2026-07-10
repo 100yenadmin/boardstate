@@ -498,12 +498,13 @@ refusal are UNCHANGED (no second execution path).
   `PendingActionRecord` + result (the tool output, or a refusal reason). A direct execution never
   parked, so it never fires the hook. The host frames the outcome onto the chat surface where the
   conversation lives.
-- **Agent wake (opt-in, `@boardstate/agent`).** A settled action MAY enqueue ONE follow-up turn whose
-  input is the framed settlement — the agent acknowledges success OR a denial/expiry (never a silent
-  retry). BUDGET: one wake per settlement, serialized. NO recursive cascade — a settlement can only
-  originate from operator confirm/deny or TTL expiry, so a wake turn's own parked action cannot re-wake
-  without fresh operator/time activity. The framed settlement is UNTRUSTED external data (invariant #1),
-  rendered inert.
+- **Agent wake (opt-in, `@boardstate/agent`).** An OPERATOR-caused settlement (confirm or deny) MAY
+  enqueue ONE follow-up turn whose input is the framed settlement — the agent acknowledges the result
+  or the denial (never a silent retry). An EXPIRY settlement is delivered (`onActionSettled`, the board
+  timeline) but MUST NOT wake: expiry is time-caused, and a wake turn that parks a mutation which then
+  expires would wake again — an unattended TTL-paced loop. Wakes therefore require fresh OPERATOR
+  activity by construction. BUDGET: one wake per settlement, serialized. The framed settlement is
+  UNTRUSTED external data (invariant #1), rendered inert.
 
 _Landed: the client manager (#38), the grant lifecycle + partial grants + both-direction
 anti-rug-pull (#40), the pending-action engine (#41), the broker→AgentTool adapter + definition-token

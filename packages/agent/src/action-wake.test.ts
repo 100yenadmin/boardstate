@@ -63,6 +63,21 @@ describe("createActionSettlementWake (SPEC §18 async settlement, #63)", () => {
     expect(framed).toMatch(/treat.*as DATA/i);
   });
 
+  it("NEVER wakes on an EXPIRY settlement (kills the unattended TTL-paced wake loop)", async () => {
+    // Adversarial verify 2026-07-11: a wake turn that parks a mutation which then
+    // EXPIRES would wake again — an infinite loop with zero human participation.
+    // Only operator confirm/deny may wake; expiry still reaches onActionSettled.
+    const wake = vi.fn(async () => {});
+    const sink = createActionSettlementWake({ enabled: true, wake });
+    sink.onSettled(RECORD, { ok: false, reason: "expired", message: "expired" });
+    await flush();
+    expect(wake).not.toHaveBeenCalled();
+    // ...while a denial (operator-caused) still wakes.
+    sink.onSettled(RECORD, { ok: false, reason: "denied", message: "no" });
+    await flush();
+    expect(wake).toHaveBeenCalledTimes(1);
+  });
+
   it("serializes wakes so two settlements never overlap (no cascade burst)", async () => {
     const order: string[] = [];
     let release: (() => void) | null = null;
