@@ -117,6 +117,13 @@ export const de: BoardstateStrings = {
   "dashboard.widget.approvals.kind.widget": "Widget",
   "dashboard.widget.approvals.kind.capability": "Datenquelle",
   "dashboard.widget.approvals.kind.action": "Aktion",
+  "dashboard.widget.approvals.autoConfirm": "Automatisch",
+  "dashboard.widget.approvals.autoConfirmHint": "Wird jedes Mal ohne Bestätigung ausgeführt",
+  "dashboard.widget.approvals.ttlLabel": "Läuft ab in (Min.)",
+  "dashboard.widget.approvals.expiresIn": "Läuft ab in {duration}",
+  "dashboard.widget.approvals.expiresSoon": "Läuft ab …",
+  "dashboard.widget.approvals.save": "Speichern",
+  "dashboard.widget.approvals.revoke": "Widerrufen",
   "dashboard.widget.chat.empty":
     "Bitten Sie den Agenten, dieses Board zu erstellen oder zu ändern…",
   "dashboard.widget.chat.placeholder": "Nachricht an den Agenten…",
