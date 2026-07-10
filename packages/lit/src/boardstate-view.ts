@@ -24,6 +24,7 @@ import {
   groupDiffByActor,
   groupTabsByActor,
   hiddenTabs,
+  isRecord,
   nudgeRect,
   orderedTabs,
   resolveActiveSlug,
@@ -121,6 +122,16 @@ export type BoardstateViewProps = {
   storage?: BoardstateStorage;
   /** Confirm dialog for custom-widget prompt dispatch; resolves true to send. */
   confirm?: (text: string) => Promise<boolean> | boolean;
+  /**
+   * Whether this client is the LOCAL operator (SPEC §18). Gates the presentation of
+   * operator-only action affordances: when true, an `action-button`/`action-form` may
+   * offer inline confirm/deny for a parked mutation; when false (the default — mirroring
+   * the WS transport's `allowOperatorMethods: false`), the confirm affordance renders
+   * disabled-with-reason. This is PRESENTATION only — the server independently enforces
+   * `dashboard.action.confirm`/`deny` as operator-only (epic invariant #5). A networked
+   * embedder leaves this false; the local app opts in with `operator: true`.
+   */
+  operator?: boolean;
   /** Embed policy (defaults to strict / no external URLs). */
   embed?: BoardstateEmbedPolicy;
   /** HTTP base path for custom-widget iframe assets. */
@@ -962,8 +973,58 @@ function buildBuiltinContext(
     context.chat = makeBuiltinChatSeam(transport, props.sessionKey ?? "main");
     context.approveWidget = (name, decision) =>
       void approveWidget(state, transport, { name, decision });
+    context.actions = makeBuiltinActionsSeam(transport, props.operator === true);
   }
   return context;
+}
+
+/**
+ * Build the external-tool action seam (SPEC §17 v2 / §18) for the action-button and
+ * tool-mode action-form widgets. `invoke` maps the engine response to the outcome
+ * union (a parked mutation → `pending`, a readOnly execution → `result`); `confirm`/
+ * `deny` are attached ONLY for the local operator, so a networked client's widget
+ * renders the confirm affordance disabled-with-reason (the server enforces the same —
+ * invariant #5). `subscribe` multiplexes the `dashboard.action.changed` broadcast over
+ * the transport's existing event stream (no new socket).
+ */
+function makeBuiltinActionsSeam(
+  transport: Transport,
+  operator: boolean,
+): NonNullable<BuiltinWidgetContext["actions"]> {
+  const seam: NonNullable<BuiltinWidgetContext["actions"]> = {
+    invoke: async (params) => {
+      const response = await transport.request("dashboard.action.invoke", params);
+      if (isRecord(response) && response.pending === true) {
+        return {
+          kind: "pending",
+          id: typeof response.id === "string" ? response.id : "",
+          expiresAt: typeof response.expiresAt === "string" ? response.expiresAt : "",
+        };
+      }
+      return { kind: "result", result: response };
+    },
+    subscribe: (listener) =>
+      transport.addEventListener("dashboard.action.changed", (payload) => {
+        if (isRecord(payload) && typeof payload.id === "string") {
+          listener({
+            id: payload.id,
+            status: payload.status as "pending" | "confirmed" | "denied" | "expired",
+            connector: typeof payload.connector === "string" ? payload.connector : "",
+            tool: typeof payload.tool === "string" ? payload.tool : "",
+          });
+        }
+      }),
+  };
+  if (operator) {
+    seam.confirm = async (id) => {
+      const response = await transport.request("dashboard.action.confirm", { id });
+      return { result: isRecord(response) && "result" in response ? response.result : response };
+    };
+    seam.deny = async (id) => {
+      await transport.request("dashboard.action.deny", { id });
+    };
+  }
+  return seam;
 }
 
 /** Names of `custom:` widgets currently `pending` approval (chat inline approval card). */
@@ -2366,6 +2427,7 @@ export class BoardstateViewElement extends LitElement {
   initialTab?: string | null;
   sessionKey?: string;
   logbookHref?: string | null;
+  operator = false;
 
   static override properties = {
     transport: { attribute: false },
@@ -2379,6 +2441,7 @@ export class BoardstateViewElement extends LitElement {
     initialTab: { type: String },
     sessionKey: { type: String },
     logbookHref: { type: String },
+    operator: { type: Boolean },
   };
 
   override render(): unknown {
@@ -2396,6 +2459,7 @@ export class BoardstateViewElement extends LitElement {
       ...(this.initialTab !== undefined ? { initialTab: this.initialTab } : {}),
       ...(this.sessionKey !== undefined ? { sessionKey: this.sessionKey } : {}),
       ...(this.logbookHref !== undefined ? { logbookHref: this.logbookHref } : {}),
+      operator: this.operator,
     });
   }
 

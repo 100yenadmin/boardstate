@@ -6,10 +6,12 @@ import { describe, expect, it } from "vitest";
 import type { DashboardWidget, DashboardWorkspace } from "../types.js";
 import {
   buildActionFormPrompt,
+  buildActionToolArgs,
   coerceFieldValue,
   mapActionForm,
   type ActionFormModel,
 } from "./action-form.js";
+import { mapActionButton } from "./action-button.js";
 import { mapActivity } from "./activity.js";
 import { mapAgentStatus } from "./agent-status.js";
 import {
@@ -256,6 +258,10 @@ describe("action-form interpolation + caps", () => {
     template: "{a}",
     fields: [textField("a")],
     buttonLabel: null,
+    mode: "prompt",
+    connector: null,
+    tool: null,
+    argsFrom: null,
     ...over,
   });
 
@@ -301,6 +307,89 @@ describe("action-form interpolation + caps", () => {
     );
     expect(mapped.fields.map((f) => f.name)).toEqual(["a"]);
     expect(mapped.buttonLabel).toBe("Go");
+  });
+
+  it("defaults to prompt mode with null tool wiring", () => {
+    const mapped = mapActionForm(
+      widget({ kind: "builtin:action-form", props: { template: "{a}", fields: [textField("a")] } }),
+    );
+    expect(mapped.mode).toBe("prompt");
+    expect(mapped.connector).toBeNull();
+    expect(mapped.tool).toBeNull();
+    expect(mapped.argsFrom).toBeNull();
+  });
+
+  it("carries tool-mode connector/tool/argsFrom", () => {
+    const mapped = mapActionForm(
+      widget({
+        kind: "builtin:action-form",
+        props: {
+          mode: "tool",
+          connector: "officecli",
+          tool: "create_issue",
+          template: "Create {title}",
+          fields: [textField("title")],
+          argsFrom: { name: "title" },
+        },
+      }),
+    );
+    expect(mapped.mode).toBe("tool");
+    expect(mapped.connector).toBe("officecli");
+    expect(mapped.tool).toBe("create_issue");
+    expect(mapped.argsFrom).toEqual({ name: "title" });
+  });
+
+  it("buildActionToolArgs maps declared fields to args and coerces values", () => {
+    const mapped = mapActionForm(
+      widget({
+        kind: "builtin:action-form",
+        props: {
+          mode: "tool",
+          connector: "c",
+          tool: "t",
+          template: "{count}",
+          fields: [
+            { name: "count", label: "Count", type: "number" },
+            { name: "note", label: "Note", type: "text", maxLength: 3 },
+          ],
+          // `missing` names an undeclared field → dropped (no undeclared value in args).
+          argsFrom: { qty: "count", memo: "note", stray: "missing" },
+        },
+      }),
+    );
+    expect(buildActionToolArgs(mapped, { count: "5", note: "abcdef" })).toEqual({
+      qty: "5",
+      memo: "abc",
+    });
+    // A non-numeric number field collapses to empty — never leaks a bad value.
+    expect(buildActionToolArgs(mapped, { count: "nope", note: "" })).toEqual({ qty: "", memo: "" });
+  });
+});
+
+describe("action-button model", () => {
+  it("maps connector/tool/args/label from props", () => {
+    const mapped = mapActionButton(
+      widget({
+        kind: "builtin:action-button",
+        props: { connector: "officecli", tool: "restart", args: { svc: "worker" }, label: "Go" },
+      }),
+    );
+    expect(mapped).toEqual({
+      connector: "officecli",
+      tool: "restart",
+      args: { svc: "worker" },
+      label: "Go",
+    });
+  });
+
+  it("degrades to empty refs + null args/label on malformed props", () => {
+    const mapped = mapActionButton(widget({ kind: "builtin:action-button", props: {} }));
+    expect(mapped).toEqual({ connector: "", tool: "", args: null, label: null });
+    // An array (not an object) for `args` is not a valid args envelope → null.
+    const badArgs = mapActionButton(
+      widget({ kind: "builtin:action-button", props: { connector: "c", tool: "t", args: [1, 2] } }),
+    );
+    expect(badArgs.args).toBeNull();
   });
 });
 

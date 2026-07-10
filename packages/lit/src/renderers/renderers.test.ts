@@ -17,6 +17,7 @@ import {
   mapUsage,
   type DashboardWidget,
 } from "@boardstate/core";
+import { renderActionButton } from "./action-button.js";
 import { renderActionForm } from "./action-form.js";
 import { renderActivity } from "./activity.js";
 import { renderAgentStatus } from "./agent-status.js";
@@ -32,7 +33,7 @@ import { renderPreview } from "./preview.js";
 import { renderSessions } from "./sessions.js";
 import { renderStatCard } from "./stat-card.js";
 import { renderTable } from "./table.js";
-import type { BuiltinWidgetContext } from "./types.js";
+import type { ActionChange, ActionInvokeOutcome, BuiltinWidgetContext } from "./types.js";
 import { renderUsage } from "./usage.js";
 
 function widget(overrides: Partial<DashboardWidget> = {}): DashboardWidget {
@@ -590,5 +591,247 @@ describe("chat render (wave-chat)", () => {
     );
     expect(textarea?.disabled).toBe(true);
     expect(container.querySelector('[data-test-id="dashboard-chat-disconnected"]')).not.toBeNull();
+  });
+});
+
+describe("action-button render (M5d-1 #44)", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  type ActionsSeam = NonNullable<BuiltinWidgetContext["actions"]>;
+  /** A scripted action seam capturing invoke params and driving lifecycle outcomes. */
+  function scriptActions(
+    over: Partial<ActionsSeam> = {},
+  ): ActionsSeam & { emit: (change: ActionChange) => void } {
+    let listener: ((change: ActionChange) => void) | null = null;
+    return {
+      invoke: vi.fn(async (): Promise<ActionInvokeOutcome> => ({ kind: "result", result: "ok" })),
+      subscribe: (fn: (change: ActionChange) => void) => {
+        listener = fn;
+        return () => {
+          listener = null;
+        };
+      },
+      ...over,
+      // Exposed for tests that push a lifecycle change; not part of the seam type.
+      emit: (change: ActionChange) => listener?.(change),
+    };
+  }
+
+  const btn = (id: string, props: Record<string, unknown>) =>
+    widget({ id, kind: "builtin:action-button", props });
+
+  it("shows the disconnected hint and a disabled button when no action seam exists", () => {
+    const container = renderToContainer(
+      renderActionButton(btn("ab-disc", { connector: "c", tool: "t" }), null, STRICT_EMBED),
+    );
+    const invoke = container.querySelector<HTMLButtonElement>(
+      '[data-test-id="dashboard-action-button-invoke"]',
+    );
+    expect(invoke?.disabled).toBe(true);
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-disconnected"]'),
+    ).not.toBeNull();
+  });
+
+  it("invokes with the EXACT {connector,tool,args} shape and renders a readOnly result INERT", async () => {
+    const actions = scriptActions({
+      invoke: vi.fn(
+        async () => ({ kind: "result", result: "<img src=x onerror=alert(1)>" }) as never,
+      ),
+    });
+    const container = renderToContainer(
+      renderActionButton(
+        btn("ab-read", {
+          connector: "officecli",
+          tool: "status",
+          args: { svc: "web" },
+          label: "Check",
+        }),
+        null,
+        { ...STRICT_EMBED, actions },
+      ),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-invoke"]')
+      ?.click();
+    await flush();
+    expect(actions.invoke).toHaveBeenCalledWith({
+      connector: "officecli",
+      tool: "status",
+      args: { svc: "web" },
+    });
+    const result = container.querySelector('[data-test-id="dashboard-action-button-result"]');
+    // Untrusted markup renders as literal text (no <img> element materializes).
+    expect(result?.textContent).toContain("<img src=x onerror=alert(1)>");
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("parks a mutation and offers inline confirm→result for the local operator", async () => {
+    const actions = scriptActions({
+      invoke: vi.fn(async () => ({ kind: "pending", id: "act_9", expiresAt: "Z" }) as never),
+      confirm: vi.fn(async () => ({ result: "done" })),
+      deny: vi.fn(async () => {}),
+    });
+    const container = renderToContainer(
+      renderActionButton(btn("ab-mut", { connector: "c", tool: "restart" }), null, {
+        ...STRICT_EMBED,
+        actions,
+      }),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-invoke"]')
+      ?.click();
+    await flush();
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-pending"]'),
+    ).not.toBeNull();
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-confirm"]')
+      ?.click();
+    await flush();
+    expect(actions.confirm).toHaveBeenCalledWith("act_9");
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-result"]')?.textContent,
+    ).toContain("done");
+  });
+
+  it("renders the confirm affordance disabled-with-reason over a networked (non-operator) transport", async () => {
+    // No confirm/deny on the seam ⇒ networked client: invoke still parks, but the widget
+    // shows the operator-only reason instead of confirm/deny buttons.
+    const actions = scriptActions({
+      invoke: vi.fn(async () => ({ kind: "pending", id: "act_1", expiresAt: "Z" }) as never),
+    });
+    const container = renderToContainer(
+      renderActionButton(btn("ab-net", { connector: "c", tool: "restart" }), null, {
+        ...STRICT_EMBED,
+        actions,
+      }),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-invoke"]')
+      ?.click();
+    await flush();
+    expect(container.querySelector('[data-test-id="dashboard-action-button-confirm"]')).toBeNull();
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-operator-only"]'),
+    ).not.toBeNull();
+  });
+
+  it("surfaces a revoked-between-validate-and-invoke rejection loudly", async () => {
+    const actions = scriptActions({
+      invoke: vi.fn(async () => {
+        throw new Error('tool "c:t" is not granted — request and approve it first');
+      }),
+    });
+    const container = renderToContainer(
+      renderActionButton(btn("ab-revoked", { connector: "c", tool: "t" }), null, {
+        ...STRICT_EMBED,
+        actions,
+      }),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-invoke"]')
+      ?.click();
+    await flush();
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-error"]')?.textContent,
+    ).toContain("not granted");
+  });
+
+  it("updates a parked action to denied on a dashboard.action.changed event", async () => {
+    const actions = scriptActions({
+      invoke: vi.fn(async () => ({ kind: "pending", id: "act_5", expiresAt: "Z" }) as never),
+    });
+    const container = renderToContainer(
+      renderActionButton(btn("ab-deny", { connector: "c", tool: "t" }), null, {
+        ...STRICT_EMBED,
+        actions,
+      }),
+    );
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-action-button-invoke"]')
+      ?.click();
+    await flush();
+    actions.emit({ id: "act_5", status: "denied", connector: "c", tool: "t" });
+    await flush();
+    expect(
+      container.querySelector('[data-test-id="dashboard-action-button-denied"]'),
+    ).not.toBeNull();
+  });
+});
+
+describe("action-form tool mode (M5d-1 #44)", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const toolForm = (id: string) =>
+    widget({
+      id,
+      kind: "builtin:action-form",
+      props: {
+        mode: "tool",
+        connector: "officecli",
+        tool: "create_issue",
+        template: "Create {title}",
+        fields: [{ name: "title", label: "Title", type: "text" }],
+        argsFrom: { name: "title" },
+      },
+    });
+
+  it("submits field values as tool args through the action seam and resets on a readOnly result", async () => {
+    const invoke = vi.fn(async (): Promise<ActionInvokeOutcome> => ({
+      kind: "result",
+      result: "ok",
+    }));
+    const actions: NonNullable<BuiltinWidgetContext["actions"]> = {
+      invoke,
+      subscribe: () => () => {},
+    };
+    const container = renderToContainer(
+      renderActionForm(toolForm("af-tool"), null, { ...STRICT_EMBED, actions }),
+    );
+    const form = container.querySelector<HTMLFormElement>(
+      '[data-test-id="dashboard-action-form"]',
+    )!;
+    (form.elements.namedItem("title") as HTMLInputElement).value = "Broken build";
+    form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    await flush();
+    expect(invoke).toHaveBeenCalledWith({
+      connector: "officecli",
+      tool: "create_issue",
+      args: { name: "Broken build" },
+    });
+  });
+
+  it("surfaces a parked mutation on the shared toast", async () => {
+    const invoke = vi.fn(async (): Promise<ActionInvokeOutcome> => ({
+      kind: "pending",
+      id: "act_2",
+      expiresAt: "Z",
+    }));
+    const onActionError = vi.fn();
+    const actions: NonNullable<BuiltinWidgetContext["actions"]> = {
+      invoke,
+      subscribe: () => () => {},
+    };
+    const container = renderToContainer(
+      renderActionForm(toolForm("af-tool-pending"), null, {
+        ...STRICT_EMBED,
+        actions,
+        onActionError,
+      }),
+    );
+    const form = container.querySelector<HTMLFormElement>(
+      '[data-test-id="dashboard-action-form"]',
+    )!;
+    form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    await flush();
+    expect(onActionError).toHaveBeenCalledWith(expect.stringContaining("operator"));
+  });
+
+  it("renders the inert marker when a tool form has no action seam", () => {
+    const container = renderToContainer(
+      renderActionForm(toolForm("af-tool-inert"), null, STRICT_EMBED),
+    );
+    expect(container.querySelector('[data-test-id="dashboard-action-form-inert"]')).not.toBeNull();
   });
 });

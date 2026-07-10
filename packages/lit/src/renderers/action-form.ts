@@ -14,8 +14,10 @@ import { html, nothing, type TemplateResult } from "lit";
 import {
   ACTION_FORM_DEFAULT_MAX_LENGTH,
   buildActionFormPrompt,
+  buildActionToolArgs,
   mapActionForm,
   type ActionFormField,
+  type ActionFormModel,
   type DashboardWidget,
 } from "@boardstate/core";
 import { t } from "../strings.js";
@@ -39,6 +41,39 @@ function renderField(field: ActionFormField): TemplateResult {
   </label>`;
 }
 
+/**
+ * Submit a `tool`-mode form: the coerced field values become the tool ARGS (via
+ * `argsFrom`) and go through the SAME `dashboard.action.invoke` seam the action-button
+ * uses — no template interpolation, no new dispatch privilege. A readOnly tool executes
+ * (the form resets); a mutation PARKS as an operator-confirmed pending action, surfaced
+ * on the shared toast; a rejection (ungranted/revoked/rate-limited) surfaces there too.
+ */
+function submitTool(
+  model: ActionFormModel,
+  widget: DashboardWidget,
+  values: Record<string, string>,
+  ctx: BuiltinWidgetContext,
+  form: HTMLFormElement,
+): void {
+  if (!ctx.actions || !model.connector || !model.tool) {
+    return;
+  }
+  const args = buildActionToolArgs(model, values);
+  void ctx.actions
+    .invoke({ connector: model.connector, tool: model.tool, args })
+    .then((outcome) => {
+      if (outcome.kind === "pending") {
+        ctx.onActionError?.(t("dashboard.widget.actionForm.toolPending"));
+      }
+      // A readOnly tool executed (or a mutation parked cleanly): reset for re-use.
+      form.reset();
+      void widget;
+    })
+    .catch((err: unknown) => {
+      ctx.onActionError?.(err instanceof Error ? err.message : String(err));
+    });
+}
+
 /** Renders the action-form builtin. Submit interpolates + dispatches through the shared gate. */
 export function renderActionForm(
   widget: DashboardWidget,
@@ -51,14 +86,22 @@ export function renderActionForm(
       ${t("dashboard.widget.actionForm.empty")}
     </div>`;
   }
-  const onSubmit = (event: Event) => {
-    event.preventDefault();
-    const form = event.currentTarget as HTMLFormElement;
+  const readValues = (form: HTMLFormElement): Record<string, string> => {
     const values: Record<string, string> = {};
     for (const field of model.fields) {
       const control = form.elements.namedItem(field.name);
       values[field.name] =
         control && "value" in control ? String((control as { value: unknown }).value ?? "") : "";
+    }
+    return values;
+  };
+  const onSubmit = (event: Event) => {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const values = readValues(form);
+    if (model.mode === "tool") {
+      submitTool(model, widget, values, ctx, form);
+      return;
     }
     const text = buildActionFormPrompt(model, values);
     if (!text.trim() || !ctx.dispatchPrompt) {
@@ -88,7 +131,9 @@ export function renderActionForm(
       </button>
     </form>
     ${
-      ctx.dispatchPrompt
+      // The form is inert when its submission seam is absent: `dispatchPrompt` for a
+      // prompt form, the action seam for a tool form (no live transport).
+      (model.mode === "tool" ? ctx.actions : ctx.dispatchPrompt)
         ? nothing
         : html`<span hidden data-test-id="dashboard-action-form-inert"></span>`
     }

@@ -22,10 +22,29 @@ export type ActionFormField = {
   maxLength?: number;
 };
 
+/**
+ * Submission target (SPEC §17 v2). `prompt` (the default) interpolates the template
+ * and sends it to the agent; `tool` submits the coerced field values as arguments to a
+ * granted external tool (`connector`/`tool`), mapped by `argsFrom`. The template is
+ * still authored/validated in `tool` mode but is not sent — the fields ARE the payload.
+ */
+export type ActionFormMode = "prompt" | "tool";
+
 export type ActionFormModel = {
   template: string;
   fields: ActionFormField[];
   buttonLabel: string | null;
+  /** Submission mode; `prompt` when absent (byte-identical to pre-M5 forms). */
+  mode: ActionFormMode;
+  /** `tool` mode only: the granted connector name; null in `prompt` mode. */
+  connector: string | null;
+  /** `tool` mode only: the tool to invoke on that connector; null in `prompt` mode. */
+  tool: string | null;
+  /**
+   * `tool` mode only: map of tool-ARGUMENT name → declared FIELD name. Empty when the
+   * tool takes no arguments; null in `prompt` mode.
+   */
+  argsFrom: Record<string, string> | null;
 };
 
 /** Default per-field value cap when a field declares no `maxLength`. */
@@ -67,6 +86,20 @@ function mapField(value: unknown): ActionFormField | null {
   };
 }
 
+/** Read one string→string mapping defensively (tool-mode `argsFrom`); drops non-string values. */
+function mapArgsFrom(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const out: Record<string, string> = {};
+  for (const [argName, fieldName] of Object.entries(value)) {
+    if (typeof fieldName === "string") {
+      out[argName] = fieldName;
+    }
+  }
+  return out;
+}
+
 /** Read the action-form view model from a widget's props (defensive; schema is the gate). */
 export function mapActionForm(widget: DashboardWidget): ActionFormModel {
   const props = widgetProps(widget);
@@ -75,7 +108,27 @@ export function mapActionForm(widget: DashboardWidget): ActionFormModel {
     ? props.fields.map(mapField).filter((field): field is ActionFormField => field !== null)
     : [];
   const buttonLabel = typeof props.buttonLabel === "string" ? props.buttonLabel : null;
-  return { template, fields, buttonLabel };
+  const mode: ActionFormMode = props.mode === "tool" ? "tool" : "prompt";
+  if (mode !== "tool") {
+    return {
+      template,
+      fields,
+      buttonLabel,
+      mode: "prompt",
+      connector: null,
+      tool: null,
+      argsFrom: null,
+    };
+  }
+  return {
+    template,
+    fields,
+    buttonLabel,
+    mode: "tool",
+    connector: typeof props.connector === "string" ? props.connector : null,
+    tool: typeof props.tool === "string" ? props.tool : null,
+    argsFrom: mapArgsFrom(props.argsFrom),
+  };
 }
 
 /** Type + length cap for one field's raw string value. Non-numeric numbers and out-of-set selects collapse to "". */
@@ -110,4 +163,27 @@ export function buildActionFormPrompt(
     }
     return coerceFieldValue(field, values[name] ?? "");
   });
+}
+
+/**
+ * Build the tool-mode argument object from a `tool`-mode form's submitted field values.
+ * Each `argsFrom` entry maps a tool ARGUMENT name to a declared FIELD name; the field's
+ * raw value is typed + length-capped (`coerceFieldValue`) before it lands as an argument.
+ * There is NO template interpolation here — the fields ARE the args (the prompt path is
+ * unrelated). An entry naming an undeclared field, or a non-`tool` model, is skipped, so
+ * an argument can never carry an undeclared value.
+ */
+export function buildActionToolArgs(
+  model: ActionFormModel,
+  values: Record<string, string>,
+): Record<string, string> {
+  const byName = new Map(model.fields.map((field) => [field.name, field]));
+  const args: Record<string, string> = {};
+  for (const [argName, fieldName] of Object.entries(model.argsFrom ?? {})) {
+    const field = byName.get(fieldName);
+    if (field) {
+      args[argName] = coerceFieldValue(field, values[fieldName] ?? "");
+    }
+  }
+  return args;
 }

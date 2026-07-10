@@ -204,6 +204,49 @@ describe("dashboard.action.invoke — AND-gate + direct readOnly execution", () 
   });
 });
 
+describe("dashboard.connector.read — the pure-read verb (mcp bindings)", () => {
+  it("executes a granted readOnly tool and returns its value", async () => {
+    await setup([READ, SEND]);
+    await grantAll("officecli");
+    const res = await req("dashboard.connector.read", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(res.ok).toBe(true);
+    expect(res.result.content).toBeDefined();
+    expect(broker.calls).toEqual([{ id: "officecli:read_mail", args: {} }]);
+  });
+
+  it("refuses a mutation tool WITHOUT parking a pending action (a read has no side effect)", async () => {
+    // Adversarial verify 2026-07-10: a read binding routed through action.invoke would
+    // PARK a pending mutation on every refresh — queue spam, and an operator confirm
+    // would fire it. connector.read must refuse without touching the queue.
+    await setup([READ, SEND]);
+    await grantAll("officecli");
+    const res = await req("dashboard.connector.read", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe("not_readonly");
+    expect(broker.calls).toHaveLength(0); // never executed
+    expect(handle!.pendingActions()).toHaveLength(0); // and never parked
+    expect(actionEvents).toHaveLength(0); // no dashboard.action.changed emitted
+  });
+
+  it("refuses an ungranted tool (never calls the broker, never parks)", async () => {
+    await setup([READ, SEND]);
+    const res = await req("dashboard.connector.read", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe("capability_pending");
+    expect(broker.calls).toHaveLength(0);
+    expect(handle!.pendingActions()).toHaveLength(0);
+  });
+});
+
 describe("dashboard.action.invoke — mutations park behind confirm", () => {
   it("parks a non-readOnly call, never executing until an operator confirms once", async () => {
     await setup([READ, SEND]);

@@ -655,6 +655,8 @@ export type ClientBinding = Omit<DashboardBinding, "source"> & {
  * - `stream`/`computed`: never a one-shot read (see `subscribeToStreamBinding` /
  *   `resolveComputedBinding`); guarded so a stream binding can never be mistaken for
  *   a `file` read against an empty path.
+ * - `mcp`: resolved host-side through the connector broker's readOnly action path
+ *   (`resolveMcpBinding` → `dashboard.action.invoke`); NEVER routed to `data.read`.
  *
  * `dashboard.data.read` serves file/static only and answers rpc bindings with
  * `{ code: "binding_client_resolved" }`, so rpc never routes through it.
@@ -683,6 +685,9 @@ export async function resolveBinding(
     if (binding.source === "computed") {
       return { error: "Computed bindings resolve from sibling values, not a one-shot read." };
     }
+    if (binding.source === "mcp") {
+      return await resolveMcpBinding(transport, binding);
+    }
     // file: `dashboard.data.read` accepts ONLY a `binding` param (its readParams
     // whitelist rejects anything else), and it resolves the file AND applies the
     // JSON pointer server-side, returning the final value under `data`. So we send
@@ -693,6 +698,52 @@ export async function resolveBinding(
   } catch (err) {
     return { error: formatError(err) };
   }
+}
+
+/**
+ * Resolve an `mcp` read binding (SPEC §18 / #45) through the connector broker via
+ * the PURE-READ verb `dashboard.connector.read`, which AND-gates the tool (granted +
+ * connector-configured + manifest-hash unchanged) and executes a `readOnly` granted
+ * tool DIRECTLY, returning its result.
+ *
+ * readOnly-ONLY, fail-safe (epic invariant #5): a binding may only READ. `connector.read`
+ * REFUSES a non-readOnly tool outright — it never parks a pending action. This matters
+ * because a read binding re-resolves on every refresh: routing through `action.invoke`
+ * would have PARKED a pending mutation into the operator queue on each refresh (queue
+ * spam, and an operator confirm would then fire the mutation). An ungranted / re-pended
+ * tool surfaces the engine's `capability_pending` through the standard binding-error card.
+ */
+async function resolveMcpBinding(
+  transport: Transport,
+  binding: ClientBinding,
+): Promise<DashboardBindingResult> {
+  if (!binding.connector || !binding.tool) {
+    return { error: "mcp binding is missing a connector or tool." };
+  }
+  const result = await transport.request("dashboard.connector.read", {
+    connector: binding.connector,
+    tool: binding.tool,
+    ...(binding.args ? { args: binding.args } : {}),
+  });
+  return { value: applyPointer(mcpReadValue(result), binding.pointer) };
+}
+
+/**
+ * Extract the value a readOnly tool returns from `dashboard.action.invoke`'s
+ * `{ content, structuredContent? }` result. Prefer the parsed `structuredContent`
+ * (the machine-shaped payload) when present, else the raw `content`, else the whole
+ * result — so a widget binds the useful data, not the MCP envelope.
+ */
+function mcpReadValue(result: unknown): unknown {
+  if (isRecord(result)) {
+    if ("structuredContent" in result && result.structuredContent !== undefined) {
+      return result.structuredContent;
+    }
+    if ("content" in result) {
+      return result.content;
+    }
+  }
+  return result;
 }
 
 // --- `computed` binding resolution (client-side, no eval) --------------------
