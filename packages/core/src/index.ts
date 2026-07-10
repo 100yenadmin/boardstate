@@ -21,6 +21,7 @@ export { MemoryStorageAdapter } from "./adapters/storage-memory.js";
 export {
   createWsTransport,
   WsTransportClosedError,
+  WsTransportUnavailableError,
   type WsTransport,
   type CreateWsTransportOptions,
 } from "./adapters/transport-ws.js";

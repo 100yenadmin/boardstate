@@ -14,10 +14,10 @@
 // Transport-native `request(method, params, ctx?)` ignores `ctx` (SPEC: the third
 // arg is an in-process, host-defined identity the networked seam does not carry).
 //
-// Zero-dependency in the browser: it uses the platform-native `WebSocket`. On a
-// Node runtime that predates the global (< 21) it falls back to an OPTIONAL dynamic
-// `import("ws")`; Node ≥ 22 (this repo's floor) ships `globalThis.WebSocket`, so the
-// fallback is belt-and-braces and never runs there.
+// Zero-dependency and bundler-safe: it uses the platform-native `globalThis.WebSocket`
+// — present in every browser and in Node ≥ 22 (this repo's floor, so no `ws` package
+// and no dynamic import that a bundler would try to resolve). Inject `WebSocketImpl`
+// to supply a custom implementation (a test double, or `ws` on an older runtime).
 //
 // Reconnect is OUT OF SCOPE for v1: a dropped socket rejects every in-flight request
 // and fails all later ones cleanly (`WsTransportClosedError`) — the caller owns the
@@ -31,6 +31,17 @@ export class WsTransportClosedError extends Error {
   constructor(message = "boardstate ws transport is closed") {
     super(message);
     this.name = "WsTransportClosedError";
+  }
+}
+
+/** Raised when no `WebSocket` implementation is available (no global, none injected). */
+export class WsTransportUnavailableError extends Error {
+  readonly code = "transport_unavailable";
+  constructor(
+    message = "no WebSocket implementation available (need a browser, Node ≥ 22, or WebSocketImpl)",
+  ) {
+    super(message);
+    this.name = "WsTransportUnavailableError";
   }
 }
 
@@ -65,10 +76,10 @@ export interface CreateWsTransportOptions {
 
 type Pending = { resolve: (value: unknown) => void; reject: (reason: unknown) => void };
 
-/** Resolve a WebSocket constructor: native global first, optional `ws` import second. */
-async function resolveWebSocketImpl(
+/** Resolve a WebSocket constructor: an injected one, else the platform-native global. */
+function resolveWebSocketImpl(
   override?: new (url: string) => WebSocketLike,
-): Promise<new (url: string) => WebSocketLike> {
+): new (url: string) => WebSocketLike {
   if (override) {
     return override;
   }
@@ -76,12 +87,7 @@ async function resolveWebSocketImpl(
   if (native) {
     return native;
   }
-  // Node < 21 has no global WebSocket; the `ws` package is an OPTIONAL peer. This
-  // path never runs on Node ≥ 22 (the repo floor) or in a browser.
-  const mod = (await import(/* @vite-ignore */ "ws")) as {
-    WebSocket: new (url: string) => WebSocketLike;
-  };
-  return mod.WebSocket;
+  throw new WsTransportUnavailableError();
 }
 
 /**
@@ -162,7 +168,8 @@ export function createWsTransport(
       }
       pending.delete(record.id);
       if (record.error) {
-        const message = typeof record.error.message === "string" ? record.error.message : "boardstate error";
+        const message =
+          typeof record.error.message === "string" ? record.error.message : "boardstate error";
         const err = new Error(message) as Error & { code?: string };
         if (typeof record.error.code === "string") {
           err.code = record.error.code;
@@ -185,31 +192,27 @@ export function createWsTransport(
     }
   }
 
-  void resolveWebSocketImpl(options.WebSocketImpl)
-    .then((WebSocketImpl) => {
-      if (closed) {
-        return; // `close()` was called before the impl resolved.
+  try {
+    const WebSocketImpl = resolveWebSocketImpl(options.WebSocketImpl);
+    const ws = new WebSocketImpl(url);
+    socket = ws;
+    ws.addEventListener("open", () => {
+      open = true;
+      resolveReady();
+      for (const frame of sendQueue) {
+        ws.send(frame);
       }
-      const ws = new WebSocketImpl(url);
-      socket = ws;
-      ws.addEventListener("open", () => {
-        open = true;
-        resolveReady();
-        for (const frame of sendQueue) {
-          ws.send(frame);
-        }
-        sendQueue.length = 0;
-      });
-      ws.addEventListener("message", (event) => handleMessage(event.data));
-      ws.addEventListener("error", () => teardown());
-      ws.addEventListener("close", () => teardown());
-    })
-    .catch((error) => {
-      // The impl could not be resolved (no global WebSocket, no `ws` installed).
-      closed = true;
-      rejectReady(error);
-      failAll(error);
+      sendQueue.length = 0;
     });
+    ws.addEventListener("message", (event) => handleMessage(event.data));
+    ws.addEventListener("error", () => teardown());
+    ws.addEventListener("close", () => teardown());
+  } catch (error) {
+    // No WebSocket impl, or the constructor threw (e.g. a malformed URL).
+    closed = true;
+    rejectReady(error);
+    failAll(error);
+  }
 
   return {
     get closed() {

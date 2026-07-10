@@ -139,7 +139,7 @@ export function attachWsTransport(
 
 /** One live client: the frame codec, the request→host dispatch, the event mirror. */
 class Connection {
-  private buffer = Buffer.alloc(0);
+  private buffer: Buffer = Buffer.alloc(0);
   /** Reassembly state for a fragmented application message. */
   private fragments: Buffer[] = [];
   private fragmentOpcode = 0;
@@ -256,7 +256,10 @@ class Connection {
       this.sendJson({ id, result });
     } catch (error) {
       const code =
-        typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof error.code === "string"
           ? error.code
           : "boardstate_error";
       this.sendJson({ id, error: { code, message: formatError(error) } });

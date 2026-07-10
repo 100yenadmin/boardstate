@@ -91,9 +91,15 @@ describe("createWsTransport", () => {
 
     const pending = transport.request("dashboard.widget.approve", { name: "bad name!" });
     ws.fireMessage(
-      JSON.stringify({ id: sentId(ws, 0), error: { code: "invalid_name", message: "name is invalid" } }),
+      JSON.stringify({
+        id: sentId(ws, 0),
+        error: { code: "invalid_name", message: "name is invalid" },
+      }),
     );
-    await expect(pending).rejects.toMatchObject({ code: "invalid_name", message: "name is invalid" });
+    await expect(pending).rejects.toMatchObject({
+      code: "invalid_name",
+      message: "name is invalid",
+    });
   });
 
   it("dispatches event frames to subscribers and stops after unsubscribe", async () => {
@@ -106,11 +112,15 @@ describe("createWsTransport", () => {
     const unsubscribe = transport.addEventListener("boardstate.changed", (payload) => {
       seen.push(payload);
     });
-    ws.fireMessage(JSON.stringify({ event: "boardstate.changed", payload: { workspaceVersion: 2 } }));
+    ws.fireMessage(
+      JSON.stringify({ event: "boardstate.changed", payload: { workspaceVersion: 2 } }),
+    );
     expect(seen).toEqual([{ workspaceVersion: 2 }]);
 
     unsubscribe();
-    ws.fireMessage(JSON.stringify({ event: "boardstate.changed", payload: { workspaceVersion: 3 } }));
+    ws.fireMessage(
+      JSON.stringify({ event: "boardstate.changed", payload: { workspaceVersion: 3 } }),
+    );
     expect(seen).toHaveLength(1);
   });
 
