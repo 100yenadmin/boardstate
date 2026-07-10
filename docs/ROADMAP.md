@@ -171,7 +171,7 @@ MCP-free).
 
 | Sprint | Theme                                          | Issues                                                                                                                                                                                                                                      | Status |
 | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | 🔨     |
+| S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | ✅     |
 | S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ⏳     |
 | S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ⏳     |
 | later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | 💤     |
@@ -180,6 +180,14 @@ One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance:
 OfficeCLI + one aggregator recipe → the agent builds a board that READS live external data
 and ACTS through approved tools, every grant revocable in the approvals widget, every
 consequential action operator-confirmed.
+
+**S5-1 SHIPPED 2026-07-10** (all attested): `@boardstate/broker@0.2.0` (new — the MCP
+client manager), `@boardstate/schema@1.2.0` (SPEC §17 v2 tool grants + §18), and the trust
+layer in `@boardstate/{core,server,host}@1.2.0` / `lit@0.4.0` (grant lifecycle,
+both-direction anti-rug-pull, partial grants, the server-enforced pending-action engine —
+`dashboard.action.confirm` is operator-only over the wire). Adversarial verify caught and
+fixed six real defects across the sprint — including a pre-existing self-elevation hole on
+main where the agent's `workspace.replace` tool bypassed the M4b grant gate.
 
 ## Phases (historical build record)
 
