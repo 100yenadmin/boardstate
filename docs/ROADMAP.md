@@ -143,15 +143,15 @@ build record.
 Owner-ratified 2026-07-10 ("all of it, in the order you choose … file as issues … get to
 work … do our releases"). Every phase is a tracked issue (label `roadmap`). **Locked order:**
 
-| Phase | Issue | What |
-| --- | --- | --- |
-| R1 | [#23](https://github.com/100yenadmin/boardstate/issues/23) | Networked WebSocket transport + browser bundle (land PRs #20/#21 + WS hardening) |
-| R2 | [#24](https://github.com/100yenadmin/boardstate/issues/24) | `dashboard_widget_catalog` tool — close the prop-shape gap (first-try correctness) |
-| Launch | [#28](https://github.com/100yenadmin/boardstate/issues/28) | Show HN (owner posts) + awesome-list placements |
-| M4c | [#25](https://github.com/100yenadmin/boardstate/issues/25) | Live-bindings hardening: first-class host connector contract + reference connector |
-| M4d | [#26](https://github.com/100yenadmin/boardstate/issues/26) | MCP Apps interop — widgets as `ui://` resources (Claude Desktop distribution) |
-| M4b | [#27](https://github.com/100yenadmin/boardstate/issues/27) | Capability broker — approval gate for data sources/tools (spec-first) |
-| Portback | [#29](https://github.com/100yenadmin/boardstate/issues/29) | Port Act-1/Act-2 fixes upstream to OpenClaw (parallel lane) |
+| Phase    | Issue                                                      | What                                                                               |
+| -------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| R1       | [#23](https://github.com/100yenadmin/boardstate/issues/23) | Networked WebSocket transport + browser bundle (land PRs #20/#21 + WS hardening)   |
+| R2       | [#24](https://github.com/100yenadmin/boardstate/issues/24) | `dashboard_widget_catalog` tool — close the prop-shape gap (first-try correctness) |
+| Launch   | [#28](https://github.com/100yenadmin/boardstate/issues/28) | Show HN (owner posts) + awesome-list placements                                    |
+| M4c      | [#25](https://github.com/100yenadmin/boardstate/issues/25) | Live-bindings hardening: first-class host connector contract + reference connector |
+| M4d      | [#26](https://github.com/100yenadmin/boardstate/issues/26) | MCP Apps interop — widgets as `ui://` resources (Claude Desktop distribution)      |
+| M4b      | [#27](https://github.com/100yenadmin/boardstate/issues/27) | Capability broker — approval gate for data sources/tools (spec-first)              |
+| Portback | [#29](https://github.com/100yenadmin/boardstate/issues/29) | Port Act-1/Act-2 fixes upstream to OpenClaw (parallel lane)                        |
 
 The one architectural line still held: the provider/agent loop is a client of the control
 plane, never in `@boardstate/core`.
