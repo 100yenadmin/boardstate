@@ -225,8 +225,10 @@ export function renderChart(widget: DashboardWidget, value: unknown): TemplateRe
   }
   const props = widgetProps(widget);
   // Overlays are HTML siblings of the (aspect-stretched) SVG so their text stays
-  // undistorted. Both are opt-in — a default chart adds no extra element, so existing
-  // docs render exactly as before.
+  // undistorted. Both are opt-in — a default line/bar/area/gauge chart adds no extra
+  // element, so existing docs of those types render exactly as before. (`sparkline` is
+  // the deliberate exception: it was a fallthrough that drew a plain line and now draws
+  // a true sparkline — that upgrade IS #10.)
   const detail = model.detail && model.type !== "sparkline";
   const axes = detail && hasAxes(model.type);
   const sparkValue = model.type === "sparkline" && model.label;

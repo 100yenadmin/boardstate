@@ -238,16 +238,22 @@ describe("chart render (wave-charts)", () => {
   });
 
   it("a default chart adds no detail scaffolding (byte-identical to before)", () => {
-    const container = renderToContainer(
-      renderChart(widget({ kind: "builtin:chart", props: { type: "line" } }), [1, 5, 2]),
-    );
-    const chart = container.querySelector<HTMLElement>(".dashboard-chart")!;
-    // Only the SVG mounts — no axis/grid/tip overlay leaks into the default render.
-    expect(chart.className).toBe("dashboard-chart dashboard-chart--line");
-    expect(chart.children.length).toBe(1);
-    expect(chart.querySelector(".dashboard-chart__grid")).toBeNull();
-    expect(chart.querySelector(".dashboard-chart__axis")).toBeNull();
-    expect(chart.querySelector(".dashboard-chart__tips")).toBeNull();
+    // Every pre-existing type EXCEPT sparkline — sparkline's render deliberately changed
+    // (fallthrough plain line → true sparkline, the point of #10), so it is excluded here
+    // and covered by its own tests below.
+    for (const type of ["line", "bar", "area", "gauge"] as const) {
+      const container = renderToContainer(
+        renderChart(widget({ kind: "builtin:chart", props: { type } }), [1, 5, 2]),
+      );
+      const chart = container.querySelector<HTMLElement>(".dashboard-chart")!;
+      // Only the SVG mounts — no axis/grid/tip overlay leaks into the default render.
+      expect(chart.className).toBe(`dashboard-chart dashboard-chart--${type}`);
+      expect(chart.children.length).toBe(1);
+      expect(chart.querySelector(".dashboard-chart__grid")).toBeNull();
+      expect(chart.querySelector(".dashboard-chart__axis")).toBeNull();
+      expect(chart.querySelector(".dashboard-chart__tips")).toBeNull();
+      expect(chart.querySelector("[class*='__spark']")).toBeNull();
+    }
   });
 
   it("renders a delta-colored sparkline with an optional trailing value label", () => {
