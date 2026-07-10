@@ -3,6 +3,8 @@ import {
   computeWorkspaceDiff,
   firstSeenVersion,
   groupDiffByActor,
+  summarizeWorkspaceDiff,
+  type DashboardDiffEntry,
   type DashboardHistorySnapshot,
 } from "./history-client.js";
 import { normalizeWorkspace } from "./queries.js";
@@ -126,5 +128,57 @@ describe("firstSeenVersion", () => {
 
   it("returns undefined when no snapshots are loaded", () => {
     expect(firstSeenVersion("a", [])).toBeUndefined();
+  });
+});
+
+describe("summarizeWorkspaceDiff", () => {
+  const entry = (kind: DashboardDiffEntry["kind"], actor: string | null): DashboardDiffEntry => ({
+    kind,
+    actor,
+    id: "x",
+    label: "X",
+  });
+
+  it("partitions the changelist into per-kind counts summing to total", () => {
+    const summary = summarizeWorkspaceDiff([
+      entry("widget-added", "agent:main"),
+      entry("widget-added", "agent:main"),
+      entry("widget-removed", "user"),
+      entry("widget-moved", "agent:main"),
+      entry("widget-retitled", "user"),
+      entry("tab-added", "user"),
+      entry("tab-retitled", "user"),
+    ]);
+    expect(summary).toEqual({
+      added: 2,
+      removed: 1,
+      moved: 1,
+      retitled: 1,
+      tabsChanged: 2,
+      total: 7,
+      // user has 4 entries vs agent:main's 3 — the dominant actor wins.
+      actor: "user",
+    });
+  });
+
+  it("breaks an actor tie toward the first-seen actor and ignores null actors", () => {
+    const summary = summarizeWorkspaceDiff([
+      entry("widget-added", "agent:main"),
+      entry("widget-removed", "user"),
+      entry("widget-moved", null),
+    ]);
+    expect(summary.actor).toBe("agent:main");
+  });
+
+  it("reports an all-zero summary with a null actor for an empty changelist", () => {
+    expect(summarizeWorkspaceDiff([])).toEqual({
+      added: 0,
+      removed: 0,
+      moved: 0,
+      retitled: 0,
+      tabsChanged: 0,
+      total: 0,
+      actor: null,
+    });
   });
 });

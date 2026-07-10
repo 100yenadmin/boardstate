@@ -145,6 +145,87 @@ export function computeWorkspaceDiff(
   return entries;
 }
 
+/**
+ * A wire-safe rollup of one snapshot-to-snapshot changelist — the compact row
+ * label the history list shows next to "Version N" ("+2 · 1 moved · agent:main").
+ * Counts only, plus the dominant actor; it never carries a document body, so it
+ * ships cheaply over `history.list` and — being derived at read time from ring
+ * snapshots the store ALREADY holds — adds nothing to the undo ring on disk.
+ */
+export type DashboardHistorySummary = {
+  /** Widgets that appeared in this version. */
+  added: number;
+  /** Widgets that disappeared. */
+  removed: number;
+  /** Widgets that changed tab or grid rect. */
+  moved: number;
+  /** Widgets (or tabs) whose title changed. */
+  retitled: number;
+  /** tab-added + tab-removed + tab-retitled, folded into one count. */
+  tabsChanged: number;
+  /** Total change entries across every kind. */
+  total: number;
+  /**
+   * The actor credited with the most entries (first-seen wins ties), or null when
+   * no entry carried provenance. This is the changed widget/tab's `createdBy`, the
+   * same best-effort attribution `computeWorkspaceDiff` groups by — not a per-save
+   * author log (the ring stores no such field).
+   */
+  actor: string | null;
+};
+
+/**
+ * Condense a flat changelist into a `DashboardHistorySummary`. A retitled tab and
+ * a retitled widget both count under `retitled`/`tabsChanged` respectively, so the
+ * six counts partition the entries exactly and `total` equals `entries.length`.
+ */
+export function summarizeWorkspaceDiff(entries: DashboardDiffEntry[]): DashboardHistorySummary {
+  const summary: DashboardHistorySummary = {
+    added: 0,
+    removed: 0,
+    moved: 0,
+    retitled: 0,
+    tabsChanged: 0,
+    total: entries.length,
+    actor: null,
+  };
+  const actorCounts = new Map<string, number>();
+  for (const entry of entries) {
+    switch (entry.kind) {
+      case "widget-added":
+        summary.added += 1;
+        break;
+      case "widget-removed":
+        summary.removed += 1;
+        break;
+      case "widget-moved":
+        summary.moved += 1;
+        break;
+      case "widget-retitled":
+        summary.retitled += 1;
+        break;
+      case "tab-added":
+      case "tab-removed":
+      case "tab-retitled":
+        summary.tabsChanged += 1;
+        break;
+    }
+    if (entry.actor) {
+      actorCounts.set(entry.actor, (actorCounts.get(entry.actor) ?? 0) + 1);
+    }
+  }
+  // Insertion order is first-seen order, and we only replace on a STRICT increase,
+  // so a tie resolves to the actor that appeared first in the changelist.
+  let best = 0;
+  for (const [actor, count] of actorCounts) {
+    if (count > best) {
+      best = count;
+      summary.actor = actor;
+    }
+  }
+  return summary;
+}
+
 /** Group a flat changelist by `actor`, preserving first-seen actor order. */
 export function groupDiffByActor(
   entries: DashboardDiffEntry[],

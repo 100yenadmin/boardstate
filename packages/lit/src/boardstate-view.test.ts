@@ -341,6 +341,107 @@ describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
     stopDashboard(host);
   });
 
+  it("renders the snapshot preview (glyph + caption) and a row change summary (#4)", async () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc;
+    state.activeSlug = "main";
+    const request = vi.fn(async (method: string) => {
+      if (method === "dashboard.workspace.history.list") {
+        return {
+          entries: [
+            {
+              version: 2,
+              savedAt: new Date().toISOString(),
+              bytes: 100,
+              summary: {
+                added: 1,
+                removed: 0,
+                moved: 0,
+                retitled: 0,
+                tabsChanged: 0,
+                total: 1,
+                actor: "agent:main",
+              },
+            },
+          ],
+        };
+      }
+      if (method === "dashboard.workspace.history.get") {
+        return {
+          doc: {
+            schemaVersion: 1,
+            workspaceVersion: 2,
+            tabs: [
+              {
+                slug: "main",
+                title: "Main",
+                hidden: false,
+                widgets: [
+                  {
+                    id: "chart-1",
+                    kind: "builtin:chart",
+                    title: "Revenue",
+                    grid: { x: 0, y: 0, w: 6, h: 2 },
+                    collapsed: false,
+                    hidden: false,
+                  },
+                ],
+              },
+            ],
+            prefs: { tabOrder: ["main"] },
+            widgetsRegistry: {},
+          },
+        };
+      }
+      return {};
+    });
+    const container = document.createElement("div");
+    const props = baseProps(host, { transport: stubTransport(request as never), connected: true });
+    render(renderBoardstateView(props), container);
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-history-toggle"]')
+      ?.click();
+    // The list + first snapshot load asynchronously; re-render until the preview lands.
+    await vi.waitFor(() => {
+      render(renderBoardstateView(props), container);
+      expect(container.querySelector('[data-test-id="dashboard-history-preview"]')).not.toBeNull();
+    });
+    // Per-kind glyph inside the cell, and the "Layout at version N" caption.
+    expect(container.querySelector(".dashboard-history__cell-glyph")).not.toBeNull();
+    expect(container.querySelector(".dashboard-history__preview-caption")?.textContent).toContain(
+      "version 2",
+    );
+    // The list row shows the compact change summary + dominant actor.
+    const change = container.querySelector(".dashboard-history__change");
+    expect(change?.textContent).toContain("+1");
+    expect(change?.textContent).toContain("agent:main");
+    stopDashboard(host);
+  });
+
+  it("renders the history panel under dir=rtl without error (RTL smoke, #4)", () => {
+    document.documentElement.dir = "rtl";
+    try {
+      const host = {};
+      const state = getDashboardState(host);
+      state.loaded = true;
+      state.workspace = doc;
+      state.activeSlug = "main";
+      const container = document.createElement("div");
+      const props = baseProps(host, { transport: stubTransport(), connected: true });
+      render(renderBoardstateView(props), container);
+      container
+        .querySelector<HTMLButtonElement>('[data-test-id="dashboard-history-toggle"]')
+        ?.click();
+      render(renderBoardstateView(props), container);
+      expect(container.querySelector('[data-test-id="dashboard-history"]')).not.toBeNull();
+      stopDashboard(host);
+    } finally {
+      document.documentElement.dir = "";
+    }
+  });
+
   it("opens the widget gallery from the toggle", () => {
     const host = {};
     const state = getDashboardState(host);

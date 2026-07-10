@@ -6,7 +6,7 @@
 // element properties. Grid/drag math and the workspace store come from
 // `@boardstate/core` / `@boardstate/host`; nothing app-specific is imported.
 
-import { LitElement, html, nothing, render, type TemplateResult } from "lit";
+import { LitElement, html, nothing, render, svg, type TemplateResult } from "lit";
 import {
   DASHBOARD_GRID_GAP,
   DASHBOARD_ROW_HEIGHT,
@@ -36,6 +36,7 @@ import {
   type DashboardGridRect,
   type DashboardHistoryEntry,
   type DashboardHistorySnapshot,
+  type DashboardHistorySummary,
   type DashboardTab,
   type DashboardWidget,
   type DashboardWorkspace,
@@ -1963,6 +1964,49 @@ function renderHistoryPanel(
   );
 }
 
+/**
+ * Compose the compact per-row change label from a store-computed summary, e.g.
+ * "+2 · 1 moved". A summary with no tracked layout change (a props-only or
+ * collapse mutation, which the diff doesn't count) still renders "Other edit" so
+ * the row reads as a real, distinct change rather than an empty repeat.
+ */
+function historySummaryLabel(summary: DashboardHistorySummary): string {
+  const parts: string[] = [];
+  if (summary.added > 0) {
+    parts.push(t("dashboard.history.summary.added", { count: String(summary.added) }));
+  }
+  if (summary.removed > 0) {
+    parts.push(t("dashboard.history.summary.removed", { count: String(summary.removed) }));
+  }
+  if (summary.moved > 0) {
+    parts.push(t("dashboard.history.summary.moved", { count: String(summary.moved) }));
+  }
+  if (summary.retitled > 0) {
+    parts.push(t("dashboard.history.summary.retitled", { count: String(summary.retitled) }));
+  }
+  if (summary.tabsChanged > 0) {
+    parts.push(t("dashboard.history.summary.tabs", { count: String(summary.tabsChanged) }));
+  }
+  return parts.length > 0 ? parts.join(" · ") : t("dashboard.history.summary.minor");
+}
+
+/** The change-summary line under a history row's version (m2 polish, #4). */
+function renderHistoryChangeSummary(
+  summary: DashboardHistorySummary | undefined,
+): TemplateResult | typeof nothing {
+  if (!summary) {
+    return nothing;
+  }
+  return html`<span class="dashboard-history__change">
+    <span class="dashboard-history__change-label">${historySummaryLabel(summary)}</span>
+    ${
+      summary.actor
+        ? html`<span class="dashboard-history__change-actor">${summary.actor}</span>`
+        : nothing
+    }
+  </span>`;
+}
+
 function renderHistoryList(
   props: BoardstateViewProps,
   viewState: DashboardViewState,
@@ -1996,6 +2040,7 @@ function renderHistoryList(
               <span class="dashboard-history__version"
                 >${t("dashboard.history.version", { version: String(entry.version) })}</span
               >
+              ${renderHistoryChangeSummary(entry.summary)}
               <span class="dashboard-history__time">${formatRelativeTimestamp(entry.savedAt)}</span>
               ${
                 entry.version === newestVersion
@@ -2030,7 +2075,7 @@ function renderHistoryDetail(
   return html`
     <div class="dashboard-history__preview-wrap">
       <div class="dashboard-history__section-title">${t("dashboard.history.previewTitle")}</div>
-      ${renderHistoryPreview(snapshot, state.activeSlug)}
+      ${renderHistoryPreview(snapshot, state.activeSlug, version)}
     </div>
     <div class="dashboard-history__diff">
       <div class="dashboard-history__section-title">${t("dashboard.history.diffTitle")}</div>
@@ -2089,13 +2134,75 @@ function renderHistoryDetail(
 }
 
 /**
+ * Category mini-glyphs for the snapshot preview cells. The preview resolves NO
+ * live data (SPEC: previews stay cheap), so each cell shows a static hint of the
+ * widget's KIND — a faux sparkline for charts, stacked rows for tables/lists, a
+ * bold value bar for stat cards — so a past layout reads as intentional rather
+ * than a row of empty boxes. Drawn like `icons.ts`: bare 24×24 stroke paths.
+ */
+const HISTORY_PREVIEW_GLYPHS = {
+  chart: svg`<polyline points="3 15 8 10 12 13 17 6 21 9" /><path d="M3 20h18" opacity="0.5" />`,
+  "stat-card": svg`<path d="M4 8h9" stroke-width="2.6" /><path d="M4 14h6" opacity="0.6" />`,
+  table: svg`<rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="M3 10h18M3 15h18M9 5v14" opacity="0.6" />`,
+  markdown: svg`<path d="M4 7h16M4 12h16M4 17h9" opacity="0.85" />`,
+  notes: svg`<path d="M5 6h11M5 11h11M5 16h7" opacity="0.8" /><path d="M16 15l3-3 2 2-3 3-2 1z" />`,
+  list: svg`<circle cx="5" cy="7" r="1" /><circle cx="5" cy="12" r="1" /><circle cx="5" cy="17" r="1" /><path d="M9 7h11M9 12h11M9 17h7" opacity="0.8" />`,
+  gauge: svg`<path d="M4 16a8 8 0 0 1 16 0" /><path d="M12 16l4-3" />`,
+  button: svg`<rect x="4" y="9" width="16" height="6" rx="3" />`,
+  frame: svg`<rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 8h18" opacity="0.6" />`,
+  custom: svg`<path
+    d="M4 7h3a1.5 1.5 0 1 0 3 0h3v3a1.5 1.5 0 1 1 0 3v3h-3a1.5 1.5 0 1 0-3 0H4v-3a1.5 1.5 0 1 1 0-3z"
+  />`,
+  default: svg`<rect x="4" y="5" width="16" height="14" rx="2" opacity="0.6" />`,
+} as const;
+
+// Builtin kinds that share a category glyph (the many list-shaped feeds, the two
+// action widgets, the two framed embeds). Anything unmapped falls back to a plain box.
+const HISTORY_PREVIEW_GLYPH_ALIASES: Record<string, keyof typeof HISTORY_PREVIEW_GLYPHS> = {
+  activity: "list",
+  "agent-status": "list",
+  approvals: "list",
+  sessions: "list",
+  instances: "list",
+  cron: "list",
+  chat: "list",
+  usage: "gauge",
+  "action-button": "button",
+  "action-form": "button",
+  "iframe-embed": "frame",
+  preview: "frame",
+};
+
+/** Resolve a widget kind (`builtin:chart`, `custom:foo`) to its preview glyph. */
+function historyPreviewGlyph(kind: string): TemplateResult {
+  const base = kind.startsWith("custom:") ? "custom" : kind.replace(/^builtin:/, "");
+  const paths =
+    HISTORY_PREVIEW_GLYPHS[base as keyof typeof HISTORY_PREVIEW_GLYPHS] ??
+    HISTORY_PREVIEW_GLYPHS[HISTORY_PREVIEW_GLYPH_ALIASES[base] ?? "default"];
+  return html`<svg
+    class="dashboard-history__cell-glyph"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    ${paths}
+  </svg>`;
+}
+
+/**
  * Static read-only preview of a snapshot's active tab: reuses the grid placement
  * math but strips every interaction (no drag/resize handles, menus, or live
- * bindings) so a past state renders without any write affordance.
+ * bindings) so a past state renders without any write affordance. Each cell carries
+ * a per-kind glyph (no data resolved) and the grid is captioned with its version.
  */
 function renderHistoryPreview(
   snapshot: DashboardWorkspace,
   activeSlug: string | null,
+  version: number,
 ): TemplateResult {
   const tab =
     (activeSlug ? snapshot.tabs.find((entry) => entry.slug === activeSlug) : undefined) ??
@@ -2119,6 +2226,7 @@ function renderHistoryPreview(
         const agent = dashboardAgentProvenance(widget.createdBy);
         return html`
           <div class="dashboard-history__cell" style=${gridPlacementStyle(widget.grid)}>
+            ${historyPreviewGlyph(widget.kind)}
             <span class="dashboard-history__cell-title">${widget.title || widget.kind}</span>
             ${
               agent
@@ -2130,6 +2238,9 @@ function renderHistoryPreview(
           </div>
         `;
       })}
+    </div>
+    <div class="dashboard-history__preview-caption">
+      ${t("dashboard.history.previewCaption", { version: String(version) })}
     </div>
   `;
 }

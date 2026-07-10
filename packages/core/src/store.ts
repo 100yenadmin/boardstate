@@ -6,6 +6,12 @@ import {
   type WorkspaceDoc,
 } from "@boardstate/schema";
 import { joinLogical, LOGICAL_SEP } from "./internal/logical-path.js";
+import {
+  computeWorkspaceDiff,
+  summarizeWorkspaceDiff,
+  type DashboardHistorySummary,
+} from "./history-client.js";
+import { normalizeWorkspace } from "./queries.js";
 import type { StorageAdapter } from "./adapters/storage.js";
 
 export type DashboardMutationOptions = { actor: string };
@@ -20,8 +26,18 @@ export type WidgetStateWriteResult = { version: number };
  * is the snapshot's own `workspaceVersion` (the state it represents), NOT the ring
  * filename (which is that version + 1, the mutation that superseded it). Bodies
  * are never included here — callers fetch a full snapshot via `getHistorySnapshot`.
+ *
+ * `summary` is a compact rollup of what changed to REACH this version (the diff
+ * from the next-older ring snapshot), or undefined when this is the oldest snapshot
+ * still in the ring — there is then no predecessor to diff against. It is derived
+ * at list time from snapshots the ring already holds, so it costs no extra disk.
  */
-export type DashboardHistoryEntry = { version: number; savedAt: string; bytes: number };
+export type DashboardHistoryEntry = {
+  version: number;
+  savedAt: string;
+  bytes: number;
+  summary?: DashboardHistorySummary;
+};
 
 const MAX_WORKSPACE_BYTES = 256 * 1024;
 const UNDO_RING_SIZE = 20;
@@ -295,11 +311,17 @@ export class DashboardStore {
    * the ring but never mutates it, so it needs no exclusive lock. `bytes` is the
    * on-disk serialized size; `savedAt` is derived from the snapshot's own version.
    * Snapshots that fail validation are skipped rather than failing the whole listing.
+   *
+   * Each entry also carries a compact `summary` of what changed to reach it — the
+   * diff against the next-older snapshot in the ring, condensed to counts + the
+   * dominant actor. It is computed here, at read time, from the same bodies the
+   * listing already parses, so the undo ring on disk stays metadata-free (its size
+   * caps are untouched). The oldest snapshot has no predecessor and so no summary.
    */
   async listHistory(): Promise<DashboardHistoryEntry[]> {
     const files = await this.listUndoFiles();
-    const entries = await Promise.all(
-      files.map(async (fileName): Promise<DashboardHistoryEntry | undefined> => {
+    const loaded = await Promise.all(
+      files.map(async (fileName) => {
         const filePath = joinLogical(this.undoDir, fileName);
         try {
           const content = await this.storage.readFile(filePath);
@@ -311,15 +333,25 @@ export class DashboardStore {
             version: doc.workspaceVersion,
             savedAt: new Date().toISOString(),
             bytes: utf8ByteLength(content),
+            workspace: normalizeWorkspace(doc),
           };
         } catch {
           return undefined;
         }
       }),
     );
-    return entries
-      .filter((entry): entry is DashboardHistoryEntry => entry !== undefined)
+    // Newest-first for display; the predecessor of each entry is therefore the NEXT
+    // item in this array (the next-lower version still present in the ring).
+    const ordered = loaded
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined)
       .toSorted((a, b) => b.version - a.version);
+    return ordered.map(({ version, savedAt, bytes, workspace }, index) => {
+      const previous = ordered[index + 1]?.workspace;
+      const summary = previous
+        ? summarizeWorkspaceDiff(computeWorkspaceDiff(previous, workspace))
+        : undefined;
+      return summary ? { version, savedAt, bytes, summary } : { version, savedAt, bytes };
+    });
   }
 
   /**

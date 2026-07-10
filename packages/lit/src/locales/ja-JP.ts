@@ -175,6 +175,13 @@ export const ja_JP: BoardstateStrings = {
   "dashboard.history.kind.tab-added": "タブを追加",
   "dashboard.history.kind.tab-removed": "タブを削除",
   "dashboard.history.kind.tab-retitled": "タブ名を変更",
+  "dashboard.history.summary.added": "+{count}",
+  "dashboard.history.summary.removed": "−{count}",
+  "dashboard.history.summary.moved": "{count} 件移動",
+  "dashboard.history.summary.retitled": "{count} 件変更",
+  "dashboard.history.summary.tabs": "{count} 個のタブ",
+  "dashboard.history.summary.minor": "その他の変更",
+  "dashboard.history.previewCaption": "バージョン {version} のレイアウト",
   "dashboard.gallery.open": "ウィジェットギャラリー",
   "dashboard.gallery.title": "ウィジェットギャラリー",
   "dashboard.gallery.subtitle":

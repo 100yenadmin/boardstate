@@ -6,12 +6,38 @@
 import {
   normalizeWorkspace,
   type DashboardHistoryEntry,
+  type DashboardHistorySummary,
   type DashboardWorkspace,
   type Transport,
 } from "@boardstate/core";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Re-hydrate the per-entry change summary the store computed (SPEC: history list
+ * rows). It crosses the wire as plain JSON, so re-normalize it defensively here —
+ * a pre-summary host (or a malformed entry) simply yields no summary and the row
+ * falls back to version + time. Kept in lock-step with `DashboardHistorySummary`.
+ */
+function normalizeSummary(value: unknown): DashboardHistorySummary | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  return {
+    added: count(value.added),
+    removed: count(value.removed),
+    moved: count(value.moved),
+    retitled: count(value.retitled),
+    tabsChanged: count(value.tabsChanged),
+    total: count(value.total),
+    actor: typeof value.actor === "string" ? value.actor : null,
+  };
 }
 
 /** Fetch the ring metadata (newest-first) via the read-only history.list RPC. */
@@ -25,11 +51,15 @@ export async function loadHistoryList(
   const entries = isRecord(payload) && Array.isArray(payload.entries) ? payload.entries : [];
   return entries
     .filter(isRecord)
-    .map((entry) => ({
-      version: typeof entry.version === "number" ? entry.version : 0,
-      savedAt: typeof entry.savedAt === "string" ? entry.savedAt : "",
-      bytes: typeof entry.bytes === "number" ? entry.bytes : 0,
-    }))
+    .map((entry): DashboardHistoryEntry => {
+      const summary = normalizeSummary(entry.summary);
+      return {
+        version: typeof entry.version === "number" ? entry.version : 0,
+        savedAt: typeof entry.savedAt === "string" ? entry.savedAt : "",
+        bytes: typeof entry.bytes === "number" ? entry.bytes : 0,
+        ...(summary ? { summary } : {}),
+      };
+    })
     .filter((entry) => entry.version > 0);
 }
 
