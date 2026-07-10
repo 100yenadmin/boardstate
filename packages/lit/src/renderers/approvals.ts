@@ -84,6 +84,25 @@ function expiresLabel(expiresAt: string): string {
   return t("dashboard.widget.approvals.expiresIn", { duration: human });
 }
 
+/**
+ * The per-agent scope line for a capability row (SPEC §17.3, #59). A scoped grant shows
+ * exactly which agents may use its tools; an unscoped grant reads "All agents" so the
+ * operator sees the (permissive) default plainly rather than an ambiguous blank.
+ */
+function renderScope(item: PendingApprovalItem): TemplateResult {
+  const agents = item.agents ?? [];
+  const summary =
+    agents.length > 0
+      ? t("dashboard.widget.approvals.scopedTo", { agents: agents.join(", ") })
+      : t("dashboard.widget.approvals.scopeAll");
+  return html`<span
+    class="dashboard-approvals__scope"
+    data-test-id="dashboard-approvals-scope"
+    data-agents=${agents.join(",")}
+    >${t("dashboard.widget.approvals.scopeLabel")}: ${summary}</span
+  >`;
+}
+
 /** The per-tool grant + auto-confirm control list for a capability row. */
 function renderToolControls(item: PendingApprovalItem): TemplateResult {
   const tools = item.tools ?? [];
@@ -182,6 +201,7 @@ export function renderApprovals(
                 : nothing
             }
             ${hasTools ? renderToolControls(item) : nothing}
+            ${isCapability ? renderScope(item) : nothing}
             ${
               isCapability
                 ? html`<label class="dashboard-approvals__ttl-label"

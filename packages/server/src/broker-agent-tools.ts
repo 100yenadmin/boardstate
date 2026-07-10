@@ -23,8 +23,10 @@
 // (broker → server) — the real `McpBroker` satisfies it structurally.
 
 import type { DashboardStore } from "@boardstate/core";
+import type { DashboardActor } from "@boardstate/schema";
 import type { TSchema } from "typebox";
 import { toolJson, type AgentTool } from "./host.js";
+import { boundAgentActor } from "./broker-actions.js";
 import {
   broadcastChange,
   type DashboardBroadcast,
@@ -88,6 +90,15 @@ export type BrokerAgentToolsDeps = {
     args: Record<string, unknown>;
   }) => Promise<InvokeMutationResult>;
   confirmAndExecute: ConfirmAndExecute;
+  /**
+   * The SERVER-BOUND acting agent this adapter serves (SPEC §17.3, #59). When set, the
+   * granted-tool assembly surfaces ONLY unscoped grants plus grants scoped to THIS actor —
+   * the assembly-time half of the AND-gate, which also governs the direct `readOnly` path
+   * (that path never re-hits the invoke gate, so the filter is its sole scope enforcement).
+   * UNSET ⇒ the adapter is unbound: it surfaces unscoped grants only and never a scoped one
+   * (a scoped tool needs an authenticated agent to be usable — fail closed).
+   */
+  actor?: DashboardActor;
   /** How long the agent waits for the operator's confirm before a refusal. Default 5 min. */
   mutationTimeoutMs?: number;
   /**
@@ -265,9 +276,21 @@ export function createBrokerAgentTools(deps: BrokerAgentToolsDeps): BrokerAgentT
       const [doc, manifest] = await Promise.all([deps.store.read(), deps.broker.listTools()]);
       const byId = new Map(manifest.tools.map((entry) => [entry.id, entry]));
       const registry = doc.capabilitiesRegistry ?? {};
+      const boundActor = deps.actor;
       const next: AgentTool[] = [];
       for (const grant of Object.values(registry)) {
         if (grant.status !== "granted") {
+          continue;
+        }
+        // Per-agent scope (SPEC §17.3, #59): a scoped grant is surfaced ONLY to a bound actor
+        // it lists. An unbound adapter (`boundActor === undefined`) never surfaces a scoped
+        // grant — a scoped tool is unusable without an authenticated agent (fail closed).
+        // This is the enforcement point for the direct `readOnly` execute path below, which
+        // does not go through the server-side invoke gate.
+        if (
+          grant.agents !== undefined &&
+          (boundActor === undefined || !grant.agents.includes(boundActor))
+        ) {
           continue;
         }
         for (const id of grant.tools ?? []) {
@@ -410,7 +433,7 @@ export function createBrokerToolSearch(deps: BrokerToolSearchDeps): ToolSearchCa
 /** The host capabilities the wiring helper needs (the in-process host satisfies these). */
 export interface BrokerAgentHost {
   registerTool(factory: () => AgentTool[], opts: { names: string[] }): void;
-  request(method: string, params?: unknown): Promise<unknown>;
+  request(method: string, params?: unknown, ctx?: { agentId?: string }): Promise<unknown>;
   addEventListener(event: string, fn: (payload: unknown) => void): () => void;
 }
 
@@ -419,6 +442,14 @@ export type InstallBrokerAgentToolsOptions = {
   store: Pick<DashboardStore, "read">;
   /** The pending-action engine handle (`installBrokerActions`) — for `confirmAndExecute`. */
   actions: Pick<BrokerActionsHandle, "confirmAndExecute">;
+  /**
+   * The server-bound agent id this adapter serves (SPEC §17.3, #59). It is threaded as the
+   * request context into `dashboard.action.invoke` (so the engine's invoke-time scope + rate
+   * gates see an AUTHENTIC actor, never a client-claimed param) AND normalized into the
+   * actor that filters the granted-tool assembly. UNSET ⇒ an unbound adapter: it drives
+   * invoke with no identity (scoped grants fail closed) and surfaces unscoped tools only.
+   */
+  agentId?: string;
   mutationTimeoutMs?: number;
   /** Async pending actions (#63): park + return immediately instead of blocking. Default false. */
   asyncActions?: boolean;
@@ -443,12 +474,17 @@ export function installBrokerAgentTools(
   host: BrokerAgentHost,
   options: InstallBrokerAgentToolsOptions,
 ): InstallBrokerAgentToolsHandle {
+  // The bound actor filters the assembly; the raw agentId is the invoke request context.
+  const boundActor =
+    options.agentId !== undefined ? boundAgentActor({ agentId: options.agentId }) : undefined;
+  const invokeCtx = options.agentId !== undefined ? { agentId: options.agentId } : undefined;
   const adapter = createBrokerAgentTools({
     broker: options.broker,
     store: options.store,
     invokeMutation: (input) =>
-      host.request("dashboard.action.invoke", input) as Promise<InvokeMutationResult>,
+      host.request("dashboard.action.invoke", input, invokeCtx) as Promise<InvokeMutationResult>,
     confirmAndExecute: options.actions.confirmAndExecute,
+    ...(boundActor !== undefined ? { actor: boundActor } : {}),
     ...(options.mutationTimeoutMs !== undefined
       ? { mutationTimeoutMs: options.mutationTimeoutMs }
       : {}),

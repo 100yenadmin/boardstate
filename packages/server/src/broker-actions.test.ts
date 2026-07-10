@@ -104,6 +104,7 @@ let actionEvents: Array<{ id: string; status: string; autoConfirmed?: boolean }>
 type SetupOpts = {
   ttlMs?: number;
   invokeRateMax?: number;
+  perAgentInvokeRateMax?: number;
   /** Injected clock (ms), threaded into the store sweep, engine, AND rpc future-dating. */
   now?: () => number;
   grantSweepMs?: InstallBrokerActionsOptions["grantSweepMs"];
@@ -145,10 +146,10 @@ async function grantAll(name: string): Promise<void> {
   await host.request("dashboard.capability.approve", { name, decision: "granted", actor: "user" });
 }
 
-/** Approve with an explicit tools subset + optional autoConfirm/TTL (SPEC §17.1/§17.2/§17 TTLs). */
+/** Approve with an explicit tools subset + optional autoConfirm/TTL/agents (SPEC §17.1/§17.2/§17 TTLs/§17.3). */
 async function grant(
   name: string,
-  opts: { tools?: string[]; autoConfirm?: string[]; expiresAt?: string } = {},
+  opts: { tools?: string[]; autoConfirm?: string[]; expiresAt?: string; agents?: string[] } = {},
 ): Promise<{ ok: boolean; code?: string }> {
   return req("dashboard.capability.approve", {
     name,
@@ -156,6 +157,26 @@ async function grant(
     actor: "user",
     ...opts,
   });
+}
+
+/**
+ * Invoke a method with a SERVER-BOUND agent identity (SPEC §17.3): the `agentId` is threaded
+ * through the request context (as an in-process session / the agent-tool adapter does), NEVER
+ * a param — so this exercises the authentic-actor path, not a client claim.
+ */
+async function reqAs(
+  agentId: string | undefined,
+  method: string,
+  params?: unknown,
+): Promise<{ ok: boolean; result?: any; code?: string }> {
+  try {
+    return {
+      ok: true,
+      result: await host.request(method, params, agentId ? { agentId } : undefined),
+    };
+  } catch (error) {
+    return { ok: false, code: (error as { code?: string }).code };
+  }
 }
 
 async function req(
@@ -691,5 +712,182 @@ describe("async settlement hook (SPEC §18 async settlement, #63)", () => {
     await grant("officecli", { autoConfirm: ["officecli:send_mail"] });
     await req("dashboard.action.invoke", { connector: "officecli", tool: "send_mail" });
     expect(settled).toHaveLength(0);
+  });
+});
+
+describe("per-agent grant scoping (SPEC §17.3, #59) — the actor dimension of the AND-gate", () => {
+  it("a scoped grant passes for a listed agent and refuses another (capability_pending)", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    // Alice is in scope: her readOnly call executes.
+    const forAlice = await reqAs("alice", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(forAlice.ok).toBe(true);
+    // Bob is out of scope: refused, and the broker is never called on his behalf.
+    const beforeBob = broker.calls.length;
+    const forBob = await reqAs("bob", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(forBob.ok).toBe(false);
+    expect(forBob.code).toBe("capability_pending");
+    expect(broker.calls.length).toBe(beforeBob);
+  });
+
+  it("an unscoped grant (no agents) is usable by every agent — back-compat, byte-identical", async () => {
+    await setup([READ, SEND]);
+    await grantAll("officecli");
+    expect(
+      (
+        await reqAs("alice", "dashboard.action.invoke", {
+          connector: "officecli",
+          tool: "read_mail",
+        })
+      ).ok,
+    ).toBe(true);
+    expect(
+      (await reqAs("bob", "dashboard.action.invoke", { connector: "officecli", tool: "read_mail" }))
+        .ok,
+    ).toBe(true);
+    // And with NO bound identity at all (today's default path).
+    expect(
+      (await req("dashboard.action.invoke", { connector: "officecli", tool: "read_mail" })).ok,
+    ).toBe(true);
+  });
+
+  it("a scoped grant fails closed for an UNAUTHENTICATED caller (no server-bound identity)", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    // No ctx.agentId — a raw networked caller. It can never satisfy a scoped grant.
+    const res = await req("dashboard.action.invoke", { connector: "officecli", tool: "read_mail" });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe("capability_pending");
+  });
+
+  it("actor authenticity: a param cannot claim another agent's scope (params reject `actor`)", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    // Bob tries to smuggle Alice's identity via a param — invoke rejects the extra key AND
+    // the scope check keys off the (absent) server-bound identity, never the claim.
+    const res = await reqAs("bob", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+      actor: "agent:alice",
+    });
+    expect(res.ok).toBe(false);
+    // The param is rejected before the gate is even consulted.
+    expect(res.code).toBe("bad_request");
+  });
+
+  it("connector.read enforces scope too (a read binding is fail-safe rechecked)", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    expect(
+      (
+        await reqAs("alice", "dashboard.connector.read", {
+          connector: "officecli",
+          tool: "read_mail",
+        })
+      ).ok,
+    ).toBe(true);
+    const bob = await reqAs("bob", "dashboard.connector.read", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(bob.ok).toBe(false);
+    expect(bob.code).toBe("capability_pending");
+  });
+
+  it("a scoped mutation parks under the requesting agent and confirms against IT, not the operator", async () => {
+    await setup([SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    const parked = await reqAs("alice", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    expect(parked.ok).toBe(true);
+    const rec = handle!.pendingActions().find((entry) => entry.id === parked.result.id);
+    expect(rec?.requestedBy).toBe("agent:alice"); // server-bound provenance
+    // The operator confirms; the re-gate checks Alice's scope (still valid), not "user".
+    const confirmed = await host.request("dashboard.action.confirm", {
+      id: parked.result.id,
+      actor: "user",
+    });
+    expect(confirmed).toMatchObject({ id: parked.result.id });
+  });
+
+  it("re-scoping to exclude the requester between park and confirm REFUSES at confirm (fail-closed)", async () => {
+    await setup([SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    const parked = await reqAs("alice", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    // Operator re-scopes the grant to exclude Alice while her action is parked.
+    await grant("officecli", { agents: ["agent:bob"] });
+    const confirm = await req("dashboard.action.confirm", { id: parked.result.id, actor: "user" });
+    expect(confirm.ok).toBe(false);
+    expect(broker.calls).toHaveLength(0); // never executed
+  });
+
+  it("scope is WIPED on a manifest-drift re-pend (operator re-scopes on re-approval)", async () => {
+    await setup([READ, SEND]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    broker.mutateTool("officecli:read_mail"); // rug-pull: subset hash moves
+    const res = await reqAs("alice", "dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "read_mail",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe("capability_pending");
+    const grantAfter = (await store.read()).capabilitiesRegistry!.officecli!;
+    expect(grantAfter.status).toBe("requested");
+    expect(grantAfter.agents).toBeUndefined();
+  });
+
+  it("revoke clears the per-agent scope", async () => {
+    await setup([READ]);
+    await grant("officecli", { agents: ["agent:alice"] });
+    await req("dashboard.capability.approve", {
+      name: "officecli",
+      decision: "revoked",
+      actor: "user",
+    });
+    expect((await store.read()).capabilitiesRegistry!.officecli!.agents).toBeUndefined();
+  });
+});
+
+describe("per-agent rate budget (SPEC §17.3, #59) — rate = min(connector, per-agent)", () => {
+  it("caps each agent independently and preserves the connector ceiling", async () => {
+    // Connector ceiling 10 (default), per-agent ceiling 2.
+    await setup([READ], { perAgentInvokeRateMax: 2 });
+    await grantAll("officecli");
+    const call = (agent: string) =>
+      reqAs(agent, "dashboard.action.invoke", { connector: "officecli", tool: "read_mail" });
+    expect((await call("alice")).ok).toBe(true);
+    expect((await call("alice")).ok).toBe(true);
+    const third = await call("alice"); // trips Alice's per-agent budget
+    expect(third.ok).toBe(false);
+    expect(third.code).toBe("rate_limited");
+    // Bob has his OWN budget — unaffected by Alice's.
+    expect((await call("bob")).ok).toBe(true);
+  });
+
+  it("with no per-agent budget set, only the connector window applies (byte-identical)", async () => {
+    await setup([READ]); // perAgentInvokeRateMax unset
+    await grantAll("officecli");
+    // Well under the connector ceiling of 10, same agent, all pass.
+    for (let i = 0; i < 5; i++) {
+      expect(
+        (
+          await reqAs("alice", "dashboard.action.invoke", {
+            connector: "officecli",
+            tool: "read_mail",
+          })
+        ).ok,
+      ).toBe(true);
+    }
   });
 });

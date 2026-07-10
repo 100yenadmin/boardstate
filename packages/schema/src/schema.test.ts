@@ -688,4 +688,51 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
     expect("autoConfirm" in grant).toBe(false);
     expect("expiresAt" in grant).toBe(false);
   });
+
+  it("accepts a per-agent scope of agent actors (SPEC §17.3, #59)", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+        agents: ["agent:alice", "agent:bob"],
+      }),
+    );
+    expect(validated.capabilitiesRegistry!.officecli!.agents).toEqual(["agent:alice", "agent:bob"]);
+  });
+
+  it("rejects a non-agent actor in the scope (user/system are never scope targets)", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({ status: "granted", methods: [], streams: [], agents: ["user"] }),
+      ),
+    ).toThrow("agents[0] is not a valid agent actor");
+  });
+
+  it("rejects an empty scope (absent already means all agents)", () => {
+    expect(() =>
+      validateWorkspaceDoc(withGrant({ status: "granted", methods: [], streams: [], agents: [] })),
+    ).toThrow("agents must be a non-empty array");
+  });
+
+  it("rejects duplicate actors in the scope", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({
+          status: "granted",
+          methods: [],
+          streams: [],
+          agents: ["agent:alice", "agent:alice"],
+        }),
+      ),
+    ).toThrow("agents contains duplicate actors");
+  });
+
+  it("does not invent an agents scope on an unscoped grant (byte-identical)", () => {
+    const validated = validateWorkspaceDoc(
+      withGrant({ status: "requested", methods: [], streams: [], tools: ["officecli:read_mail"] }),
+    );
+    expect("agents" in validated.capabilitiesRegistry!.officecli!).toBe(false);
+  });
 });

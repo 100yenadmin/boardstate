@@ -114,7 +114,7 @@ type Harness = {
 const harnesses: Harness[] = [];
 
 async function setup(
-  opts: { mutationTimeoutMs?: number; asyncActions?: boolean } = {},
+  opts: { mutationTimeoutMs?: number; asyncActions?: boolean; agentId?: string } = {},
 ): Promise<Harness> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-agentsurface-"));
   const storage = new FsStorageAdapter({ storageDir: stateDir });
@@ -144,6 +144,7 @@ async function setup(
     broker,
     store,
     actions,
+    ...(opts.agentId !== undefined ? { agentId: opts.agentId } : {}),
     ...(opts.mutationTimeoutMs !== undefined ? { mutationTimeoutMs: opts.mutationTimeoutMs } : {}),
     ...(opts.asyncActions !== undefined ? { asyncActions: opts.asyncActions } : {}),
   });
@@ -169,6 +170,17 @@ async function grant(h: Harness, tools: string[] | undefined): Promise<void> {
     name: CONNECTOR,
     decision: "granted",
     ...(tools ? { tools } : {}),
+  });
+  await h.agentTools.refresh();
+}
+
+/** Grant a subset scoped to specific agent actors (SPEC §17.3), then refresh the adapter. */
+async function grantScoped(h: Harness, tools: string[], agents: string[]): Promise<void> {
+  await h.host.request("dashboard.capability.approve", {
+    name: CONNECTOR,
+    decision: "granted",
+    tools,
+    agents,
   });
   await h.agentTools.refresh();
 }
@@ -445,5 +457,36 @@ describe("boardstate_tool_search (#43)", () => {
     expect(details.available).toBe(false);
     expect(String(details.error)).toContain("no connector broker");
     await fs.rm(stateDir, { recursive: true, force: true });
+  });
+});
+
+describe("per-agent scope filters the tool-set assembly (SPEC §17.3, #59)", () => {
+  it("a BOUND adapter surfaces a grant scoped to its own actor", async () => {
+    const h = await setup({ agentId: "alice" });
+    await grantScoped(h, ["acme:echo", "acme:write_note"], ["agent:alice"]);
+    expect(toolNames(h)).toContain("acme__echo");
+    expect(toolNames(h)).toContain("acme__write_note");
+  });
+
+  it("a BOUND adapter does NOT surface a grant scoped to a DIFFERENT actor", async () => {
+    const h = await setup({ agentId: "bob" });
+    await grantScoped(h, ["acme:echo"], ["agent:alice"]);
+    // Bob's adapter must never advertise Alice-scoped tools — the direct readOnly path
+    // would otherwise execute them without re-hitting the invoke gate.
+    expect(toolNames(h)).not.toContain("acme__echo");
+  });
+
+  it("an UNBOUND adapter never surfaces a scoped grant (fail closed)", async () => {
+    const h = await setup(); // no agentId — a scoped tool needs an authenticated agent
+    await grantScoped(h, ["acme:echo"], ["agent:alice"]);
+    expect(toolNames(h)).not.toContain("acme__echo");
+    // (Unscoped grants remain surfaced to an unbound adapter — every other test in this
+    // suite grants unscoped tools against an unbound adapter and sees them.)
+  });
+
+  it("a bound adapter still surfaces UNSCOPED grants (back-compat alongside a scope)", async () => {
+    const h = await setup({ agentId: "alice" });
+    await grant(h, ["acme:status"]);
+    expect(toolNames(h)).toContain("acme__status");
   });
 });
