@@ -1,5 +1,24 @@
 # @boardstate/agent
 
+## 0.3.0
+
+### Minor Changes
+
+- [#55](https://github.com/100yenadmin/boardstate/pull/55) [`52a3d3c`](https://github.com/100yenadmin/boardstate/commit/52a3d3c74d4bca8211c701ca844a8617f9d767e7) Thanks [@100yenadmin](https://github.com/100yenadmin)! - feat(agent): hard definition-token budget on shipped tool schemas (M5c-1)
+
+  The runner shipped every tool's full definition each turn and history truncation never
+  elided them, so an unbounded external (broker-granted) catalog would dwarf the prompt. The
+  runner now caps the shipped definitions (`toolDefTokenBudget`): core tools always ship in
+  full, `external` tools are kept most-recently-used-first until the budget is spent, and the
+  rest collapse to a name + one-line summary + a `boardstate_tool_search` hint. A collapsed
+  tool stays callable. The MRU persists per session across turns. Boards with no external tool
+  ship every definition verbatim (byte-identical to the pre-M5 loop).
+
+### Patch Changes
+
+- Updated dependencies [[`52a3d3c`](https://github.com/100yenadmin/boardstate/commit/52a3d3c74d4bca8211c701ca844a8617f9d767e7)]:
+  - @boardstate/server@1.3.0
+
 ## 0.2.8
 
 ### Patch Changes
