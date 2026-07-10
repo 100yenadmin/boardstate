@@ -240,6 +240,27 @@ describe("dashboard.action.invoke — mutations park behind confirm", () => {
       "action_not_pending",
     );
   });
+
+  it("two concurrent confirms of one action execute the mutation exactly once", async () => {
+    // Adversarial verify 2026-07-10: `requirePending` only READ the entry, so two
+    // confirms racing across the broker await both passed the pending check and
+    // double-executed. The action is claimed synchronously before the await now.
+    await setup([READ, SEND]);
+    await grantAll("officecli");
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+      args: { to: "ops@x.io" },
+    });
+    const [a, b] = await Promise.all([
+      req("dashboard.action.confirm", { id: parked.result.id }),
+      req("dashboard.action.confirm", { id: parked.result.id }),
+    ]);
+    expect(broker.calls).toHaveLength(1); // the mutation fired once, not twice
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1); // exactly one confirm won
+    const loser = a.ok ? b : a;
+    expect(loser.code).toBe("action_not_pending");
+  });
 });
 
 describe("TTL expiry", () => {

@@ -471,6 +471,14 @@ export function installBrokerActions(
   ): Promise<{ content: unknown; structuredContent?: unknown }> {
     const { connector, tool, id: actionId, args } = entry.record;
     const id = `${connector}:${tool}`;
+    // CLAIM the action synchronously — before the broker await yields — so a
+    // concurrent confirm (two operator tabs, a double-delivered frame) cannot pass
+    // `requirePending` again and double-execute the mutation. This synchronous
+    // prologue runs to the first await in one microtask; the expiry timer is cleared
+    // here so it can never race the in-flight execution. `settle` below re-deletes
+    // (a no-op) and stamps the terminal audit outcome exactly once.
+    clearTimeout(entry.timer);
+    pending.delete(actionId);
     try {
       const result = await broker.callTool(id, args as Record<string, unknown>);
       settle(entry, "confirmed", "confirm", actor, "executed");
