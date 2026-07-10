@@ -43,6 +43,7 @@ const EXPECTED_TOOL_NAMES = [
   "boardstate_undo",
   "boardstate_widget_catalog",
   "boardstate_design_review",
+  "boardstate_tool_search",
   "boardstate_board_view",
   "boardstate_data_read",
   "boardstate_widget_approve",

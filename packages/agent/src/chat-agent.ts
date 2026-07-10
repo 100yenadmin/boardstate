@@ -13,6 +13,12 @@ import type { ProviderAdapter, ProviderMessage } from "./types.js";
 const DEFAULT_TOKEN_CEILING = 100_000;
 /** History is truncated back under this fraction of the token ceiling before a turn. */
 const TRUNCATE_AT = 0.75;
+/**
+ * Default cap (estimated tokens) on the shipped tool DEFINITIONS per turn (issue #42).
+ * Engages only when an external broker-granted tool is present; core-only boards ship
+ * every definition verbatim regardless of this value.
+ */
+const DEFAULT_TOOL_DEF_BUDGET = 8_000;
 
 export type CreateAgentChatAgentOptions = {
   provider: ProviderAdapter;
@@ -25,6 +31,11 @@ export type CreateAgentChatAgentOptions = {
   tokenCeiling?: number;
   /** Tool-iteration ceiling passed to `runAgentTurn` (default 20). */
   maxToolIterations?: number;
+  /**
+   * Hard cap (estimated tokens) on the shipped tool DEFINITIONS per turn (issue #42).
+   * Only engages when an external broker-granted tool is present. Default 8k.
+   */
+  toolDefTokenBudget?: number;
   /**
    * The self-building loop (SPEC §15, M4a). `"once"` appends ONE bounded follow-up
    * pass after any turn that mutated the board: the model is asked to call
@@ -109,7 +120,11 @@ export function createAgentChatAgent(options: CreateAgentChatAgentOptions): Chat
     throw new Error("createAgentChatAgent requires either `host` or `tools`");
   }
   const tokenCeiling = options.tokenCeiling ?? DEFAULT_TOKEN_CEILING;
+  const toolDefTokenBudget = options.toolDefTokenBudget ?? DEFAULT_TOOL_DEF_BUDGET;
   const histories = new Map<string, ProviderMessage[]>();
+  // Per-session MRU of tool names (most-recent first), fed to the definition budget so
+  // the tools the agent actually reaches for keep their full schemas across turns (#42).
+  const recentTools = new Map<string, string[]>();
 
   return async ({ sessionKey, message }, ctx: ChatAgentContext) => {
     const tools = options.tools ?? options.host!.tools();
@@ -146,7 +161,10 @@ export function createAgentChatAgent(options: CreateAgentChatAgentOptions): Chat
       turnId: ctx.turnId,
       tokenCeiling,
       maxToolIterations: options.maxToolIterations,
+      toolDefTokenBudget,
+      recentlyUsedTools: recentTools.get(sessionKey) ?? [],
     });
+    recentTools.set(sessionKey, result.recentlyUsedTools);
 
     const shouldReview =
       wantsReview && sawMutation && result.stopReason === "end" && !ctx.signal.aborted;
@@ -182,7 +200,10 @@ export function createAgentChatAgent(options: CreateAgentChatAgentOptions): Chat
       turnId: ctx.turnId,
       tokenCeiling,
       maxToolIterations: options.maxToolIterations,
+      toolDefTokenBudget,
+      recentlyUsedTools: recentTools.get(sessionKey) ?? [],
     });
+    recentTools.set(sessionKey, reviewResult.recentlyUsedTools);
 
     if (reviewResult.stopReason !== "aborted") {
       histories.set(sessionKey, truncateHistory(reviewResult.messages, tokenCeiling));

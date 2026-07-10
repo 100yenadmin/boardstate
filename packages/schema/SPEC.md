@@ -378,11 +378,52 @@ status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. The eng
   re-interpolated into control-plane verbs, never able to mutate the board outside gated
   verbs.
 
+### 18.1 Agent surface — broker→AgentTool adapter + definition budget (normative-lite)
+
+Each GRANTED external tool is surfaced to the agent as an `AgentTool` (`createBrokerAgentTools`,
+`@boardstate/server/node`). The adapter registers via `host.registerTool(() => adapter.grantedAgentTools())`,
+and because agent tools are read PER TURN, a grant/revoke appears on the NEXT turn with no new
+agent API. Rules:
+
+- **Name.** The AgentTool name is the broker's provider-safe `connector__tool` (provider function-name
+  charset — never the `connector:tool` id, which contains a colon).
+- **Execution.** A `readOnly` granted tool executes DIRECTLY through the broker. A mutation is routed
+  through the pending-action engine (`dashboard.action.invoke` → await `confirmAndExecute`): it PARKS
+  and blocks on the operator's confirm. A deny / timeout / expiry / execution error returns a
+  model-legible REFUSAL result — never a throw that ends the turn.
+- **Untrusted framing (invariant #1).** The tool description is wrapped so the model reads the external
+  manifest text as DATA about the tool, never as instructions; results are returned inside an
+  untrusted-data envelope. External text is never interpolated into a template or an executed path.
+- **Definition-token budget (#42).** The agent runner ships tool DEFINITIONS every turn and history
+  truncation never elides them, so an unbounded external catalog would dwarf the prompt. The runner caps
+  the shipped definitions (`toolDefTokenBudget`): core `dashboard_*` tools are always shipped in full;
+  external (`external: true`) tools are kept in full most-recently-used-first until the budget is spent,
+  and the rest collapse to a name + one-line summary + a `boardstate_tool_search` hint. A collapsed tool
+  stays CALLABLE (only its advertised schema shrinks). Boards with no external tool ship every definition
+  verbatim (invariant #7).
+
+### 18.2 `boardstate_tool_search` — the agent-asks/human-approves loop (normative)
+
+The agent discovers tools on demand and REQUESTS grants; the operator decides. `boardstate_tool_search`
+is registered in the browser-safe core tool set (so app + MCP server + networked hosts all advertise it);
+when no broker is attached it is a clear-error noop.
+
+- **SEARCH mode** queries a connector's (or every connector's) FULL catalog — bounded top-N rows, each
+  `{ id, connector, tool, description, readOnly }`, with NO input schemas (bloat). Catalogs are never
+  eager-loaded.
+- **REQUEST mode** `{ connector, tools: [...] }` APPENDS the ids to the connector grant's `requested` set
+  and can NEVER grant (invariant #2). Mutating a `granted` grant's tools re-pends the whole grant back to
+  `requested` (the merged partial-grant lifecycle) — the previously-granted subset stops working until the
+  operator re-approves. Ids not in the live manifest are ignored; a request whose only ids are unknown (or
+  already granted) never re-pends a live grant. A connector name absent from the operator startup config is
+  inert (config authorship, §18).
+- **Approval** happens in the approvals card (`dashboard.capability.approve`, operator-only), which may
+  grant a partial subset; the granted tools become callable next turn through the §18.1 adapter.
+
 _Landed: the client manager (#38), the grant lifecycle + partial grants + both-direction
-anti-rug-pull (#40), and the pending-action engine (#41). Implementation-pending: the
-broker→AgentTool adapter + definition-token budget (#42), `boardstate_tool_search`
-request/approve loop (#43), `source:"mcp"` host resolution (#45), and first-party connector
-presets (#46)._
+anti-rug-pull (#40), the pending-action engine (#41), the broker→AgentTool adapter + definition-token
+budget (#42), and the `boardstate_tool_search` request/approve loop (#43). Implementation-pending:
+`source:"mcp"` host resolution (#45) and first-party connector presets (#46)._
 
 ---
 

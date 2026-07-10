@@ -8,6 +8,7 @@
 import type { AgentStreamEvent, ChatStopReason } from "@boardstate/schema";
 import { agentToolToJsonSchema, type AgentTool } from "@boardstate/server";
 import { backoffMs, DEFAULT_RETRY_POLICY, classifyFetchError, type RetryPolicy } from "./errors.js";
+import { applyToolDefBudget, type BudgetableToolDef } from "./tool-budget.js";
 import type {
   AssistantTurn,
   ProviderAdapter,
@@ -39,6 +40,17 @@ export type RunAgentTurnOptions = {
   retry?: RetryPolicy;
   /** Injectable delay for retry backoff (default real `setTimeout`; tests pass a no-op). */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Hard cap (estimated tokens) on the shipped tool DEFINITIONS per turn (issue #42).
+   * When set AND at least one `external` tool is present, over-budget external tools
+   * collapse to a name + one-line summary + a `boardstate_tool_search` hint, keeping
+   * the most-recently-used ones in full. Core tools are always shipped in full. Absent
+   * (or no external tool) ⇒ every definition is shipped verbatim (byte-identical to the
+   * pre-M5 loop — epic invariant #7).
+   */
+  toolDefTokenBudget?: number;
+  /** Seed for the definition budget's MRU ranking (most-recently-used tool names first). */
+  recentlyUsedTools?: readonly string[];
 };
 
 export type RunAgentTurnResult = {
@@ -46,6 +58,12 @@ export type RunAgentTurnResult = {
   /** The full provider-native message list after the turn (for history persistence). */
   messages: ProviderMessage[];
   usage: { inputTokens: number; outputTokens: number };
+  /**
+   * Tool names most-recently-used first after this turn (the input MRU with this turn's
+   * tool calls bubbled to the front). Persist + feed back as `recentlyUsedTools` so the
+   * definition budget keeps the tools the agent actually reaches for (issue #42).
+   */
+  recentlyUsedTools: string[];
 };
 
 type ReadyCall = { callId: string; name: string; args: unknown };
@@ -295,10 +313,32 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<RunAge
   } = options;
 
   const toolByName = new Map(tools.map((tool) => [tool.name, tool]));
-  const providerTools: ProviderTool[] = tools.map((tool) => {
+  // The full (unbudgeted) definitions, tagged with whether the budget may collapse them.
+  const fullDefs: BudgetableToolDef[] = tools.map((tool) => {
     const schema = agentToolToJsonSchema(tool);
-    return { name: schema.name, description: schema.description, parameters: schema.inputSchema };
+    return {
+      name: schema.name,
+      description: schema.description,
+      parameters: schema.inputSchema,
+      collapsible: tool.external === true,
+    };
   });
+  const budgets = options.toolDefTokenBudget;
+  // The budget only engages when a collapsible (external) tool is present; otherwise the
+  // shipped definitions are byte-identical to the pre-M5 loop (epic invariant #7).
+  const budgetActive = budgets !== undefined && fullDefs.some((def) => def.collapsible);
+  const plainDefs: ProviderTool[] = fullDefs.map(({ collapsible: _c, ...def }) => def);
+  const mru: string[] = [...(options.recentlyUsedTools ?? [])];
+  const providerToolsForTurn = (): ProviderTool[] =>
+    budgetActive ? applyToolDefBudget(fullDefs, { maxTokens: budgets!, mru }) : plainDefs;
+  /** Bubble a just-used tool to the front of the MRU list (dedup, in-place). */
+  const touchTool = (name: string): void => {
+    const existing = mru.indexOf(name);
+    if (existing !== -1) {
+      mru.splice(existing, 1);
+    }
+    mru.unshift(name);
+  };
 
   // The first message is the human turn; subsequent user/tool messages are appended by
   // the adapter's formatToolResult (a plain string content is valid for both providers).
@@ -312,12 +352,12 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<RunAge
 
   const finish = (stopReason: ChatStopReason): RunAgentTurnResult => {
     emit({ type: "turn-end", sessionKey, turnId, stopReason });
-    return { stopReason, messages, usage };
+    return { stopReason, messages, usage, recentlyUsedTools: mru };
   };
   const abortFinish = (): RunAgentTurnResult => {
     emit({ type: "abort", sessionKey, turnId });
     emit({ type: "turn-end", sessionKey, turnId, stopReason: "aborted" });
-    return { stopReason: "aborted", messages, usage };
+    return { stopReason: "aborted", messages, usage, recentlyUsedTools: mru };
   };
 
   if (signal.aborted) {
@@ -329,7 +369,9 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<RunAge
       provider,
       system,
       messages,
-      providerTools,
+      // Re-budget each iteration so a tool used earlier THIS turn keeps its full schema
+      // for the calls that follow (MRU is updated below as calls resolve).
+      providerTools: providerToolsForTurn(),
       emit,
       signal,
       sessionKey,
@@ -374,12 +416,14 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<RunAge
       sessionKey,
       turnId,
     });
-    // Append tool results in call order so the provider history pairs tool_use↔tool_result.
+    // Append tool results in call order so the provider history pairs tool_use↔tool_result,
+    // and bubble each called tool to the front of the MRU (drives the definition budget).
     for (const call of streamed.toolCalls) {
       const outcome = outcomes.get(call.callId);
       if (outcome) {
         messages.push(provider.formatToolResult(call.callId, outcome));
       }
+      touchTool(call.name);
     }
 
     if (signal.aborted) {

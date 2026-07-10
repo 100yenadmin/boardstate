@@ -19,6 +19,7 @@ import {
   toolDescription,
   BindingSchema,
   type DashboardBroadcast,
+  type ToolSearchCapability,
 } from "./tools.js";
 
 export type DashboardToolParams = {
@@ -26,6 +27,8 @@ export type DashboardToolParams = {
   store?: DashboardStore;
   broadcast?: DashboardBroadcast;
   dataRead?: ResolveBindingOptions;
+  /** Backs `boardstate_tool_search` (M5c-2); wire from `createBrokerToolSearch` when a broker is present. */
+  toolSearch?: ToolSearchCapability;
 };
 
 export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
@@ -33,7 +36,12 @@ export function createDashboardTools(params: DashboardToolParams): AgentTool[] {
   const actor = actorFromContext(params.context);
   const broadcast = params.broadcast;
   return [
-    ...createDashboardCoreTools({ context: params.context, store, broadcast }),
+    ...createDashboardCoreTools({
+      context: params.context,
+      store,
+      broadcast,
+      ...(params.toolSearch ? { toolSearch: params.toolSearch } : {}),
+    }),
     {
       name: "dashboard_widget_scaffold",
       label: "Dashboard Widget Scaffold",

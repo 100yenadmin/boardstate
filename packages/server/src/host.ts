@@ -50,6 +50,13 @@ export type AgentTool = {
    * mutation (fail-safe).
    */
   readOnly?: boolean;
+  /**
+   * True for tools sourced from an EXTERNAL broker grant (M5c-1) — their descriptions
+   * and schemas are untrusted third-party content that can dwarf the prompt. Absent ⇒
+   * a first-party (`dashboard_*`) tool. The agent runner's definition-token budget only
+   * collapses `external` tools; core tools are always shipped in full (issue #42).
+   */
+  external?: boolean;
   execute: (toolCallId: string, params: unknown) => AgentToolResult | Promise<AgentToolResult>;
 };
 

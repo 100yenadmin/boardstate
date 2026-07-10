@@ -55,6 +55,23 @@ export {
   type InstallBrokerActionsOptions,
 } from "./broker-actions.js";
 
+// M5c agent surface (#42 + #43): the broker→AgentTool adapter + definition-token budget,
+// the `boardstate_tool_search` request/approve backing, and the registerTool wiring.
+export {
+  createBrokerAgentTools,
+  createBrokerToolSearch,
+  installBrokerAgentTools,
+  type AgentToolBroker,
+  type BrokerToolEntry,
+  type BrokerToolSnapshot,
+  type BrokerAgentToolsDeps,
+  type BrokerAgentToolsHandle,
+  type BrokerToolSearchDeps,
+  type BrokerAgentHost,
+  type InstallBrokerAgentToolsOptions,
+  type InstallBrokerAgentToolsHandle,
+} from "./broker-agent-tools.js";
+
 export {
   installWidgetBundle,
   WIDGET_BUNDLE_MAX_BYTES,

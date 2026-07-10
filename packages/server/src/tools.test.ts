@@ -55,6 +55,7 @@ describe("dashboard tools", () => {
         "dashboard_undo",
         "dashboard_widget_catalog",
         "dashboard_design_review",
+        "boardstate_tool_search",
         "dashboard_widget_scaffold",
         "dashboard_data_read",
       ]);
@@ -92,6 +93,7 @@ describe("dashboard tools", () => {
         dashboard_widget_scaffold: { name: "custom-card" },
         dashboard_undo: {},
         dashboard_data_read: { binding: { source: "static", value: { ok: true } } },
+        boardstate_tool_search: { mode: "search", query: "send" },
       };
       for (const [name, tool] of tools) {
         expect(Value.Check(tool.parameters, validSamples[name])).toBe(true);

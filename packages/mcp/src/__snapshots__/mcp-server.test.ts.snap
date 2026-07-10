@@ -237,6 +237,50 @@ exports[`@boardstate/mcp server > emits a standard JSON Schema inputSchema for e
     ],
     "type": "object",
   },
+  "boardstate_tool_search": {
+    "additionalProperties": false,
+    "properties": {
+      "connector": {
+        "description": "Connector name. Optional filter for search; required for request.",
+        "type": "string",
+      },
+      "limit": {
+        "description": "search: max results (default 25).",
+        "maximum": 50,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "mode": {
+        "anyOf": [
+          {
+            "const": "search",
+            "type": "string",
+          },
+          {
+            "const": "request",
+            "type": "string",
+          },
+        ],
+        "description": ""search" a catalog or "request" tools for operator approval.",
+      },
+      "query": {
+        "description": "search: match against tool name/description.",
+        "type": "string",
+      },
+      "tools": {
+        "description": "request: the connector:tool ids to request.",
+        "items": {
+          "description": "A connector:tool id.",
+          "type": "string",
+        },
+        "type": "array",
+      },
+    },
+    "required": [
+      "mode",
+    ],
+    "type": "object",
+  },
   "boardstate_undo": {
     "additionalProperties": false,
     "properties": {},
