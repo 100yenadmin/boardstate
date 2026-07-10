@@ -98,13 +98,25 @@ export function reconcileReplaceApproval(
   return incoming;
 }
 
-/** Order-insensitive equality for two string lists (grant tool-surface comparison). */
+/**
+ * True set equality for two string lists (grant tool-surface comparison) —
+ * order- AND duplicate-insensitive. A length compare + one-way membership was
+ * WRONG when one side carried a repeated id: `["x","y"]` vs `["x","x"]` are the
+ * same length and every element of the first is in the second's Set, so a real
+ * surface swap could evade the re-pend gate. Compare de-duplicated sets both ways.
+ */
 function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  if (setA.size !== setB.size) {
     return false;
   }
-  const set = new Set(a);
-  return b.every((entry) => set.has(entry));
+  for (const entry of setA) {
+    if (!setB.has(entry)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function assertWorkspaceSize(serialized: string): void {

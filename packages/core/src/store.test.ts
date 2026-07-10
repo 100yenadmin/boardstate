@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { FsStorageAdapter } from "./adapters/storage-fs.js";
-import { DashboardStore } from "./store.js";
+import { DashboardStore, reconcileReplaceApproval } from "./store.js";
 
 async function withTempStateDir<T>(run: (stateDir: string) => Promise<T>): Promise<T> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-store-"));
@@ -399,6 +399,40 @@ describe("replaceSanitized (approval gate, SPEC §8.2)", () => {
       });
       expect(noop.doc.capabilitiesRegistry!.officecli!.status).toBe("granted");
     });
+  });
+
+  it("re-pends a same-length surface SWAP even when current tools hold a duplicate", () => {
+    // Adversarial verify 2026-07-10: sameStringSet compared length + one-way
+    // membership, so a granted grant whose current tools were ["x","x"] would NOT
+    // re-pend when swapped to ["x","y"] (same length, x ∈ {x}). Hand-built docs
+    // bypass schema (which now also rejects dup ids) to test the gate standalone.
+    const current = {
+      capabilitiesRegistry: {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail", "officecli:read_mail"],
+          toolsHash: "hash-x",
+          grantedBy: "user",
+        },
+      },
+    } as never;
+    const incoming = {
+      capabilitiesRegistry: {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail", "officecli:send_mail"],
+          toolsHash: "hash-x",
+          grantedBy: "user",
+        },
+      },
+    } as never;
+    const out = reconcileReplaceApproval(incoming, current);
+    expect(out.capabilitiesRegistry!.officecli!.status).toBe("requested");
+    expect(out.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
   });
 });
 

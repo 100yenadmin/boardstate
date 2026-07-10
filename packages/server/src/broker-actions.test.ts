@@ -47,11 +47,28 @@ class FakeBroker implements ActionBroker {
     };
   }
 
+  /** When set, the NEXT callTool suspends on this promise (for interleave tests). */
+  private gate: Promise<void> | null = null;
+  private releaseGate: (() => void) | null = null;
+
+  /** Arm a one-shot pause: the next callTool blocks until `release()` is called. */
+  pauseNextCall(): () => void {
+    this.gate = new Promise<void>((resolve) => {
+      this.releaseGate = resolve;
+    });
+    return () => this.releaseGate?.();
+  }
+
   async callTool(
     toolRef: string,
     args: Record<string, unknown> = {},
   ): Promise<{ content: unknown; structuredContent?: unknown }> {
     this.calls.push({ id: toolRef, args });
+    if (this.gate) {
+      const gate = this.gate;
+      this.gate = null;
+      await gate;
+    }
     if (toolRef.endsWith(":boom")) {
       throw new Error("boom: tool failed");
     }
@@ -261,6 +278,30 @@ describe("dashboard.action.invoke — mutations park behind confirm", () => {
     const loser = a.ok ? b : a;
     expect(loser.code).toBe("action_not_pending");
   });
+
+  it("a confirm in flight cannot be overturned by a concurrent deny", async () => {
+    // Same claim guards confirm-vs-deny: the sync claim removes the entry before the
+    // broker await yields, so a racing deny gets action_not_pending and can never
+    // overwrite the executed action's terminal status.
+    await setup([READ, SEND]);
+    await grantAll("officecli");
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+      args: { to: "ops@x.io" },
+    });
+    const [confirmed, denied] = await Promise.all([
+      req("dashboard.action.confirm", { id: parked.result.id }),
+      req("dashboard.action.deny", { id: parked.result.id }),
+    ]);
+    expect(confirmed.ok).toBe(true); // confirm claimed first (dispatched first)
+    expect(broker.calls).toHaveLength(1); // executed exactly once
+    expect(denied.ok).toBe(false);
+    expect(denied.code).toBe("action_not_pending"); // deny found nothing to overturn
+    // The audit trail ends on "confirmed"/executed, never a deny-after-execute.
+    const last = handle!.auditLog().at(-1);
+    expect(last).toMatchObject({ event: "confirm", outcome: "executed" });
+  });
 });
 
 describe("TTL expiry", () => {
@@ -281,6 +322,30 @@ describe("TTL expiry", () => {
     );
     expect(broker.calls).toHaveLength(0);
     expect(actionEvents.some((event) => event.status === "expired")).toBe(true);
+  });
+
+  it("the TTL timer cannot fire while a confirm is executing (real interleave)", async () => {
+    // The genuine confirm-vs-TTL race: the timer must not settle the action to
+    // `expired` WHILE confirm is suspended mid-broker-call. The claim clears the
+    // timer synchronously before the await, so advancing past the TTL during the
+    // suspended call is a no-op. Pre-fix, the timer fired here and overwrote the
+    // in-flight confirm with an `expired` terminal + audit entry.
+    await setup([READ, SEND], { ttlMs: 1000 });
+    await grantAll("officecli");
+    const parked = await req("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "send_mail",
+    });
+    const release = broker.pauseNextCall(); // suspend the tool call mid-confirm
+    const confirming = req("dashboard.action.confirm", { id: parked.result.id });
+    await vi.advanceTimersByTimeAsync(2000); // TTL elapses WHILE the call is suspended
+    expect(actionEvents.some((event) => event.status === "expired")).toBe(false);
+    release();
+    const confirmed = await confirming;
+    expect(confirmed.ok).toBe(true);
+    expect(broker.calls).toHaveLength(1);
+    expect(handle!.auditLog().filter((entry) => entry.event === "expire")).toHaveLength(0);
+    expect(handle!.auditLog().at(-1)).toMatchObject({ event: "confirm", outcome: "executed" });
   });
 });
 
