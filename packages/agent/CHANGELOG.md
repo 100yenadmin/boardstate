@@ -1,5 +1,12 @@
 # @boardstate/agent
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [[`51a8ef9`](https://github.com/100yenadmin/boardstate/commit/51a8ef9a1259d0a3f994e725b1ceef58f74718ad)]:
+  - @boardstate/server@0.5.1
+
 ## 0.2.4
 
 ### Patch Changes
