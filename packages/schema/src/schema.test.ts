@@ -602,4 +602,17 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
       ),
     ).toThrow("toolsHash is invalid");
   });
+
+  it("rejects a grant with duplicate tool ids (a grant's tools are a set)", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({
+          status: "requested",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail", "officecli:read_mail"],
+        }),
+      ),
+    ).toThrow("duplicate tool ids");
+  });
 });

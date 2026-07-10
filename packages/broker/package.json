@@ -34,6 +34,9 @@
     "@boardstate/server": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
+  "devDependencies": {
+    "@boardstate/core": "workspace:*"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/100yenadmin/boardstate.git",

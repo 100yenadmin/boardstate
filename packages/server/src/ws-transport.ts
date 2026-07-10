@@ -46,6 +46,9 @@ export const DEFAULT_FORWARDED_EVENTS: readonly string[] = [
     "boardstate.changed",
     "boardstate.widget-state.changed",
     "boardstate.presence",
+    // Pending-action lifecycle (SPEC §18) — a networked board renders live status as
+    // an action is parked / confirmed / denied / expired.
+    "dashboard.action.changed",
     CHAT_EVENT,
     ...STREAM_EVENT_ALLOWLIST,
   ]),
@@ -76,6 +79,12 @@ const OP_PONG = 0xa;
 export const OPERATOR_ONLY_METHODS: readonly string[] = [
   "dashboard.widget.approve",
   "dashboard.capability.approve",
+  // Confirming/denying a parked side-effecting action is the human's decision to run a
+  // consequential external tool (SPEC §18) — same confused-deputy reasoning as widget
+  // approval. `dashboard.action.invoke` is NOT here: any client may invoke, but a
+  // mutation only PARKS (a readOnly granted tool executes directly, §17.1).
+  "dashboard.action.confirm",
+  "dashboard.action.deny",
 ];
 
 export type AttachWsTransportOptions = {

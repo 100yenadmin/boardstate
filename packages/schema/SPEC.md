@@ -353,23 +353,30 @@ browsers).
   until it matches an operator-configured connector: no command, URL, or env can ever
   originate from the doc. The doc references connectors; it never defines them.
 - **Pending-action lifecycle (normative).** A non-`readOnly` tool invocation is parked as a
-  persisted `PendingActionRecord` `{ id, connector, tool, args, requestedBy?, createdAt,
-expiresAt, status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. A
-  parked action executes only after an OPERATOR confirm; it is otherwise denied or expires
-  past `expiresAt`. This schema train contributes the TYPE + shape guard
-  (`validatePendingAction`); the lifecycle engine is implementation-pending.
-- **Operator-only confirm (normative).** `dashboard.action.confirm` ∈ `OPERATOR_ONLY_METHODS`:
-  it is NOT in the agent tool catalog and is unreachable over an unauthenticated networked
-  transport. A networked client can directly execute ONLY `readOnly` granted tools; anything
-  consequential goes through the confirm gate.
+  `PendingActionRecord` `{ id, connector, tool, args, requestedBy?, createdAt, expiresAt,
+status }` with `status: "pending" | "confirmed" | "denied" | "expired"`. The engine
+  (`installBrokerActions`, `@boardstate/server`) holds the registry IN MEMORY: `dashboard.action.invoke`
+  AND-gates a call (tool granted at invoke time + connector configured + manifest hash unchanged),
+  executes a `readOnly` granted tool DIRECTLY, and PARKS a mutation (TTL ~5 min ⇒ `expired`). A
+  parked action executes only after an OPERATOR `dashboard.action.confirm`; `dashboard.action.deny`
+  denies it. `confirmed`/`denied`/`expired` are terminal and single-shot — a replay of a terminal id
+  errors. Every invoke rate-limits (server-side, prompt-gate discipline) and appends an audit entry;
+  lifecycle transitions broadcast on `dashboard.action.changed`. `confirmAndExecute(id)` is the
+  awaitable an agent-mediated call (M5c-1) blocks on.
+- **Operator-only confirm (normative).** `dashboard.action.confirm` and `dashboard.action.deny` ∈
+  `OPERATOR_ONLY_METHODS`: NOT in the agent tool catalog and unreachable over an unauthenticated
+  networked transport. `dashboard.action.invoke` is NOT operator-only — any client may invoke, but a
+  networked client can directly EXECUTE only `readOnly` granted tools; anything consequential PARKS
+  and goes through the confirm gate.
 - **External text is DATA.** Tool descriptions and results are rendered inert — never
   re-interpolated into control-plane verbs, never able to mutate the board outside gated
   verbs.
 
-_Implementation-pending (this train lands only the schema surface): the client manager
-(#38), the broker→AgentTool adapter + definition-token budget (#42), `boardstate_tool_search`
-request/approve loop (#43), the pending-action engine (#41), `source:"mcp"` host resolution
-(#45), and first-party connector presets (#46)._
+_Landed: the client manager (#38), the grant lifecycle + partial grants + both-direction
+anti-rug-pull (#40), and the pending-action engine (#41). Implementation-pending: the
+broker→AgentTool adapter + definition-token budget (#42), `boardstate_tool_search`
+request/approve loop (#43), `source:"mcp"` host resolution (#45), and first-party connector
+presets (#46)._
 
 ---
 

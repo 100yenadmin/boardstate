@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { FsStorageAdapter } from "./adapters/storage-fs.js";
-import { DashboardStore } from "./store.js";
+import { DashboardStore, reconcileReplaceApproval } from "./store.js";
 
 async function withTempStateDir<T>(run: (stateDir: string) => Promise<T>): Promise<T> {
   const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-store-"));
@@ -339,6 +339,100 @@ describe("replaceSanitized (approval gate, SPEC §8.2)", () => {
         createdBy: "agent:x",
       });
     });
+  });
+
+  it("re-pends a granted tools grant whose tools/toolsHash is mutated (SPEC §17.1)", async () => {
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      const seed = await store.read();
+      seed.capabilitiesRegistry = {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail"],
+          toolsHash: "hash-read",
+          grantedBy: "user",
+          grantedAt: "2026-01-01T00:00:00.000Z",
+        },
+      };
+      await store.replace(seed, { actor: "user" });
+
+      // A) appending a tool id to a still-granted grant re-pends it.
+      const widen = structuredClone(await store.read());
+      widen.capabilitiesRegistry!.officecli!.tools = ["officecli:read_mail", "officecli:send_mail"];
+      const widened = await store.replaceSanitized(widen, { actor: "agent:x" });
+      expect(widened.doc.capabilitiesRegistry!.officecli!.status).toBe("requested");
+      expect(widened.doc.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
+
+      // Re-grant, then B) swapping only the hash (rug-pull digest) also re-pends.
+      const regrant = structuredClone(widened.doc);
+      regrant.capabilitiesRegistry!.officecli = {
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:read_mail"],
+        toolsHash: "hash-read",
+        grantedBy: "user",
+        grantedAt: "2026-01-02T00:00:00.000Z",
+      };
+      await store.replace(regrant, { actor: "user" });
+      const swap = structuredClone(await store.read());
+      swap.capabilitiesRegistry!.officecli!.toolsHash = "hash-tampered";
+      const swapped = await store.replaceSanitized(swap, { actor: "agent:x" });
+      expect(swapped.doc.capabilitiesRegistry!.officecli!.status).toBe("requested");
+
+      // An UNCHANGED granted grant survives a replace untouched (no false re-pend).
+      const regrant2 = structuredClone(swapped.doc);
+      regrant2.capabilitiesRegistry!.officecli = {
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:read_mail"],
+        toolsHash: "hash-read",
+        grantedBy: "user",
+        grantedAt: "2026-01-03T00:00:00.000Z",
+      };
+      await store.replace(regrant2, { actor: "user" });
+      const noop = await store.replaceSanitized(structuredClone(await store.read()), {
+        actor: "agent:x",
+      });
+      expect(noop.doc.capabilitiesRegistry!.officecli!.status).toBe("granted");
+    });
+  });
+
+  it("re-pends a same-length surface SWAP even when current tools hold a duplicate", () => {
+    // Adversarial verify 2026-07-10: sameStringSet compared length + one-way
+    // membership, so a granted grant whose current tools were ["x","x"] would NOT
+    // re-pend when swapped to ["x","y"] (same length, x ∈ {x}). Hand-built docs
+    // bypass schema (which now also rejects dup ids) to test the gate standalone.
+    const current = {
+      capabilitiesRegistry: {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail", "officecli:read_mail"],
+          toolsHash: "hash-x",
+          grantedBy: "user",
+        },
+      },
+    } as never;
+    const incoming = {
+      capabilitiesRegistry: {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail", "officecli:send_mail"],
+          toolsHash: "hash-x",
+          grantedBy: "user",
+        },
+      },
+    } as never;
+    const out = reconcileReplaceApproval(incoming, current);
+    expect(out.capabilitiesRegistry!.officecli!.status).toBe("requested");
+    expect(out.capabilitiesRegistry!.officecli!.grantedBy).toBeUndefined();
   });
 });
 

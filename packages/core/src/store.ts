@@ -71,16 +71,52 @@ export function reconcileReplaceApproval(
   // elevate a grant to `granted` — only `dashboard.capability.approve` can. Any newly
   // `granted` entry that wasn't already granted in `current` is forced back to
   // `requested`, so a self-grant smuggled through replace/import cannot mount data.
+  //
+  // Anti-rug-pull, agent-side (SPEC §17.1, both directions): a grant that STAYS
+  // `granted` may not have its authorized `tools`/`toolsHash` MUTATED through
+  // replace/import either. An agent appending a tool id to a granted grant (or
+  // swapping its hash) is a silent widening — force it back to `requested` so the
+  // operator re-approves the new surface. Both the RPC replace path
+  // (`replaceSanitized`) and the agent-tool path (`sanitizeAgentWorkspaceReplace`)
+  // run through here, so this single gate closes both.
   const currentCaps = current.capabilitiesRegistry ?? {};
   const incomingCaps = incoming.capabilitiesRegistry ?? {};
   for (const [name, grant] of Object.entries(incomingCaps)) {
-    if (grant.status === "granted" && currentCaps[name]?.status !== "granted") {
+    const currentGrant = currentCaps[name];
+    const selfElevated = grant.status === "granted" && currentGrant?.status !== "granted";
+    const surfaceMutated =
+      grant.status === "granted" &&
+      currentGrant?.status === "granted" &&
+      (!sameStringSet(grant.tools ?? [], currentGrant.tools ?? []) ||
+        (grant.toolsHash ?? "") !== (currentGrant.toolsHash ?? ""));
+    if (selfElevated || surfaceMutated) {
       grant.status = "requested";
       delete grant.grantedBy;
       delete grant.grantedAt;
     }
   }
   return incoming;
+}
+
+/**
+ * True set equality for two string lists (grant tool-surface comparison) —
+ * order- AND duplicate-insensitive. A length compare + one-way membership was
+ * WRONG when one side carried a repeated id: `["x","y"]` vs `["x","x"]` are the
+ * same length and every element of the first is in the second's Set, so a real
+ * surface swap could evade the re-pend gate. Compare de-duplicated sets both ways.
+ */
+function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  if (setA.size !== setB.size) {
+    return false;
+  }
+  for (const entry of setA) {
+    if (!setB.has(entry)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function assertWorkspaceSize(serialized: string): void {

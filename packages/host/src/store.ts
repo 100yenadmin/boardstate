@@ -550,11 +550,15 @@ export async function approveWidget(
   }
 }
 
-/** Operator grant/revoke of a connector's data capability (SPEC §17). */
+/**
+ * Operator grant/revoke of a connector's data/tool capability (SPEC §17). A partial
+ * grant (§17.1) passes the SUBSET of `connector:tool` ids the operator ticked; omitted
+ * ⇒ approve-all (the full requested set).
+ */
 export async function approveCapability(
   state: DashboardUiState,
   transport: Transport | null,
-  params: { name: string; decision: "granted" | "revoked" },
+  params: { name: string; decision: "granted" | "revoked"; tools?: string[] },
 ): Promise<void> {
   if (!transport) {
     return;
@@ -565,6 +569,7 @@ export async function approveCapability(
     await transport.request("dashboard.capability.approve", {
       name: params.name,
       decision: params.decision,
+      ...(params.tools !== undefined ? { tools: params.tools } : {}),
     });
   } catch (err) {
     state.actionError = formatError(err);

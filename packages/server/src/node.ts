@@ -40,6 +40,21 @@ export {
   type WsTransportHandle,
 } from "./ws-transport.js";
 
+// The M5 trust layer's server-enforced half (SPEC §17.1 tool grants + §18 pending
+// actions): grant registration + the pending-action engine, wired onto a host and
+// fed a broker through the narrow `ActionBroker` interface (no `@boardstate/broker`
+// import — the real `McpBroker` fits it structurally).
+export {
+  installBrokerActions,
+  ACTION_EVENT,
+  type ActionBroker,
+  type ActionToolManifest,
+  type ActionToolManifestEntry,
+  type BrokerActionAuditEntry,
+  type BrokerActionsHandle,
+  type InstallBrokerActionsOptions,
+} from "./broker-actions.js";
+
 export {
   installWidgetBundle,
   WIDGET_BUNDLE_MAX_BYTES,

@@ -30,7 +30,7 @@ import {
   BrokerToolError,
   BrokerUnknownConnectorError,
 } from "./errors.js";
-import { buildManifest, type DiscoveredTool, type ToolManifest } from "./manifest.js";
+import { buildManifest, manifestHash, type DiscoveredTool, type ToolManifest } from "./manifest.js";
 import { parseManifestId } from "./names.js";
 
 const CLIENT_NAME = "boardstate-broker";
@@ -304,6 +304,20 @@ export class McpBroker {
         ? { structuredContent: result.structuredContent }
         : {}),
     };
+  }
+
+  /**
+   * The anti-rug-pull digest scoped to EXACTLY `toolIds` (SPEC §17.1): hash the
+   * manifest entries whose id is in the set, in the SAME canonical form as the
+   * whole-manifest hash. A grant pins this over its authorized tool-id set, so the
+   * digest moves iff one of THOSE tools' input schema or `readOnly` flips — adding an
+   * unrelated tool to the connector never re-pends a partial grant. Consumed by the
+   * server-side pending-action engine (`ActionBroker.hashToolSubset`) and the
+   * partial-grant approve path.
+   */
+  hashToolSubset(manifest: ToolManifest, toolIds: readonly string[]): string {
+    const set = new Set(toolIds);
+    return manifestHash(manifest.tools.filter((entry) => set.has(entry.id)));
   }
 
   /** Close every warm client. Idempotent; safe to call in a `finally`. */

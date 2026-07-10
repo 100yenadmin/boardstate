@@ -818,6 +818,13 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
           }
           return tool;
         });
+  // A grant's tools are a SET — duplicates are rejected, not silently collapsed. A
+  // repeated id would let a same-length surface swap slip past the store's re-pend
+  // set-comparison (defense in depth with sameStringSet); forbidding it here keeps
+  // the persisted grant in canonical form.
+  if (tools !== undefined && new Set(tools).size !== tools.length) {
+    throw new Error(`${path}.tools contains duplicate tool ids`);
+  }
   const toolsHash = optionalString(record, "toolsHash", path);
   if (toolsHash !== undefined && !TOOLS_HASH_PATTERN.test(toolsHash)) {
     throw new Error(`${path}.toolsHash is invalid`);

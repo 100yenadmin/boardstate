@@ -12,6 +12,32 @@ import { mapApprovals, type DashboardWidget } from "@boardstate/core";
 import { t } from "../strings.js";
 import type { BuiltinWidgetContext } from "./types.js";
 
+/** The badge label for an approval row's kind (widget / data source / action). */
+function kindLabel(kind: "widget" | "capability" | "action"): string {
+  if (kind === "capability") {
+    return t("dashboard.widget.approvals.kind.capability");
+  }
+  if (kind === "action") {
+    return t("dashboard.widget.approvals.kind.action");
+  }
+  return t("dashboard.widget.approvals.kind.widget");
+}
+
+/**
+ * Collect the ticked tool ids for a capability row: read the checkboxes inside THIS
+ * row (uncontrolled — their DOM state persists across re-renders until the row's data
+ * changes). All ticked ⇒ the operator approves the full requested set.
+ */
+function checkedTools(event: Event): string[] {
+  const row = (event.currentTarget as HTMLElement | null)?.closest("li");
+  if (!row) {
+    return [];
+  }
+  return [...row.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+    .filter((box) => box.checked)
+    .map((box) => box.value);
+}
+
 export function renderApprovals(
   widget: DashboardWidget,
   _value: unknown,
@@ -26,16 +52,23 @@ export function renderApprovals(
   }
   return html`
     <ul class="dashboard-list dashboard-approvals" data-test-id="dashboard-approvals">
-      ${model.items.map(
-        (item) => html`
+      ${model.items.map((item) => {
+        // A pending action (SPEC §18) confirms; a widget/grant approves.
+        const affirmLabel =
+          item.kind === "action"
+            ? t("dashboard.widget.approvals.confirm")
+            : t("dashboard.widget.approvals.approve");
+        // Per-tool selection (SPEC §17.1): a capability row lists its requested tools
+        // as pre-ticked checkboxes so the operator can grant a SUBSET; approve reads
+        // the ticked set (all ticked = approve-all).
+        const tools = item.kind === "capability" ? (item.tools ?? []) : [];
+        const affirm =
+          tools.length > 0
+            ? (event: Event) => source?.onDecide(item, "approve", { tools: checkedTools(event) })
+            : () => source?.onDecide(item, "approve");
+        return html`
           <li class="dashboard-list__row">
-            <span class="dashboard-badge dashboard-badge--muted"
-              >${
-                item.kind === "capability"
-                  ? t("dashboard.widget.approvals.kind.capability")
-                  : t("dashboard.widget.approvals.kind.widget")
-              }</span
-            >
+            <span class="dashboard-badge dashboard-badge--muted">${kindLabel(item.kind)}</span>
             <span class="dashboard-list__label">${item.title}</span>
             ${
               item.detail
@@ -46,14 +79,33 @@ export function renderApprovals(
                     >`
                   : nothing
             }
+            ${
+              tools.length > 0
+                ? html`<ul
+                    class="dashboard-approvals__tools"
+                    data-test-id="dashboard-approvals-tools"
+                  >
+                    ${tools.map(
+                      (tool) =>
+                        html`<li>
+                          <label
+                            ><input type="checkbox" value=${tool} checked /><span
+                              >${tool}</span
+                            ></label
+                          >
+                        </li>`,
+                    )}
+                  </ul>`
+                : nothing
+            }
             <span class="dashboard-approvals__actions">
               <button
                 class="bs-btn bs-btn--small bs-btn--primary"
                 type="button"
                 data-test-id="dashboard-approvals-approve"
-                @click=${() => source?.onDecide(item, "approve")}
+                @click=${affirm}
               >
-                ${t("dashboard.widget.approvals.approve")}
+                ${affirmLabel}
               </button>
               <button
                 class="bs-btn bs-btn--small"
@@ -65,8 +117,8 @@ export function renderApprovals(
               </button>
             </span>
           </li>
-        `,
-      )}
+        `;
+      })}
     </ul>
   `;
 }

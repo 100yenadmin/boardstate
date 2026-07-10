@@ -413,6 +413,69 @@ describe("approvals mapping", () => {
       ["capability", "office-tools"],
     ]);
     expect(source.pending[0]!.detail).toBe("wants 1 tool");
+    // The requested tool ids are surfaced for per-tool selection (SPEC §17.1).
+    expect(source.pending[0]!.tools).toEqual(["officecli:send_mail"]);
+  });
+
+  it("threads a partial-grant tools subset through onDecide to resolveCapability (§17.1)", () => {
+    const ws = workspace();
+    ws.capabilitiesRegistry = {
+      officecli: {
+        status: "requested",
+        methods: [],
+        streams: [],
+        tools: ["officecli:read_mail", "officecli:send_mail"],
+      },
+    };
+    const capCalls: Array<[string, string, string[] | undefined]> = [];
+    const source = buildApprovalsSource(
+      ws,
+      () => {},
+      (name, decision, tools) => capCalls.push([name, decision, tools]),
+    );
+    // Approve-all: no tools option.
+    source.onDecide(source.pending[0]!, "approve");
+    // Partial: only the read tool ticked.
+    source.onDecide(source.pending[0]!, "approve", { tools: ["officecli:read_mail"] });
+    expect(capCalls).toEqual([
+      ["officecli", "granted", undefined],
+      ["officecli", "granted", ["officecli:read_mail"]],
+    ]);
+  });
+
+  it("surfaces pending actions as a third row class and routes confirm/deny (SPEC §18)", () => {
+    const ws = workspace({ chart: { status: "pending", createdBy: "agent:main" } });
+    ws.capabilitiesRegistry = {
+      officecli: { status: "requested", methods: [], streams: [], tools: ["officecli:send_mail"] },
+    };
+    const actionCalls: Array<[string, string]> = [];
+    const source = buildApprovalsSource(
+      ws,
+      () => {},
+      () => {},
+      {
+        pending: [
+          { id: "act_1", connector: "officecli", tool: "send_mail", requestedBy: "agent:main" },
+        ],
+        resolve: (id, decision) => actionCalls.push([id, decision]),
+      },
+    );
+    // Actions lead the queue (most urgent), then capabilities, then widgets.
+    expect(source.pending.map((item) => [item.kind, item.id])).toEqual([
+      ["action", "act_1"],
+      ["capability", "officecli"],
+      ["widget", "chart"],
+    ]);
+    expect(source.pending[0]).toMatchObject({
+      title: "officecli:send_mail",
+      requestedBy: "agent:main",
+    });
+    source.onDecide(source.pending[0]!, "approve");
+    source.onDecide(source.pending[0]!, "reject");
+    expect(actionCalls).toEqual([
+      ["act_1", "confirm"],
+      ["act_1", "deny"],
+    ]);
   });
 
   it("maps decisions to the registry vocabulary and limits the row count", () => {
