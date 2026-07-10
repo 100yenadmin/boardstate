@@ -148,5 +148,13 @@ describe("M5 additive claim — pre-M5 docs behave byte-identically", () => {
     const overflow = structuredClone(RICH_PRE_M5_DOC);
     overflow.tabs[0]!.widgets[0]!.grid = { x: 10, y: 0, w: 4, h: 2 };
     expect(() => validateWorkspaceDoc(overflow)).toThrow("x + w");
+    // A grant omitting methods/streams was rejected pre-M5 and must stay rejected
+    // (the tools lane never relaxes the old required keys).
+    const noMethods = structuredClone(RICH_PRE_M5_DOC);
+    noMethods.capabilitiesRegistry = { "prod-db": { status: "granted", streams: [] } } as never;
+    expect(() => validateWorkspaceDoc(noMethods)).toThrow("methods must be an array");
+    const noStreams = structuredClone(RICH_PRE_M5_DOC);
+    noStreams.capabilitiesRegistry = { "prod-db": { status: "granted", methods: [] } } as never;
+    expect(() => validateWorkspaceDoc(noStreams)).toThrow("streams must be an array");
   });
 });

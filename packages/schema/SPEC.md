@@ -316,11 +316,11 @@ connector's side-effecting surface. A grant gains two optional fields:
 - **`toolsHash: string`** — an opaque digest over the connector's declared tool manifest
   at grant time (anti-rug-pull; see below). Validated for shape, never recomputed here.
 
-- **Always-array normalization.** `methods`, `streams`, and `tools` are optional on
-  INPUT but ALWAYS arrays on OUTPUT: a data-only grant may omit `tools`; a tools-only
-  grant may omit `methods`/`streams` (each normalizes to `[]`). A pre-v2 grant (which
-  always carried `methods`+`streams`) validates BYTE-IDENTICALLY — `tools`/`toolsHash`
-  are omitted when absent, never invented.
+- **Required keys never relax.** `methods` and `streams` stay REQUIRED, exactly as
+  v1 — a grant omitting them is rejected, so every pre-v2 verdict is unchanged. A
+  tools-only grant declares them as explicit empty arrays (`methods: [], streams: []`).
+  Only the NEW keys are optional: a data-only grant simply omits `tools`/`toolsHash`,
+  and they are never invented on output.
 - **Request → approve.** A connector REQUESTS the tools it needs (grant lands
   `requested`, snapshotting `tools` + `toolsHash`); an OPERATOR approves. Approve/confirm
   stay operator-only (`OPERATOR_ONLY_METHODS`) and unreachable over an unauthenticated

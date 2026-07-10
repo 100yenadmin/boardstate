@@ -787,16 +787,16 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
   if (typeof status !== "string" || !CAPABILITY_STATUSES.has(status as DashboardCapabilityStatus)) {
     throw new Error(`${path}.status must be requested, granted, or revoked`);
   }
-  // methods/streams are optional-IN (a tools-only grant omits them) but ALWAYS
-  // arrays OUT — existing `.length` consumers (approvals reach summary) keep working.
-  // A pre-§17 grant always carried both, so its validated output is byte-identical.
-  const methods = optionalAllowlistArray(
+  // methods/streams stay REQUIRED, exactly as pre-§17 (a doc omitting them was
+  // rejected then and must stay rejected — invariant #7). A tools-only grant
+  // declares them as explicit empty arrays; `.length` consumers rely on that.
+  const methods = allowlistArray(
     record.methods,
     `${path}.methods`,
     DATA_READ_RPC_ALLOWLIST,
     "allowlisted read method",
   );
-  const streams = optionalAllowlistArray(
+  const streams = allowlistArray(
     record.streams,
     `${path}.streams`,
     STREAM_EVENT_ALLOWLIST,
@@ -844,19 +844,16 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
 }
 
 /**
- * An optional array of allowlisted string entries → always an array out ([] when
- * absent). Shared by a grant's `methods`/`streams` so a tools-only grant may omit
- * them while every consumer still sees an array.
+ * A REQUIRED array of allowlisted string entries. Shared by a grant's
+ * `methods`/`streams`; an absent key rejects, exactly as pre-§17 (invariant #7 —
+ * verdicts on old shapes never change). Tools-only grants pass explicit [].
  */
-function optionalAllowlistArray(
+function allowlistArray(
   value: unknown,
   path: string,
   allowlist: readonly string[],
   label: string,
 ): string[] {
-  if (value === undefined) {
-    return [];
-  }
   return requireArray(value, path).map((entry, index) => {
     if (typeof entry !== "string" || !allowlist.includes(entry)) {
       throw new Error(`${path}[${index}] is not an ${label}`);

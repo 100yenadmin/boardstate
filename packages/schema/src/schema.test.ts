@@ -536,9 +536,9 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
     });
   });
 
-  it("normalizes a tools-only grant to always-array methods + streams", () => {
+  it("accepts a tools-only grant with explicit empty methods/streams", () => {
     const validated = validateWorkspaceDoc(
-      withGrant({ status: "requested", tools: ["officecli:read_sheet"] }),
+      withGrant({ status: "requested", methods: [], streams: [], tools: ["officecli:read_sheet"] }),
     );
     const grant = validated.capabilitiesRegistry!.officecli!;
     expect(grant.methods).toEqual([]);
@@ -546,15 +546,28 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
     expect(grant.tools).toEqual(["officecli:read_sheet"]);
   });
 
+  it("still rejects a grant missing methods or streams (pre-§17 verdicts unchanged)", () => {
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({ status: "requested", streams: [], tools: ["officecli:read_sheet"] }),
+      ),
+    ).toThrow("methods must be an array");
+    expect(() =>
+      validateWorkspaceDoc(
+        withGrant({ status: "requested", methods: [], tools: ["officecli:read_sheet"] }),
+      ),
+    ).toThrow("streams must be an array");
+  });
+
   it("rejects a tool id without a connector:tool namespace", () => {
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", tools: ["read_sheet"] })),
+      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: ["read_sheet"] })),
     ).toThrow("tools[0] is not a valid connector:tool id");
   });
 
   it("rejects a tool id over 64 characters", () => {
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", tools: [`c:${"t".repeat(64)}`] })),
+      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: [`c:${"t".repeat(64)}`] })),
     ).toThrow("tools[0] is not a valid connector:tool id");
   });
 
@@ -562,7 +575,7 @@ describe("capability grant tool grants (SPEC §17 v2)", () => {
     // A grant's `tools` are external tool ids, not read RPCs — a namespaced id that
     // is nowhere in DATA_READ_RPC_ALLOWLIST is still valid.
     expect(() =>
-      validateWorkspaceDoc(withGrant({ status: "requested", tools: ["stripe:create_charge"] })),
+      validateWorkspaceDoc(withGrant({ status: "requested", methods: [], streams: [], tools: ["stripe:create_charge"] })),
     ).not.toThrow();
   });
 
