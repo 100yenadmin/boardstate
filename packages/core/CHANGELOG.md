@@ -1,5 +1,75 @@
 # @boardstate/core
 
+## 1.2.0
+
+### Minor Changes
+
+- [#51](https://github.com/100yenadmin/boardstate/pull/51) [`b05c7cd`](https://github.com/100yenadmin/boardstate/commit/b05c7cd5c50d10b83374bad0dde92c128cd00470) Thanks [@100yenadmin](https://github.com/100yenadmin)! - feat(schema): SPEC §17 v2 tool grants + all M5 schema surface (one schema train, M5b-1)
+
+  The single S5-1 schema train — all M5 (Operational Workspace) schema surface rides
+  one release so later sprints consume a released schema. Fully additive: boards using
+  none of the new surface validate + normalize byte-identically (regression-tested).
+
+  - **Tool grants (SPEC §17 v2):** `DashboardCapabilityGrant` gains `tools?: string[]`
+    (namespaced `connector:tool` ids, shape-validated — NOT against
+    `DATA_READ_RPC_ALLOWLIST`) and `toolsHash?`. `methods`/`streams`/`tools` are
+    optional-in / always-array-out.
+  - **Pending-action record:** `PendingActionRecord` type + `validatePendingAction`
+    shape guard for the [#41](https://github.com/100yenadmin/boardstate/issues/41) engine (type + validation only).
+  - **`builtin:action-button`** kind + props validator `{connector, tool, args?, label?}`.
+  - **action-form `mode:"tool"`:** `mode`/`connector`/`tool`/`argsFrom` extend the
+    fixed key-set; prompt mode stays the default and byte-identical.
+  - **`source:"mcp"` binding:** `{source:"mcp", connector, tool, args?}` (shape only;
+    host resolution is [#45](https://github.com/100yenadmin/boardstate/issues/45)).
+  - **`dashboard.connector.list`** added to `DATA_READ_RPC_ALLOWLIST` (broker status read).
+  - **WIDGET_CATALOG:** `action-button` entry + action-form tool-mode example (honesty-gate valid).
+
+- [#53](https://github.com/100yenadmin/boardstate/pull/53) [`a0feba7`](https://github.com/100yenadmin/boardstate/commit/a0feba7dc3939c577387c0509aa3fb1ba710e477) Thanks [@100yenadmin](https://github.com/100yenadmin)! - M5 trust layer (M5b-2 + M5b-3, epic [#37](https://github.com/100yenadmin/boardstate/issues/37)): the grant lifecycle for external MCP tools
+  and the server-enforced pending-action engine — closes [#40](https://github.com/100yenadmin/boardstate/issues/40) and [#41](https://github.com/100yenadmin/boardstate/issues/41).
+
+  **Grant lifecycle + both-direction anti-rug-pull (SPEC §17.1, [#40](https://github.com/100yenadmin/boardstate/issues/40))**
+
+  - `installBrokerActions` (`@boardstate/server/node`) registers each configured connector's
+    discovered tools as a `requested` tools-only grant (explicit `methods: []`/`streams: []`,
+    a `tools` id snapshot, and a subset-scoped `toolsHash`), mirroring `installConnector`'s
+    request-on-install. An already-`granted` grant survives a restart; real manifest drift is
+    caught at invoke time.
+  - Server-side anti-rug-pull: on every granted-tool call the live manifest hash is compared
+    to the stored `toolsHash`; a mismatch re-pends the grant to `requested` BEFORE any call
+    succeeds.
+  - Agent-side anti-rug-pull: `reconcileReplaceApproval` now forces a `granted` grant back to
+    `requested` on ANY `tools`/`toolsHash` mutation (not just status flips) — closing the
+    red-team hole where an agent could append a tool id to a granted grant through
+    `workspace.replace` or import.
+  - Partial grants: `dashboard.capability.approve` gains an optional `tools` subset; the
+    decision applies to the intersection with the requested set and the granted subset gets
+    its OWN hash (`McpBroker.hashToolSubset`, injected as `capabilityToolsHash`).
+  - Approvals console: capability rows surface their requested tool ids for per-tool selection
+    (approve-all = one click); the core transform + lit renderer + strings render it.
+
+  **Pending-action engine (SPEC §18, [#41](https://github.com/100yenadmin/boardstate/issues/41))**
+
+  - In-memory pending-action registry. `dashboard.action.invoke` AND-gates a call (granted at
+    invoke time + connector configured + hash unchanged): a `readOnly` granted tool executes
+    directly; a mutation parks as a `PendingActionRecord` and returns `{ pending: true, id,
+expiresAt }`. `dashboard.action.confirm`/`dashboard.action.deny` are operator-only
+    (`OPERATOR_ONLY_METHODS`) — a networked client can directly execute only `readOnly` tools.
+  - TTL expiry (~5 min), single-shot terminal states (a replay of a terminal id errors),
+    server-side invoke rate limiting (prompt-gate discipline), an audit entry per invoke +
+    decision, and lifecycle broadcasts on `dashboard.action.changed`.
+  - `confirmAndExecute(id)` is exposed as the awaitable an agent-mediated call (M5c-1) blocks
+    on: it resolves with the tool result on confirm and rejects on deny/expiry.
+
+  The engine consumes the broker through the narrow structural `ActionBroker` interface —
+  `@boardstate/broker` never enters `@boardstate/server` (no dependency cycle); the real
+  `McpBroker` fits it structurally. SPEC §17.1/§18 normative text filled where the schema
+  train ([#39](https://github.com/100yenadmin/boardstate/issues/39)) left implementation-pending markers.
+
+### Patch Changes
+
+- Updated dependencies [[`b05c7cd`](https://github.com/100yenadmin/boardstate/commit/b05c7cd5c50d10b83374bad0dde92c128cd00470), [`a0feba7`](https://github.com/100yenadmin/boardstate/commit/a0feba7dc3939c577387c0509aa3fb1ba710e477)]:
+  - @boardstate/schema@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes
