@@ -1,5 +1,12 @@
 # @boardstate/server
 
+## 1.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`eae965d`](https://github.com/100yenadmin/boardstate/commit/eae965df70f36c65e7d12008bfa097a70901b1de)]:
+  - @boardstate/core@1.6.0
+
 ## 1.5.0
 
 ### Patch Changes

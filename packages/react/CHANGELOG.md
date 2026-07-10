@@ -1,5 +1,14 @@
 # @boardstate/react
 
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [[`eae965d`](https://github.com/100yenadmin/boardstate/commit/eae965df70f36c65e7d12008bfa097a70901b1de), [`eae965d`](https://github.com/100yenadmin/boardstate/commit/eae965df70f36c65e7d12008bfa097a70901b1de)]:
+  - @boardstate/core@1.6.0
+  - @boardstate/lit@0.7.0
+  - @boardstate/host@1.6.0
+
 ## 0.1.10
 
 ### Patch Changes
