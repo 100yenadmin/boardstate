@@ -1,5 +1,37 @@
 # @boardstate/lit
 
+## 0.2.0
+
+### Minor Changes
+
+- [#20](https://github.com/100yenadmin/boardstate/pull/20) [`66cd58e`](https://github.com/100yenadmin/boardstate/commit/66cd58e952a50be721e1351d5540077ba29698bb) Thanks [@100yenadmin](https://github.com/100yenadmin)! - Networked transport + a browser bundle — the two gaps that blocked out-of-process
+  hosts (e.g. an in-browser dashboard driven by a Node sidecar).
+
+  - **`@boardstate/core`** adds `createWsTransport(url)` — a `Transport` over a
+    browser-native WebSocket (JSON `{id,method,params}` / `{id,result|error}` /
+    `{event,payload}` frames). Zero-dependency and bundler-safe (`globalThis.WebSocket`);
+    v1 has no auto-reconnect (a dropped socket rejects every request cleanly).
+  - **`@boardstate/server`** adds `attachWsTransport(server, host)` (from
+    `@boardstate/server/node`) — an opt-in, hand-rolled RFC 6455 endpoint that dispatches
+    request frames to the same in-process host surface and mirrors host broadcasts to
+    connected clients. Changes no default; owns only the `upgrade` handshake on its path.
+    Pinned by `@boardstate/conformance` running the full suite over a real WS pair.
+    Networked reads carry no operator identity, so private-tab filtering is fail-closed
+    (an unidentified operator sees no private tab). The frame codec **refuses an unmasked
+    client frame (RFC 6455 §5.1) and a frame whose declared length exceeds the 1 MB message
+    cap** — the latter before buffering toward it, so a hostile length claim cannot grow the
+    inbound buffer unbounded (a memory-DoS guard).
+  - **`@boardstate/lit`** adds a self-contained browser bundle at `@boardstate/lit/browser`
+    (`import "@boardstate/lit/browser"` defines the custom elements with no bundler or
+    import map). `boardstate-mcp --serve` now renders the real `<boardstate-view>` when the
+    bundle is built (falling back to the JSON view otherwise).
+
+### Patch Changes
+
+- Updated dependencies [[`66cd58e`](https://github.com/100yenadmin/boardstate/commit/66cd58e952a50be721e1351d5540077ba29698bb), [`ccf0f89`](https://github.com/100yenadmin/boardstate/commit/ccf0f89e651473611de9f2793ae063e4d6fa578e)]:
+  - @boardstate/core@0.4.0
+  - @boardstate/host@0.4.0
+
 ## 0.1.4
 
 ### Patch Changes

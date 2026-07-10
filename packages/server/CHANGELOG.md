@@ -1,5 +1,63 @@
 # @boardstate/server
 
+## 0.4.0
+
+### Minor Changes
+
+- [#20](https://github.com/100yenadmin/boardstate/pull/20) [`66cd58e`](https://github.com/100yenadmin/boardstate/commit/66cd58e952a50be721e1351d5540077ba29698bb) Thanks [@100yenadmin](https://github.com/100yenadmin)! - Networked transport + a browser bundle — the two gaps that blocked out-of-process
+  hosts (e.g. an in-browser dashboard driven by a Node sidecar).
+
+  - **`@boardstate/core`** adds `createWsTransport(url)` — a `Transport` over a
+    browser-native WebSocket (JSON `{id,method,params}` / `{id,result|error}` /
+    `{event,payload}` frames). Zero-dependency and bundler-safe (`globalThis.WebSocket`);
+    v1 has no auto-reconnect (a dropped socket rejects every request cleanly).
+  - **`@boardstate/server`** adds `attachWsTransport(server, host)` (from
+    `@boardstate/server/node`) — an opt-in, hand-rolled RFC 6455 endpoint that dispatches
+    request frames to the same in-process host surface and mirrors host broadcasts to
+    connected clients. Changes no default; owns only the `upgrade` handshake on its path.
+    Pinned by `@boardstate/conformance` running the full suite over a real WS pair.
+    Networked reads carry no operator identity, so private-tab filtering is fail-closed
+    (an unidentified operator sees no private tab). The frame codec **refuses an unmasked
+    client frame (RFC 6455 §5.1) and a frame whose declared length exceeds the 1 MB message
+    cap** — the latter before buffering toward it, so a hostile length claim cannot grow the
+    inbound buffer unbounded (a memory-DoS guard).
+  - **`@boardstate/lit`** adds a self-contained browser bundle at `@boardstate/lit/browser`
+    (`import "@boardstate/lit/browser"` defines the custom elements with no bundler or
+    import map). `boardstate-mcp --serve` now renders the real `<boardstate-view>` when the
+    bundle is built (falling back to the JSON view otherwise).
+
+- [`ccf0f89`](https://github.com/100yenadmin/boardstate/commit/ccf0f89e651473611de9f2793ae063e4d6fa578e) - The builtin-widget catalog — first-try correctness for agent-built boards. The
+  first real external agent run (Hermes + GLM) guessed wrong widget prop/binding
+  shapes and mounted empty widgets; the catalog prevents it instead of the review
+  loop catching it after the fact.
+
+  - **`@boardstate/core`**: `WIDGET_CATALOG` / `DATA_SOURCE_WIDGET_KINDS` — per
+    builtin kind, the exact binding keys + value shapes, props, and a
+    copy-pasteable example; every example is validated against the workspace
+    schema in a unit test, so a copied example always mounts non-empty.
+  - **`@boardstate/server`**: `dashboard_widget_catalog`, a readOnly tool in the
+    browser-safe core tool set (flows through `@boardstate/mcp` as
+    `boardstate_widget_catalog`). Optional `kind` filter.
+  - **`@boardstate/agent`**: the system prompt now points the model at the
+    catalog before its first `widget_add`, and the composition guide's
+    table/markdown/action-form lines are corrected (a table binds `rows`, a
+    markdown binds `content` — data goes in `bindings.<key>`, never in props).
+
+  Two seam bugs fixed along the way (@boardstate/server):
+  - `dashboard_widget_update` (the agent tool) threw `unexpected param: tab` on
+    EVERY call — the addressing fields were never stripped before the patch
+    reader, so agents could never patch a widget. Fixed + regression-tested.
+  - Widget `props` sent as a JSON-encoded STRING (a routine model double-encode)
+    sailed through validation and silently stripped every renderer's
+    format/type/labels. The tool and RPC seams now coerce an unambiguous
+    stringified object back to the object and reject other non-object props
+    loudly.
+
+### Patch Changes
+
+- Updated dependencies [[`66cd58e`](https://github.com/100yenadmin/boardstate/commit/66cd58e952a50be721e1351d5540077ba29698bb), [`ccf0f89`](https://github.com/100yenadmin/boardstate/commit/ccf0f89e651473611de9f2793ae063e4d6fa578e)]:
+  - @boardstate/core@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes

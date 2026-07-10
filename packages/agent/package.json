@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/agent",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "The provider loop that turns any LLM into a Boardstate dashboard-building agent",
   "type": "module",
   "license": "MIT",
