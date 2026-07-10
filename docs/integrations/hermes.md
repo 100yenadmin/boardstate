@@ -39,5 +39,5 @@ The served host page renders the same state directory the agent writes — edits
 *Screenshot note (kept honest): the stat-card renders the agent-provided value; the chart and notes mounted empty on the first agent run because the agent guessed prop shapes the widgets don't read — see the "field note" in the networked-transport PR; a `widget_catalog` read tool is the planned fix.*
 
 ### Notes
-- Any Hermes provider works. (If you're routing Hermes through z.ai/GLM, use the Anthropic-shaped endpoint and a dash-form model name — e.g. `--provider anthropic -m claude-sonnet-4-5` with `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` — z.ai maps Claude model names to GLM.)
+- Any Hermes provider works. For z.ai/GLM, the native provider is the clean path: `export GLM_API_KEY=...` then `--provider zai -m glm-4.7` (hermes auto-detects the endpoint). If a specific model pool is congested (retries with no output), try another GLM model.
 - The MCP server is stdio; Hermes spawns and supervises it per session. State persists in `--state-dir` between runs, so follow-up prompts ("add a churn widget to Sales") evolve the same board.
