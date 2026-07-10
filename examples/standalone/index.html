@@ -172,30 +172,52 @@
         font-weight: 700;
         margin-right: 0.3rem;
       }
-      #status {
-        margin-left: auto;
-        color: var(--bs-text-muted);
-        font-size: 0.78rem;
-        min-height: 1rem;
-        text-align: right;
-      }
       #app {
         padding: 1rem 1.25rem;
       }
+      /* Scripted-run status readout, promoted from an inline strip to a small
+         auto-dismissing toast (issue #4). aria-live=polite is set on the element so
+         each scripted step is announced; it stays in the DOM (fading via opacity,
+         never display:none) so announcements keep firing while it dismisses. */
+      .status-toast {
+        position: fixed;
+        inset-block-end: 1rem;
+        inset-inline-end: 1rem;
+        z-index: 60;
+        max-width: min(360px, calc(100vw - 2rem));
+        padding: 0.6rem 0.85rem;
+        border-radius: 10px;
+        border: 1px solid var(--bs-border-strong);
+        background: var(--bs-card);
+        color: var(--bs-text);
+        font-size: 0.82rem;
+        line-height: 1.4;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 0.2s ease,
+          transform 0.2s ease;
+        pointer-events: none;
+      }
+      .status-toast--show {
+        opacity: 1;
+        transform: none;
+      }
       /* RTL languages: let each English/Arabic run keep its own direction. */
       [dir="rtl"] header p,
-      [dir="rtl"] #status,
+      [dir="rtl"] .status-toast,
       [dir="rtl"] .tour button {
         unicode-bidi: plaintext;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .status-toast {
+          transition: none;
+        }
       }
       @media (max-width: 760px) {
         .brand p {
           display: none;
-        }
-        #status {
-          margin-left: 0;
-          width: 100%;
-          text-align: left;
         }
       }
     </style>
@@ -283,9 +305,9 @@
       <button id="tour-game" type="button"><b>2</b>Install the game</button>
       <button id="tour-history" type="button"><b>3</b>Time-travel</button>
       <button id="tour-drag" type="button"><b>4</b>Drag things around</button>
-      <span id="status"></span>
     </div>
     <div id="app"></div>
+    <div id="status-toast" class="status-toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

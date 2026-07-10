@@ -181,6 +181,13 @@ export const de: BoardstateStrings = {
   "dashboard.history.kind.tab-added": "Tab hinzugefügt",
   "dashboard.history.kind.tab-removed": "Tab entfernt",
   "dashboard.history.kind.tab-retitled": "Tab umbenannt",
+  "dashboard.history.summary.added": "+{count}",
+  "dashboard.history.summary.removed": "−{count}",
+  "dashboard.history.summary.moved": "{count} verschoben",
+  "dashboard.history.summary.retitled": "{count} umbenannt",
+  "dashboard.history.summary.tabs": "{count} Tabs",
+  "dashboard.history.summary.minor": "Andere Änderung",
+  "dashboard.history.previewCaption": "Layout bei Version {version}",
   "dashboard.gallery.open": "Widget-Katalog",
   "dashboard.gallery.title": "Widget-Katalog",
   "dashboard.gallery.subtitle":

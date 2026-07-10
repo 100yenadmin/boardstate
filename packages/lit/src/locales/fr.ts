@@ -180,6 +180,13 @@ export const fr: BoardstateStrings = {
   "dashboard.history.kind.tab-added": "Onglet ajouté",
   "dashboard.history.kind.tab-removed": "Onglet supprimé",
   "dashboard.history.kind.tab-retitled": "Onglet renommé",
+  "dashboard.history.summary.added": "+{count}",
+  "dashboard.history.summary.removed": "−{count}",
+  "dashboard.history.summary.moved": "{count} déplacés",
+  "dashboard.history.summary.retitled": "{count} renommés",
+  "dashboard.history.summary.tabs": "{count} onglets",
+  "dashboard.history.summary.minor": "Autre modification",
+  "dashboard.history.previewCaption": "Disposition à la version {version}",
   "dashboard.gallery.open": "Galerie de widgets",
   "dashboard.gallery.title": "Galerie de widgets",
   "dashboard.gallery.subtitle":

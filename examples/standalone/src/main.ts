@@ -83,6 +83,19 @@ const LOCALE_TABLES: Record<string, BoardstateStrings | undefined> = {
 const SIM_AGENT = "agent:sales-bot";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// The scripted-run status readout is a small auto-dismissing toast (issue #4): the
+// element lives in index.html with aria-live=polite, so each step is announced;
+// messages replace in place and the toast fades itself out after a quiet spell.
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+function showToast(message: string): void {
+  const el = document.getElementById("status-toast");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.add("status-toast--show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("status-toast--show"), 4200);
+}
+
 // "Graphite" is the shipped default (baked into @boardstate/lit/styles.css), so
 // it needs no extra sheet. The alternates layer over the base as drop-in URLs —
 // exactly the trick a consumer uses to ship a brand theme.
@@ -237,10 +250,7 @@ async function main(): Promise<void> {
 
 /** The "Try" strip: each chip drives the REAL UI (no special demo paths). */
 function wireTourChips(): void {
-  const say = (msg: string) => {
-    const status = document.getElementById("status");
-    if (status) status.textContent = msg;
-  };
+  const say = showToast;
   const click = (selector: string) => document.querySelector<HTMLButtonElement>(selector)?.click();
   document.getElementById("tour-simulate")?.addEventListener("click", () => {
     document.getElementById("simulate")?.click();
@@ -263,10 +273,7 @@ function wireTourChips(): void {
 /** The scripted "an agent builds a dashboard" flow, over the SAME transport a human uses. */
 function wireSimulateButton(host: ReturnType<typeof createInProcessHost>): void {
   const btn = document.getElementById("simulate") as HTMLButtonElement;
-  const status = document.getElementById("status")!;
-  const say = (msg: string) => {
-    status.textContent = msg;
-  };
+  const say = showToast;
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {

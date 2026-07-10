@@ -173,6 +173,16 @@ export const en = {
   "dashboard.history.kind.tab-added": "Tab added",
   "dashboard.history.kind.tab-removed": "Tab removed",
   "dashboard.history.kind.tab-retitled": "Tab retitled",
+  // Compact per-row change summary (history list). Kept symbol-forward so the count
+  // reads naturally whether it is 1 or many, sidestepping plural forms in i18n.
+  "dashboard.history.summary.added": "+{count}",
+  "dashboard.history.summary.removed": "−{count}",
+  "dashboard.history.summary.moved": "{count} moved",
+  "dashboard.history.summary.retitled": "{count} renamed",
+  "dashboard.history.summary.tabs": "{count} tabs",
+  "dashboard.history.summary.minor": "Other edit",
+  // Caption under the snapshot preview grid, e.g. "Layout at version 7".
+  "dashboard.history.previewCaption": "Layout at version {version}",
   "dashboard.gallery.open": "Widget gallery",
   "dashboard.gallery.title": "Widget gallery",
   "dashboard.gallery.subtitle": "Browse a widget registry and install a widget from its URL.",

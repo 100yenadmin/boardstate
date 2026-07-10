@@ -3,6 +3,8 @@ import {
   computeWorkspaceDiff,
   firstSeenVersion,
   groupDiffByActor,
+  summarizeWorkspaceDiff,
+  type DashboardDiffEntry,
   type DashboardHistorySnapshot,
 } from "./history-client.js";
 import { normalizeWorkspace } from "./queries.js";
@@ -126,5 +128,57 @@ describe("firstSeenVersion", () => {
 
   it("returns undefined when no snapshots are loaded", () => {
     expect(firstSeenVersion("a", [])).toBeUndefined();
+  });
+});
+
+describe("summarizeWorkspaceDiff", () => {
+  const entry = (kind: DashboardDiffEntry["kind"], actor: string | null): DashboardDiffEntry => ({
+    kind,
+    actor,
+    id: "x",
+    label: "X",
+  });
+
+  it("partitions the changelist into per-kind counts summing to total", () => {
+    const summary = summarizeWorkspaceDiff([
+      entry("widget-added", "agent:main"),
+      entry("widget-added", "agent:main"),
+      entry("widget-removed", "user"),
+      entry("widget-moved", "agent:main"),
+      entry("widget-retitled", "user"),
+      entry("tab-added", "user"),
+      entry("tab-retitled", "user"),
+    ]);
+    expect(summary).toEqual({
+      added: 2,
+      removed: 1,
+      moved: 1,
+      retitled: 1,
+      tabsChanged: 2,
+      total: 7,
+    });
+  });
+
+  it("carries NO actor field — creator provenance must not masquerade as change authorship", () => {
+    // Adversarial verify 2026-07-11: the only actor available to the diff is the touched
+    // item's `createdBy` (its CREATOR); rendering that under "what changed" mislabeled a
+    // human edit to a system-created tab as "system". Counts only until the ring stores
+    // a real per-save author.
+    const summary = summarizeWorkspaceDiff([
+      entry("widget-added", "agent:main"),
+      entry("widget-removed", "user"),
+    ]);
+    expect("actor" in summary).toBe(false);
+  });
+
+  it("reports an all-zero summary for an empty changelist", () => {
+    expect(summarizeWorkspaceDiff([])).toEqual({
+      added: 0,
+      removed: 0,
+      moved: 0,
+      retitled: 0,
+      tabsChanged: 0,
+      total: 0,
+    });
   });
 });

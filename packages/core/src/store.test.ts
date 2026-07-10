@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { WorkspaceDoc } from "@boardstate/schema";
 import { FsStorageAdapter } from "./adapters/storage-fs.js";
 import { DashboardStore, reconcileReplaceApproval } from "./store.js";
 
@@ -105,9 +106,60 @@ describe("DashboardStore", () => {
       for (const entry of history) {
         expect(entry.bytes).toBeGreaterThan(0);
         expect(new Date(entry.savedAt).toISOString()).toBe(entry.savedAt);
-        // Metadata only — never a document body.
-        expect(Object.keys(entry).toSorted()).toEqual(["bytes", "savedAt", "version"]);
+        // Metadata only — a compact summary is allowed, never a document body.
+        expect(
+          Object.keys(entry)
+            .toSorted()
+            .filter((key) => key !== "summary"),
+        ).toEqual(["bytes", "savedAt", "version"]);
+        expect(entry).not.toHaveProperty("tabs");
+        expect(entry).not.toHaveProperty("widgetsRegistry");
       }
+    });
+  });
+
+  it("summarizes each snapshot against its predecessor; the oldest has none", async () => {
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      await store.read(); // seed v1 ("Overview")
+
+      // The ring snapshots PRE-mutation states, so three mutations put versions
+      // 1..3 in the ring (current = v4). v2 adds a widget; v3 retitles the tab; a
+      // third mutation exists only to snapshot v3 into the ring so it can be diffed.
+      const addWidget = (id: string) => (draft: WorkspaceDoc) => {
+        draft.tabs[0]!.widgets.push({
+          id,
+          kind: "builtin:markdown",
+          title: "Notes",
+          grid: { x: 0, y: 0, w: 4, h: 2 },
+          collapsed: false,
+          hidden: false,
+        });
+      };
+      await store.mutate(addWidget("w1"), { actor: "agent:main" });
+      await store.mutate(
+        (draft) => {
+          draft.tabs[0]!.title = "Home";
+        },
+        { actor: "user" },
+      );
+      await store.mutate(addWidget("w2"), { actor: "agent:main" });
+
+      const history = await store.listHistory();
+      const byVersion = new Map(history.map((entry) => [entry.version, entry]));
+
+      // v3 snapshot vs its v2 predecessor: one tab retitle. Counts only — the diff
+      // has no honest change-author to offer (mutate()'s actor isn't persisted; the
+      // tab's createdBy is its CREATOR, not this edit's author).
+      expect(byVersion.get(3)?.summary).toMatchObject({
+        tabsChanged: 1,
+        total: 1,
+      });
+      expect(byVersion.get(3)?.summary && "actor" in byVersion.get(3)!.summary!).toBe(false);
+      // v2 snapshot vs its v1 predecessor: one widget added.
+      expect(byVersion.get(2)?.summary).toMatchObject({ added: 1, total: 1 });
+      // v1 is the oldest snapshot in the ring — no predecessor to diff against.
+      expect(byVersion.get(1)?.summary).toBeUndefined();
     });
   });
 

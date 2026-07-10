@@ -458,10 +458,11 @@ select.bs-dialog__input {
   align-items: center;
   gap: 6px;
   cursor: grab;
-  padding: 4px 6px 4px 4px;
+  padding-block: 4px;
+  padding-inline: 4px 6px;
   border-bottom: 1px solid var(--bs-border, #e5e7eb);
-  border-top-left-radius: var(--bs-radius-lg, 12px);
-  border-top-right-radius: var(--bs-radius-lg, 12px);
+  border-start-start-radius: var(--bs-radius-lg, 12px);
+  border-start-end-radius: var(--bs-radius-lg, 12px);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -567,8 +568,8 @@ select.bs-dialog__input {
   min-height: 0;
   padding: 14px 16px;
   overflow: auto;
-  border-bottom-left-radius: var(--bs-radius-lg, 12px);
-  border-bottom-right-radius: var(--bs-radius-lg, 12px);
+  border-end-start-radius: var(--bs-radius-lg, 12px);
+  border-end-end-radius: var(--bs-radius-lg, 12px);
   animation: dashboard-widget-expand 160ms var(--bs-ease-out, ease-out) both;
 }
 @keyframes dashboard-widget-expand {
@@ -1650,6 +1651,26 @@ select.bs-dialog__input {
   gap: 6px;
   max-height: 40vh;
   overflow: auto;
+  /* Scroll affordance (issue #4): a fade + shadow at a cut-off edge, revealed only
+     when there is more list above/below. Pure CSS — the classic scroll-shadow trick:
+     `local` cover gradients (card-colored) ride WITH the content and mask the shadow
+     at whichever edge is fully scrolled to, while the `scroll`-attached shadows stay
+     pinned to the box. No JS, no scroll listeners. */
+  background:
+    linear-gradient(var(--bs-card, #fff) 30%, transparent) top / 100% 22px no-repeat local,
+    linear-gradient(transparent, var(--bs-card, #fff) 70%) bottom / 100% 22px no-repeat local,
+    radial-gradient(
+        farthest-side at 50% 0,
+        color-mix(in srgb, var(--bs-text, #000) 14%, transparent),
+        transparent
+      )
+      top / 100% 9px no-repeat scroll,
+    radial-gradient(
+        farthest-side at 50% 100%,
+        color-mix(in srgb, var(--bs-text, #000) 14%, transparent),
+        transparent
+      )
+      bottom / 100% 9px no-repeat scroll;
 }
 .dashboard-gallery__item {
   display: flex;
@@ -1739,7 +1760,7 @@ select.bs-dialog__input {
   background: transparent;
   color: var(--bs-text, #1a1d21);
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .dashboard-history__item:hover {
@@ -1759,6 +1780,18 @@ select.bs-dialog__input {
 }
 .dashboard-history__latest {
   color: var(--bs-accent, #6366f1);
+}
+/* Per-row change summary ("+2 · 1 moved · agent") under the version label. */
+.dashboard-history__change {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+.dashboard-history__change-label {
+  color: var(--bs-text, #1a1d21);
+  font-variant-numeric: tabular-nums;
 }
 .dashboard-history__detail {
   display: flex;
@@ -1801,11 +1834,24 @@ select.bs-dialog__input {
   border-radius: var(--bs-radius-sm, 6px);
   background: var(--bs-bg-muted, #f3f4f6);
 }
+.dashboard-history__cell-glyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--bs-text-dim, #9ca3af);
+}
 .dashboard-history__cell-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+/* Caption under the snapshot grid: "Layout at version N". */
+.dashboard-history__preview-caption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--bs-text-dim, #9ca3af);
+  text-align: center;
 }
 .dashboard-history__diff-groups {
   display: flex;

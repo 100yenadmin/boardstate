@@ -268,6 +268,7 @@ describe("time-travel history", () => {
         savedAt: string;
         bytes: number;
         doc?: unknown;
+        summary?: { tabsChanged: number; total: number };
       }>;
       expect(entries.map((entry) => entry.version)).toEqual([3, 2, 1]);
       for (const entry of entries) {
@@ -275,6 +276,11 @@ describe("time-travel history", () => {
         expect(typeof entry.savedAt).toBe("string");
         expect(entry).not.toHaveProperty("doc");
       }
+      // The change summary crosses the RPC intact (each newer snapshot added one tab
+      // over its predecessor); the oldest snapshot in the ring has no predecessor.
+      expect(entries[0]?.summary).toMatchObject({ tabsChanged: 1, total: 1 });
+      expect(entries[1]?.summary).toMatchObject({ tabsChanged: 1, total: 1 });
+      expect(entries[2]?.summary).toBeUndefined();
 
       const snapshot = await call(host, "dashboard.workspace.history.get", { version: 2 });
       expect(snapshot.ok).toBe(true);

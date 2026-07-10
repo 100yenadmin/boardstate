@@ -20,6 +20,38 @@ describe("history RPC loaders", () => {
     expect(request).toHaveBeenCalledWith("dashboard.workspace.history.list", {});
   });
 
+  it("carries the per-entry change summary across the wire and normalizes it", async () => {
+    const request = vi.fn(async () => ({
+      entries: [
+        {
+          version: 4,
+          savedAt: "2026-07-08T00:00:00.000Z",
+          bytes: 200,
+          summary: {
+            added: 2,
+            removed: 0,
+            moved: 1,
+            retitled: 0,
+            tabsChanged: 0,
+            total: 3,
+          },
+        },
+        // A malformed / pre-summary entry keeps its metadata but drops the summary.
+        { version: 3, savedAt: "2026-07-08T00:00:00.000Z", bytes: 100, summary: 42 },
+      ],
+    }));
+    const list = await loadHistoryList(transportWith(request as never));
+    expect(list[0]?.summary).toEqual({
+      added: 2,
+      removed: 0,
+      moved: 1,
+      retitled: 0,
+      tabsChanged: 0,
+      total: 3,
+    });
+    expect(list[1]).not.toHaveProperty("summary");
+  });
+
   it("returns an empty list when disconnected", async () => {
     expect(await loadHistoryList(null)).toEqual([]);
   });

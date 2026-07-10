@@ -145,6 +145,72 @@ export function computeWorkspaceDiff(
   return entries;
 }
 
+/**
+ * A wire-safe rollup of one snapshot-to-snapshot changelist — the compact row
+ * label the history list shows next to "Version N" ("+2 · 1 moved · agent:main").
+ * Counts only, plus the dominant actor; it never carries a document body, so it
+ * ships cheaply over `history.list` and — being derived at read time from ring
+ * snapshots the store ALREADY holds — adds nothing to the undo ring on disk.
+ */
+export type DashboardHistorySummary = {
+  /** Widgets that appeared in this version. */
+  added: number;
+  /** Widgets that disappeared. */
+  removed: number;
+  /** Widgets that changed tab or grid rect. */
+  moved: number;
+  /** Widgets (or tabs) whose title changed. */
+  retitled: number;
+  /** tab-added + tab-removed + tab-retitled, folded into one count. */
+  tabsChanged: number;
+  /** Total change entries across every kind. */
+  total: number;
+};
+// NOTE deliberately NO `actor` field: the only provenance available here is the touched
+// item's `createdBy` — who CREATED it, not who made THIS change (`mutate()`'s actor is
+// not persisted; the ring stores raw docs with no per-save author log). Surfacing the
+// creator where the UI reads "who changed this" mislabels human edits to system-created
+// items as "system" (adversarial verify, 2026-07-11). True per-change attribution needs
+// a snapshot manifest — tracked separately; until then the summary stays counts-only.
+
+/**
+ * Condense a flat changelist into a `DashboardHistorySummary`. A retitled tab and
+ * a retitled widget both count under `retitled`/`tabsChanged` respectively, so the
+ * six counts partition the entries exactly and `total` equals `entries.length`.
+ */
+export function summarizeWorkspaceDiff(entries: DashboardDiffEntry[]): DashboardHistorySummary {
+  const summary: DashboardHistorySummary = {
+    added: 0,
+    removed: 0,
+    moved: 0,
+    retitled: 0,
+    tabsChanged: 0,
+    total: entries.length,
+  };
+  for (const entry of entries) {
+    switch (entry.kind) {
+      case "widget-added":
+        summary.added += 1;
+        break;
+      case "widget-removed":
+        summary.removed += 1;
+        break;
+      case "widget-moved":
+        summary.moved += 1;
+        break;
+      case "widget-retitled":
+        summary.retitled += 1;
+        break;
+      case "tab-added":
+      case "tab-removed":
+      case "tab-retitled":
+        summary.tabsChanged += 1;
+        break;
+    }
+  }
+  return summary;
+}
+
 /** Group a flat changelist by `actor`, preserving first-seen actor order. */
 export function groupDiffByActor(
   entries: DashboardDiffEntry[],
