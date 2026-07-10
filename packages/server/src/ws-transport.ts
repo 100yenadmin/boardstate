@@ -28,18 +28,27 @@
 import { createHash } from "node:crypto";
 import type { IncomingMessage, Server as HttpServer } from "node:http";
 import type { Duplex } from "node:stream";
-import { CHAT_EVENT } from "@boardstate/schema";
+import { CHAT_EVENT, STREAM_EVENT_ALLOWLIST } from "@boardstate/schema";
 import { formatError, type InProcessHost } from "./host.js";
 
 /** RFC 6455 §1.3 magic GUID used to derive the `Sec-WebSocket-Accept` value. */
 const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-/** The host broadcasts a networked client mirrors by default (SPEC §5, §10, §14, presence). */
+/**
+ * The host broadcasts a networked client mirrors by default: the protocol events
+ * (SPEC §5, §10, §14, presence) PLUS every `STREAM_EVENT_ALLOWLIST` channel — a
+ * networked view must be able to receive exactly what an in-process view can
+ * subscribe to, or `stream`-bound widgets silently never tick over the wire
+ * (found live by the reference connector sidecar, M4c).
+ */
 export const DEFAULT_FORWARDED_EVENTS: readonly string[] = [
-  "boardstate.changed",
-  "boardstate.widget-state.changed",
-  "boardstate.presence",
-  CHAT_EVENT,
+  ...new Set([
+    "boardstate.changed",
+    "boardstate.widget-state.changed",
+    "boardstate.presence",
+    CHAT_EVENT,
+    ...STREAM_EVENT_ALLOWLIST,
+  ]),
 ];
 
 /** Guard against an unbounded inbound message pinning memory (mirrors the /rpc cap). */

@@ -104,6 +104,30 @@ describe("attachWsTransport", () => {
     expect(handle.connections).toBe(0);
   });
 
+  it("forwards STREAM_EVENT_ALLOWLIST channels to networked clients by default", async () => {
+    // A stream-bound widget in a networked view subscribes to e.g. "presence"; the
+    // default forward list must carry it or connector data silently never arrives
+    // over the wire (the reference sidecar found this live).
+    const storage = new MemoryStorageAdapter();
+    const store = new DashboardStore({ storage });
+    const host = createInProcessHost(store, storage);
+    registerBoardstateRpc(host, { store, ...nodeRpcDeps() });
+    httpServer = createServer();
+    wsHandle = attachWsTransport(httpServer, host);
+    await new Promise<void>((resolve) => httpServer!.listen(0, "127.0.0.1", resolve));
+    const port = (httpServer!.address() as { port: number }).port;
+
+    const transport = createWsTransport(`ws://127.0.0.1:${port}/ws`);
+    await transport.ready;
+    const seen: unknown[] = [];
+    transport.addEventListener("presence", (payload) => seen.push(payload));
+    await sleep(20);
+    host.broadcast("presence", { ticker: { rssMb: 42 } });
+    await sleep(60);
+    expect(seen).toEqual([{ ticker: { rssMb: 42 } }]);
+    transport.close();
+  });
+
   it("closes on an unmasked client frame (RFC 6455 §5.1)", async () => {
     const { handle } = await startHost();
     const port = (httpServer!.address() as { port: number }).port;

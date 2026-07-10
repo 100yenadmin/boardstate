@@ -247,6 +247,29 @@ nothing in this section is load-bearing for conformance.
 Findings are conventions, not contract: rule codes MAY grow; consumers MUST ignore
 codes they do not recognize.
 
+## 16. Host connectors (normative-lite)
+
+How a host wires real data into `rpc` and `stream` bindings. The ALLOWLISTS are the
+normative core (they already govern §3's binding validation); the rest records the
+contract hosts implement.
+
+- **Reads**: a host MAY register any `DATA_READ_RPC_ALLOWLIST` method with read scope;
+  an `rpc` binding resolves it per widget refresh. Hosts MUST NOT expose data-read
+  methods outside the allowlist to binding resolution.
+- **Streams**: a host MAY broadcast on any `STREAM_EVENT_ALLOWLIST` channel; a
+  `stream` binding applies its JSON pointer to each payload. Hosts MUST NOT carry
+  connector data on `boardstate.changed` — that channel signals document changes and
+  clients respond by refetching the document.
+- **Networked hosts** (§ the out-of-process seam): a transport that mirrors host
+  broadcasts MUST forward every `STREAM_EVENT_ALLOWLIST` channel it accepts
+  subscriptions for — a networked view receives exactly what an in-process view can
+  subscribe to. Requests arriving without an operator identity are unidentified:
+  private-tab filtering (§11-I6) applies fail-closed.
+- Extending either allowlist is a SCHEMA change, never a host-runtime option.
+
+The reference implementation is `installConnector` (`@boardstate/server`, browser-safe)
+plus the runnable sidecar in `examples/connector-sidecar/` — see `docs/connectors.md`.
+
 ---
 
 _Spec version 0.2-draft · 2026-07-10 · License: MIT_

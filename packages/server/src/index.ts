@@ -45,6 +45,16 @@ export {
   type RegisterChatRpcOptions,
 } from "./chat.js";
 
+// The host connector contract (SPEC §16): declarative reads + interval streams,
+// allowlist-gated at registration. Browser-safe; pairs with attachWsTransport for
+// networked sidecars.
+export {
+  installConnector,
+  type ConnectorDefinition,
+  type ConnectorHandle,
+  type ConnectorHost,
+} from "./connector.js";
+
 // The browser-safe agent tool set (store + broadcast only — no fs). Node hosts get
 // the full set (scaffold + file data reads) from `@boardstate/server/node`.
 export {
