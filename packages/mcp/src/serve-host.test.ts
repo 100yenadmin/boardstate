@@ -53,6 +53,30 @@ describe("--serve demo host", () => {
     await reader.cancel();
   });
 
+  it("mounts the real element from the built browser bundle", async () => {
+    // The bundle is built by the repo gate (`pnpm build`) before tests run; this
+    // asserts the acceptance demo — `--serve` renders the standalone board.
+    const store = new DashboardStore({ storage: new MemoryStorageAdapter() });
+    const { host } = createBoardstateMcpServer({ store });
+    handle = await startServeHost({ store, host, port: 0 });
+    const base = handle!.url;
+
+    const page = await (await fetch(base)).text();
+    expect(page).toContain("/boardstate.js");
+    expect(page).toContain("boardstate-view");
+
+    const bundle = await fetch(`${base}boardstate.js`);
+    expect(bundle.status).toBe(200);
+    expect(bundle.headers.get("content-type")).toContain("javascript");
+    const bundleSource = await bundle.text();
+    // The served file is the self-contained element bundle (custom elements defined).
+    expect(bundleSource).toContain("boardstate-view");
+
+    const css = await fetch(`${base}boardstate.css`);
+    expect(css.status).toBe(200);
+    expect(css.headers.get("content-type")).toContain("text/css");
+  });
+
   it("reports a control-plane error as a 400 over /rpc", async () => {
     const store = new DashboardStore({ storage: new MemoryStorageAdapter() });
     const { host } = createBoardstateMcpServer({ store });
