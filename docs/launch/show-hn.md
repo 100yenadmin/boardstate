@@ -19,16 +19,22 @@ Two ways to see it in 60 seconds:
 - The app: pick a provider (GLM/z.ai, Anthropic, OpenAI, Ollama — your key stays
   in the browser; there's no server), type "build me a sales dashboard," and watch
   the board assemble while the chat streams its tool calls.
-- MCP: point Claude (or any MCP client) at `npx @boardstate/mcp` — same 14 tools.
+- MCP: point Claude (or any MCP client) at `npx @boardstate/mcp` — same 17 tools,
+  including a widget catalog (exact shapes so models don't guess) and a design-review
+  lint the agent runs on its own board.
 
 The part I'm most proud of: agent-authored widgets run in a sandbox strict enough
 that foreign code is safe by construction (opaque-origin iframe, CSP connect-src
 'none', capability manifest) and land pending until you approve them — the approval
 moment happens inline in chat.
 
+It's also networked now: a ~200-line Node sidecar serves a live board of a
+machine's real metrics to any browser over one WebSocket (`examples/connector-sidecar`)
+— stream bindings tick with no polling and no sockets in core.
+
 Live app: https://100yenadmin.github.io/boardstate/app/
 Repo: https://github.com/100yenadmin/boardstate
-8 packages on npm (`@boardstate/*`), spec in the repo, weekly releases.
+9 packages on npm (`@boardstate/*`, Sigstore-attested), spec in the repo, frequent releases.
 
 Would love feedback on the protocol (SPEC.md) — especially the chat/agent-turn
 event contract and the widget capability model.
@@ -45,8 +51,12 @@ event contract and the widget capability model.
   control plane — swap it out entirely if you want.
 - **What's the sandbox story?** Widgets: sandboxed iframe, no network, no origin,
   parent-mediated data only, human approval gate. The AI cannot self-approve.
-- **Prod-ready?** 0.x — protocol is stable enough to read, conformance suite ships,
-  1.0 when the spec freezes. ~500 tests, adversarially reviewed (writeups in repo).
+- **Prod-ready?** 0.x — protocol is stable enough to read, conformance suite ships
+  (and runs over a real WebSocket pair), 1.0 when the spec freezes. ~550 tests,
+  adversarially reviewed (writeups in repo).
+- **Live data?** Hosts wire real data through an allowlisted connector contract
+  (SPEC §16): declarative reads + interval streams; the allowlists gate at
+  registration, write, and subscribe time.
 - **Relation to OpenClaw?** Extracted from the modular-dashboard system we built
   for it; OpenClaw is the first conformant host.
 
