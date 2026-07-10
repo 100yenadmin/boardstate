@@ -25,6 +25,7 @@ const ALL_BUILTIN_KINDS = [
   "builtin:chart",
   "builtin:notes",
   "builtin:action-form",
+  "builtin:action-button",
   "builtin:preview",
   "builtin:agent-status",
   "builtin:approvals",
@@ -66,6 +67,11 @@ describe("widget catalog", () => {
       expect(entry.example.kind).toBe(entry.kind);
       // The example must survive the same validator every write passes through.
       expect(() => validateWorkspaceDoc(docWith(entry.example))).not.toThrow();
+      // Every extra variant (e.g. action-form tool mode) is held to the same bar.
+      for (const variant of entry.examples ?? []) {
+        expect(variant.kind).toBe(entry.kind);
+        expect(() => validateWorkspaceDoc(docWith(variant))).not.toThrow();
+      }
     }
   });
 

@@ -391,6 +391,30 @@ describe("approvals mapping", () => {
     expect(widgetCalls).toEqual([["chart", "rejected"]]);
   });
 
+  it("renders a tools-only capability grant without throwing (methods/streams empty)", () => {
+    // SPEC §17 v2: a grant may authorize external tools with NO data reads/streams.
+    // The reach summary reads grant.methods.length / grant.streams.length — a
+    // tools-only grant normalizes both to [] so `.length` never throws.
+    const ws = workspace();
+    ws.capabilitiesRegistry = {
+      "office-tools": {
+        status: "requested",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+      },
+    };
+    const source = buildApprovalsSource(
+      ws,
+      () => {},
+      () => {},
+    );
+    expect(source.pending.map((item) => [item.kind, item.id])).toEqual([
+      ["capability", "office-tools"],
+    ]);
+    expect(source.pending[0]!.detail).toBe("wants 1 tool");
+  });
+
   it("maps decisions to the registry vocabulary and limits the row count", () => {
     expect(toWidgetApprovalDecision("approve")).toBe("approved");
     expect(toWidgetApprovalDecision("reject")).toBe("rejected");

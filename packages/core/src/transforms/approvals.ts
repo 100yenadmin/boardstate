@@ -89,6 +89,7 @@ export function buildApprovalsSource(
   const capabilities: PendingApprovalItem[] = Object.entries(workspace.capabilitiesRegistry ?? {})
     .filter(([, grant]) => grant.status === "requested")
     .map(([name, grant]) => {
+      const toolCount = grant.tools?.length ?? 0;
       const reach = [
         grant.methods.length
           ? `${grant.methods.length} read${grant.methods.length === 1 ? "" : "s"}`
@@ -96,6 +97,7 @@ export function buildApprovalsSource(
         grant.streams.length
           ? `${grant.streams.length} stream${grant.streams.length === 1 ? "" : "s"}`
           : null,
+        toolCount ? `${toolCount} tool${toolCount === 1 ? "" : "s"}` : null,
       ].filter(Boolean);
       return {
         id: name,
