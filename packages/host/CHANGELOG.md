@@ -1,5 +1,13 @@
 # @boardstate/host
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [[`af1df09`](https://github.com/100yenadmin/boardstate/commit/af1df09e17e36d597243a0fe78121e6cf5c9cf17)]:
+  - @boardstate/schema@1.0.0
+  - @boardstate/core@1.0.0
+
 ## 0.4.0
 
 ### Patch Changes
