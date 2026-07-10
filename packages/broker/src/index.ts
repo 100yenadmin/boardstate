@@ -11,6 +11,22 @@ export type { BrokerOptions } from "./broker.js";
 export { loadConnectorsConfig, parseConnectorsConfig } from "./config.js";
 export type { ConnectorConfig, ConnectorsConfig, ConnectorTransport } from "./config.js";
 
+// First-party connector presets (#46 OfficeCLI, #47 Pipedream + Composio): named
+// recipes that stamp out a validated operator `ConnectorConfig`. Presets are a
+// convenience, never an authority — config authorship (SPEC §18) is untouched.
+export {
+  CONNECTOR_PRESETS,
+  composioPreset,
+  detectBinary,
+  officeCliPreset,
+  pipedreamPreset,
+} from "./presets.js";
+export type {
+  ConnectorPreset,
+  ConnectorPresetBinary,
+  ConnectorPresetBuildOptions,
+} from "./presets.js";
+
 export { buildManifest, manifestHash } from "./manifest.js";
 export type {
   DiscoveredTool,

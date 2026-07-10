@@ -420,10 +420,36 @@ when no broker is attached it is a clear-error noop.
 - **Approval** happens in the approvals card (`dashboard.capability.approve`, operator-only), which may
   grant a partial subset; the granted tools become callable next turn through the §18.1 adapter.
 
+### 18.3 Host wiring + connector presets (normative-lite)
+
+The broker's server-side pieces are separate installers with a load-bearing ORDER; a Node host assembles
+them once with `installConnectorWorkspace` (`@boardstate/server/node`):
+
+- **Order (normative).** It installs `installBrokerActions` (the pending-action engine — FIRST, because it
+  registers `dashboard.action.invoke`), THEN `installBrokerAgentTools` (the broker→AgentTool adapter, whose
+  mutation path drives `dashboard.action.invoke`), THEN `createBrokerToolSearch` (the tool_search backing).
+  It returns the two seams the caller still owns explicitly: `capabilityToolsHash` (into
+  `registerBoardstateRpc`) and `toolSearch` (into `createDashboardTools`). It consumes the broker through
+  the same narrow structural interfaces the individual installers use — no `@boardstate/broker` import, so
+  the dependency arrow stays one-way (broker → server).
+- **Config authorship is untouched (normative).** A **preset** (`@boardstate/broker`) is a named recipe
+  that STAMPS OUT a validated operator `ConnectorConfig` — a convenience, never an authority. A preset's
+  output is just another entry an operator drops into the startup config; a connector still exists ONLY
+  because the operator named it (§18). Presets route their output through the broker's own config validator,
+  so a preset can never emit a connector the broker would reject. Secrets stay env REFS (`${ENV_NAME}` header
+  refs / stdio `env` refs), never literals (invariant #4) — a preset config and any board JSON are safe to
+  share publicly.
+- **First-party presets.** `officeCliPreset` (stdio `officecli mcp`, with binary detection + an install
+  pointer — the first blessed first-party connector, #46); `pipedreamPreset` and `composioPreset` (remote
+  Streamable-HTTP aggregators behind env-ref headers, #47). Remote aggregator endpoints/auth had 2026
+  cutovers — recipes stay config-only so drift never touches code; re-verify endpoints at setup time.
+
 _Landed: the client manager (#38), the grant lifecycle + partial grants + both-direction
 anti-rug-pull (#40), the pending-action engine (#41), the broker→AgentTool adapter + definition-token
-budget (#42), and the `boardstate_tool_search` request/approve loop (#43). Implementation-pending:
-`source:"mcp"` host resolution (#45) and first-party connector presets (#46)._
+budget (#42), the `boardstate_tool_search` request/approve loop (#43), `source:"mcp"` host resolution
+(#45), one-call host wiring (`installConnectorWorkspace`), the OfficeCLI first-party preset (#46), and the
+Pipedream + Composio aggregator recipes (#47). The whole loop is proven headless end to end against the
+fake-MCP fixture (`operational-demo.e2e.test.ts`) and runnable in `examples/operational-demo`._
 
 ---
 

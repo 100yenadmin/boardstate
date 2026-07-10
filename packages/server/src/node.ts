@@ -72,6 +72,17 @@ export {
   type InstallBrokerAgentToolsHandle,
 } from "./broker-agent-tools.js";
 
+// The one-call host wiring for the whole M5 connector stack (M5e): installs the engine,
+// the agent-tool adapter, and the tool_search backing in the correct order, returning
+// the seams to thread into `registerBoardstateRpc` + `createDashboardTools`.
+export {
+  installConnectorWorkspace,
+  type ConnectorWorkspaceHandle,
+  type ConnectorWorkspaceHost,
+  type InstallConnectorWorkspaceOptions,
+  type WorkspaceBroker,
+} from "./broker-workspace.js";
+
 export {
   installWidgetBundle,
   WIDGET_BUNDLE_MAX_BYTES,

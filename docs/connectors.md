@@ -86,3 +86,30 @@ refused over the wire by default** (a networked client is not the local operator
 
 Extending the allowlists is a schema change (a PR to `@boardstate/schema`), never a
 runtime option — that's the point.
+
+## Connecting OUTWARD — the connector broker (M5)
+
+The two lanes above bring a host's OWN data inward. The **connector broker**
+(`@boardstate/broker`) is the other direction: Boardstate becomes an MCP **client** and
+connects out to external MCP servers (OfficeCLI, Pipedream, Composio, any MCP server),
+importing their read-ish tools as `source:"mcp"` board data and their side-effecting tools
+as operator-confirmed actions. The broker is **node-side only** — browser bundles stay
+MCP-free, and secrets stay node-side (env refs, never in a doc or a browser). Full
+normative model: [SPEC §18](../packages/schema/SPEC.md).
+
+- **Presets** stamp out a validated operator connector config — a named recipe, not an
+  authority (config authorship is untouched): [OfficeCLI](connectors/officecli.md) (the
+  first blessed first-party connector), [Pipedream](connectors/pipedream.md) and
+  [Composio](connectors/composio.md) (remote aggregators).
+- **One-call host wiring** — `installConnectorWorkspace` (`@boardstate/server/node`)
+  installs the grant lifecycle + pending-action engine, the broker→AgentTool adapter, and
+  the `boardstate_tool_search` request/approve loop in the correct order, returning the
+  seams to thread into `registerBoardstateRpc` + `createDashboardTools`.
+- **Runnable end to end**: [`examples/operational-demo`](../examples/operational-demo) —
+  an agent-composable board that reads a live workbook through a granted tool and generates
+  a document through an operator-confirmed one.
+
+The same three-gate discipline holds, extended from data allowlists to external tools: the
+broker connects only to **operator-configured** connectors; a tool is callable only when
+the **operator grants** it; and any non-`readOnly` invocation is **server-enforced** through
+a pending action that only the local operator can confirm.

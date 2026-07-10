@@ -1,0 +1,21 @@
+{
+  "name": "boardstate-example-operational-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "demo": "node demo.mjs",
+    "smoke:pipedream": "node smoke/pipedream.mjs",
+    "smoke:composio": "node smoke/composio.mjs",
+    "test": "echo \"no unit tests here — the headless end-to-end loop is @boardstate/broker operational-demo.e2e.test.ts\" && exit 0"
+  },
+  "dependencies": {
+    "@boardstate/agent": "workspace:*",
+    "@boardstate/broker": "workspace:*",
+    "@boardstate/core": "workspace:*",
+    "@boardstate/lit": "workspace:*",
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}
