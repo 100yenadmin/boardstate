@@ -23,6 +23,33 @@ Boardstate is a protocol and runtime for **agent-composable dashboards**. The en
 - 🤖 **Any AI, zero integration** — `@boardstate/mcp` exposes the full tool set to any MCP client (Claude, or anything else that speaks MCP).
 - 🧑‍🎨 **Human parity is a protocol requirement** — drag/drop, collapse, approve, undo: the same methods the agent uses.
 - 🔒 **A security ladder, not a warning label** — trusted builtins vs. sandboxed customs (opaque origin, CSP `connect-src 'none'`, capability manifest, approval-gated mount, server-side 404 for anything unapproved).
+- 🔌 **Your dashboard can DO things** — Boardstate is also an MCP _client_: point it at OfficeCLI, Pipedream, Composio, or any MCP server and the board reads their tools as live data and runs their tools as operator-confirmed actions (see below).
+
+## Your dashboard can DO things (M5)
+
+Boardstate is an MCP **client**, not just an MCP server. Give it an operator-authored
+connector config (`@boardstate/broker`) and it connects outward to an external tool server —
+importing that server's read-ish tools as **board data** (`source:"mcp"` bindings) and its
+side-effecting tools as **operator-confirmed actions** (action buttons). The whole thing
+runs behind the same capability gate as everything else:
+
+1. The agent discovers tools it needs (`boardstate_tool_search`) and **requests** them — it
+   can never grant them.
+2. A card appears in the approvals widget; a **human operator** grants a subset.
+3. Read tools flow onto the board live; anything consequential **parks** as a pending action
+   that a networked client physically cannot confirm — only the local operator can.
+4. Grants are revocable, and re-pend the instant a tool's surface changes under them.
+
+```sh
+pnpm build
+node examples/operational-demo/demo.mjs   # keyless — a fake OfficeCLI double; no binary, no keys
+```
+
+Open the board and the loopback operator console it prints: approve the grant, watch a table
+fill from a live workbook, click "Generate .docx", and confirm the action. OfficeCLI,
+Pipedream, and Composio ship as first-party connector presets (`docs/connectors/`). The
+broker, its network, and every secret stay node-side — `@boardstate/core` never learns an
+external tool exists.
 
 ## How it fits together
 

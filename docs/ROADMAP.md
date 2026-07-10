@@ -173,7 +173,7 @@ MCP-free).
 | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | ✅     |
 | S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ✅     |
-| S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | 🔨     |
+| S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ✅     |
 | later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | 💤     |
 
 One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance: GLM key +
@@ -188,6 +188,24 @@ both-direction anti-rug-pull, partial grants, the server-enforced pending-action
 `dashboard.action.confirm` is operator-only over the wire). Adversarial verify caught and
 fixed six real defects across the sprint — including a pre-existing self-elevation hole on
 main where the agent's `workspace.replace` tool bypassed the M4b grant gate.
+
+**S5-3 SHIPPED 2026-07-10** (all attested): the blessed integrations + the runnable proof.
+`@boardstate/broker@0.3.0` gains first-party connector presets (OfficeCLI's built-in
+`officecli mcp`, plus Pipedream + Composio recipes — auth via `${ENV}` refs, node-side
+only); `@boardstate/server@1.4.0` gains `installConnectorWorkspace`, the one-call host
+wiring that assembles the whole M5 stack (engine → agent adapter → tool_search). The
+runnable `examples/operational-demo` proves the full loop headless in CI and live: an
+operator-authored connector config → the board reads a workbook through a granted
+`source:"mcp"` binding → a "generate document" mutation PARKS → a networked client cannot
+confirm it → the local operator confirms → the document is generated. **Live-verified**
+2026-07-10: grant `requested`→`granted`, table filled with live workbook rows, action
+parked and then operator-confirmed. Verify caught a read-binding-parks-mutation queue-spam
+bug, a concurrent-confirm race, a grant-tools lose-update, and a demo stylesheet path bug.
+
+**M5 COMPLETE.** Boardstate is now an MCP client end to end: nine packages on npm, all
+Sigstore-attested. The one architectural line held through all three sprints — the broker
+is host-side, `@boardstate/core` stays pure, browser bundles stay MCP-free. Owner-gated
+only: the Show HN post (drafted) and an optional hero screen-recording of the operate loop.
 
 **S5-2 SHIPPED 2026-07-10** (all attested): the agent surface + the board's hands.
 `@boardstate/agent@0.3.0` gets the broker→AgentTool adapter (granted tools reach the agent
