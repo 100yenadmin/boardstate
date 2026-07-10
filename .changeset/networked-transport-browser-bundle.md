@@ -16,6 +16,11 @@ hosts (e.g. an in-browser dashboard driven by a Node sidecar).
   request frames to the same in-process host surface and mirrors host broadcasts to
   connected clients. Changes no default; owns only the `upgrade` handshake on its path.
   Pinned by `@boardstate/conformance` running the full suite over a real WS pair.
+  Networked reads carry no operator identity, so private-tab filtering is fail-closed
+  (an unidentified operator sees no private tab). The frame codec **refuses an unmasked
+  client frame (RFC 6455 §5.1) and a frame whose declared length exceeds the 1 MB message
+  cap** — the latter before buffering toward it, so a hostile length claim cannot grow the
+  inbound buffer unbounded (a memory-DoS guard).
 - **`@boardstate/lit`** adds a self-contained browser bundle at `@boardstate/lit/browser`
   (`import "@boardstate/lit/browser"` defines the custom elements with no bundler or
   import map). `boardstate-mcp --serve` now renders the real `<boardstate-view>` when the

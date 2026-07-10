@@ -182,12 +182,16 @@ class Connection {
     this.buffer = this.buffer.length === 0 ? chunk : Buffer.concat([this.buffer, chunk]);
     // Parse every complete frame currently buffered; leave a partial for the next chunk.
     for (;;) {
-      const frame = decodeFrame(this.buffer);
-      if (!frame) {
+      const result = decodeFrame(this.buffer);
+      if (result.status === "incomplete") {
         return;
       }
-      this.buffer = this.buffer.subarray(frame.consumed);
-      this.handleFrame(frame.fin, frame.opcode, frame.payload);
+      if (result.status === "error") {
+        this.fail(); // Unmasked or over-cap frame — refuse the connection (1002).
+        return;
+      }
+      this.buffer = this.buffer.subarray(result.frame.consumed);
+      this.handleFrame(result.frame.fin, result.frame.opcode, result.frame.payload);
     }
   }
 
@@ -321,31 +325,45 @@ function encodeFrame(opcode: number, payload: Buffer): Buffer {
 type DecodedFrame = { fin: boolean; opcode: number; payload: Buffer; consumed: number };
 
 /**
- * Decode one frame from the head of `buffer`, or null if it is not yet complete.
- * Client → server frames MUST be masked (RFC 6455 §5.3); the mask is applied here so
- * the caller sees plaintext. `consumed` is how many bytes the frame occupied.
+ * Decode-one-frame outcome: a decoded frame, a not-yet-complete buffer (keep reading),
+ * or a protocol violation the caller must close on. Distinguishing "incomplete" from
+ * "error" is what lets `onData` refuse a hostile frame instead of buffering toward it.
  */
-function decodeFrame(buffer: Buffer): DecodedFrame | null {
+type FrameResult =
+  { status: "ok"; frame: DecodedFrame } | { status: "incomplete" } | { status: "error" };
+
+/**
+ * Decode one frame from the head of `buffer`. Client → server frames MUST be masked
+ * (RFC 6455 §5.1) and MUST NOT declare a payload larger than the message cap — either
+ * is a protocol violation returned as `error`. The mask is applied here so the caller
+ * sees plaintext. `consumed` is how many bytes the frame occupied.
+ */
+function decodeFrame(buffer: Buffer): FrameResult {
   if (buffer.length < 2) {
-    return null;
+    return { status: "incomplete" };
   }
   const byte0 = buffer[0]!;
   const byte1 = buffer[1]!;
   const fin = (byte0 & 0x80) !== 0;
   const opcode = byte0 & 0x0f;
   const masked = (byte1 & 0x80) !== 0;
+  // RFC 6455 §5.1: every frame from a client MUST be masked. An unmasked frame is a
+  // protocol violation — refuse it rather than read its payload as plaintext.
+  if (!masked) {
+    return { status: "error" };
+  }
   let length = byte1 & 0x7f;
   let offset = 2;
 
   if (length === 126) {
     if (buffer.length < offset + 2) {
-      return null;
+      return { status: "incomplete" };
     }
     length = buffer.readUInt16BE(offset);
     offset += 2;
   } else if (length === 127) {
     if (buffer.length < offset + 8) {
-      return null;
+      return { status: "incomplete" };
     }
     const high = buffer.readUInt32BE(offset);
     const low = buffer.readUInt32BE(offset + 4);
@@ -353,18 +371,24 @@ function decodeFrame(buffer: Buffer): DecodedFrame | null {
     offset += 8;
   }
 
-  const maskKey = masked ? buffer.subarray(offset, offset + 4) : null;
-  if (masked) {
-    offset += 4;
+  // Bound the DECLARED payload before buffering toward it: a single frame can never
+  // exceed the whole-message cap, so a larger claim is refused NOW — otherwise a client
+  // could claim a huge length and dribble bytes, growing `Connection.buffer` unbounded
+  // before the post-reassembly cap ever fires (a memory-DoS).
+  if (length > MAX_MESSAGE_BYTES) {
+    return { status: "error" };
   }
+  if (buffer.length < offset + 4) {
+    return { status: "incomplete" }; // Mask key not fully arrived yet.
+  }
+  const maskKey = buffer.subarray(offset, offset + 4);
+  offset += 4;
   if (buffer.length < offset + length) {
-    return null; // Payload not fully arrived yet.
+    return { status: "incomplete" }; // Payload not fully arrived yet.
   }
   const payload = Buffer.from(buffer.subarray(offset, offset + length));
-  if (maskKey) {
-    for (let i = 0; i < payload.length; i += 1) {
-      payload[i]! ^= maskKey[i & 3]!;
-    }
+  for (let i = 0; i < payload.length; i += 1) {
+    payload[i]! ^= maskKey[i & 3]!;
   }
-  return { fin, opcode, payload, consumed: offset + length };
+  return { status: "ok", frame: { fin, opcode, payload, consumed: offset + length } };
 }
