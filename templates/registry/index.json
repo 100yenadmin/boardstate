@@ -6,6 +6,11 @@
       "manifestUrl": "./calculator.bundle.json"
     },
     {
+      "name": "habit-tracker",
+      "description": "A rolling 7-day check-in grid: tap a day to mark the habit done, watch the current streak update, and rename the habit inline — all persisted across reloads via the…",
+      "manifestUrl": "./habit-tracker.bundle.json"
+    },
+    {
       "name": "hello-data",
       "description": "Minimal example: requests one static binding (greeting) with dashboard:getData on load, and re-renders on both the dashboard:data reply and any later dashboard:push.",
       "manifestUrl": "./hello-data.bundle.json"
@@ -14,6 +19,11 @@
       "name": "notes",
       "description": "A scratchpad widget — and a deliberately honest example of the current persistence gap.",
       "manifestUrl": "./notes.bundle.json"
+    },
+    {
+      "name": "pomodoro",
+      "description": "A focus timer with work/break cycles, a depleting countdown ring, configurable durations, and a completed-session counter — the second starter that persists its state across…",
+      "manifestUrl": "./pomodoro.bundle.json"
     },
     {
       "name": "twenty48",
