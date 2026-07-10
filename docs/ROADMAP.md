@@ -130,7 +130,33 @@ list. This keeps token cost bounded and dogfoods the control plane. Decision to 
 - **Cost controls:** per-turn token ceiling + max tool-iterations guard in the runner
   (prevents a runaway loop burning the user's key). Surfaced as `usage` events.
 
-## Phases
+## Act 1 — COMPLETE (2026-07-10)
+
+M0–M3 + M4a all shipped and live. Substrate on npm (9 packages, all attested from the 0.3.x
+train); reference app at https://100yenadmin.github.io/boardstate/app/ does plug-in-a-provider
+→ live board; self-building loop (design-review tool + `selfReview:"once"` + app button) live
+and GLM-verified; drag UX is lift-and-carry. The per-milestone detail below is the historical
+build record.
+
+## Act 2 — IN PROGRESS: finish M4 + launch + portback
+
+Owner-ratified 2026-07-10 ("all of it, in the order you choose … file as issues … get to
+work … do our releases"). Every phase is a tracked issue (label `roadmap`). **Locked order:**
+
+| Phase | Issue | What |
+| --- | --- | --- |
+| R1 | [#23](https://github.com/100yenadmin/boardstate/issues/23) | Networked WebSocket transport + browser bundle (land PRs #20/#21 + WS hardening) |
+| R2 | [#24](https://github.com/100yenadmin/boardstate/issues/24) | `dashboard_widget_catalog` tool — close the prop-shape gap (first-try correctness) |
+| Launch | [#28](https://github.com/100yenadmin/boardstate/issues/28) | Show HN (owner posts) + awesome-list placements |
+| M4c | [#25](https://github.com/100yenadmin/boardstate/issues/25) | Live-bindings hardening: first-class host connector contract + reference connector |
+| M4d | [#26](https://github.com/100yenadmin/boardstate/issues/26) | MCP Apps interop — widgets as `ui://` resources (Claude Desktop distribution) |
+| M4b | [#27](https://github.com/100yenadmin/boardstate/issues/27) | Capability broker — approval gate for data sources/tools (spec-first) |
+| Portback | [#29](https://github.com/100yenadmin/boardstate/issues/29) | Port Act-1/Act-2 fixes upstream to OpenClaw (parallel lane) |
+
+The one architectural line still held: the provider/agent loop is a client of the control
+plane, never in `@boardstate/core`.
+
+## Phases (historical build record)
 
 Substrate = M0–M1; the bridge library = M2; the app = M3; the frontier = M4. **M3 app work
 can begin in parallel the moment M1's `chat.*` contract is frozen** (co-equal goals).
