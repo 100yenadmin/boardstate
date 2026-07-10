@@ -97,12 +97,15 @@ export function reconcileReplaceApproval(
   // run through here, so this single gate closes both.
   //
   // The OPERATOR-ONLY surface of a granted grant is (a) the authorized `tools`/`toolsHash`
-  // (SPEC §17.1), (b) the `autoConfirm` "always allow" set (SPEC §17.2, #62), and (c) the
-  // `expiresAt` TTL (SPEC §17 TTLs, #64). None may be MUTATED through replace/import: an
-  // agent appending a tool, ticking an auto-confirm, or extending a lease is a silent
-  // widening. Any drift in ANY of these on a still-granted grant re-pends the whole grant
-  // to `requested` so the operator re-approves the new surface — the single gate closes
-  // every no-agent-write path (agent workspace.replace, raw RPC replace, import).
+  // (SPEC §17.1), (b) the `autoConfirm` "always allow" set (SPEC §17.2, #62), (c) the
+  // `expiresAt` TTL (SPEC §17 TTLs, #64), and (d) the `agents` per-agent scope (SPEC §17.3,
+  // #59). None may be MUTATED through replace/import: an agent appending a tool, ticking an
+  // auto-confirm, extending a lease, or WIDENING the agent scope (dropping `agents`, or
+  // adding an actor) is a silent widening. Any drift in ANY of these on a still-granted
+  // grant re-pends the whole grant to `requested` so the operator re-approves the new
+  // surface — the single gate closes every no-agent-write path (agent workspace.replace,
+  // raw RPC replace, import). Operator-side narrowing is done through the approve verb, not
+  // here, so re-pend-on-any-drift is correct: this path never carries operator intent.
   const currentCaps = current.capabilitiesRegistry ?? {};
   const incomingCaps = incoming.capabilitiesRegistry ?? {};
   for (const [name, grant] of Object.entries(incomingCaps)) {
@@ -114,15 +117,18 @@ export function reconcileReplaceApproval(
       (!sameStringSet(grant.tools ?? [], currentGrant.tools ?? []) ||
         (grant.toolsHash ?? "") !== (currentGrant.toolsHash ?? "") ||
         !sameStringSet(grant.autoConfirm ?? [], currentGrant.autoConfirm ?? []) ||
-        (grant.expiresAt ?? "") !== (currentGrant.expiresAt ?? ""));
+        (grant.expiresAt ?? "") !== (currentGrant.expiresAt ?? "") ||
+        !sameStringSet(grant.agents ?? [], currentGrant.agents ?? []));
     if (selfElevated || surfaceMutated) {
       grant.status = "requested";
       delete grant.grantedBy;
       delete grant.grantedAt;
-      // A re-pended grant carries no active auto-run or lease — strip the operator-only
-      // fields so a self-grant smuggled through replace can never resurrect them.
+      // A re-pended grant carries no active auto-run, lease, or scope — strip the
+      // operator-only fields so a self-grant smuggled through replace can never resurrect
+      // them (and a widened scope never rides along on a re-pended grant).
       delete grant.autoConfirm;
       delete grant.expiresAt;
+      delete grant.agents;
     }
   }
   return incoming;
@@ -210,8 +216,9 @@ function sweepExpiredEphemeral(doc: WorkspaceDoc, nowMs: number): WorkspaceDoc |
  * Re-pend capability grants whose TTL has lapsed (SPEC §17 grant TTLs, #64). A
  * `granted` grant with an `expiresAt` at or before `nowMs` flips back to `requested`
  * — the standard re-pend: tools drop from the agent's set next turn, mcp bindings
- * surface `capability_pending`, and (crucially) `autoConfirm` is cleared so a lapsed
- * lease can never keep auto-running. `grantedBy`/`grantedAt`/`expiresAt` are stripped,
+ * surface `capability_pending`, and (crucially) `autoConfirm` + `agents` are cleared so a
+ * lapsed lease can never keep auto-running or stay scoped. `grantedBy`/`grantedAt`/`expiresAt`
+ * are stripped,
  * exactly like import re-pend. Returns a version-bumped doc when anything expired, or
  * null when nothing did — so `read()` writes exactly once, folded with the ephemeral
  * sweep. Mirrors `sweepExpiredEphemeral`: SWEEP ON READ is the universal, fail-closed
@@ -238,7 +245,16 @@ function sweepExpiredGrants(doc: WorkspaceDoc, nowMs: number): WorkspaceDoc | nu
       continue;
     }
     expired = true;
-    const { grantedBy: _by, grantedAt: _at, expiresAt: _exp, autoConfirm: _auto, ...rest } = grant;
+    // A lapsed lease re-pends bare: strip provenance, the lease, the auto-run set, AND the
+    // per-agent scope (SPEC §17.3, #59) — the operator re-scopes on re-approval.
+    const {
+      grantedBy: _by,
+      grantedAt: _at,
+      expiresAt: _exp,
+      autoConfirm: _auto,
+      agents: _agents,
+      ...rest
+    } = grant;
     next[name] = { ...rest, status: "requested" };
   }
   if (!expired) {

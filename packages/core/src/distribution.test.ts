@@ -145,10 +145,11 @@ describe("sanitizeImportedWorkspace", () => {
         streams: [],
         tools: ["officecli:send_mail"],
         toolsHash: "hash-x",
-        // The operator-only auto-run + TTL (SPEC §17.2/§17 TTLs) must NOT survive import —
-        // a foreign board carries no active lease.
+        // The operator-only auto-run + TTL + per-agent scope (SPEC §17.2/§17.3) must NOT
+        // survive import — a foreign board carries no active lease and no scope claims.
         autoConfirm: ["officecli:send_mail"],
         expiresAt: "2026-12-31T00:00:00.000Z",
+        agents: ["agent:alice"],
         grantedBy: "user",
         grantedAt: "2026-01-01T00:00:00.000Z",
       },

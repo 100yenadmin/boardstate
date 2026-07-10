@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/server",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "The Boardstate dashboard.* control plane, agent tools, widget serving, CLI",
   "type": "module",
   "license": "MIT",

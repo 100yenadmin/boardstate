@@ -98,6 +98,7 @@ import {
 import { icons } from "./icons.js";
 import type { BuiltinWidgetContext } from "./renderers/index.js";
 import { setBoardstateStrings, t, type BoardstateStrings } from "./strings.js";
+import { agentChipFor, distinctAgentActors, shortAgentId, agentHue } from "./agent-provenance.js";
 
 /** Minimal Web-Storage-shaped seam for the onboarding-dismissed flag. */
 export interface BoardstateStorage {
@@ -195,6 +196,12 @@ type DashboardViewState = {
   history: DashboardHistoryViewState;
   /** Widget-gallery browse/install surface state (w3), or null when closed. */
   gallery: DashboardGalleryState | null;
+  /**
+   * Active per-agent provenance filter (SPEC §17.3, #59): the full actor (`agent:<id>`)
+   * whose widgets are highlighted, or null for "show all". Transient view state; only
+   * meaningful on a multi-agent board.
+   */
+  highlightedAgent: string | null;
 };
 
 /** Bookkeeping for one live `stream`-binding subscription (see DashboardViewState). */
@@ -403,6 +410,7 @@ function getViewState(host: object, storage: BoardstateStorage | undefined): Das
       lastPresenceSlug: null,
       history: initialHistoryViewState(),
       gallery: null,
+      highlightedAgent: null,
     };
     dashboardViewStates.set(host, state);
   }
@@ -1290,6 +1298,9 @@ function renderGrid(
   const callbacks = makeCallbacks(props, state, viewState, tab);
   const rows = gridRowCount(tab.widgets);
   const minHeight = rows * DASHBOARD_ROW_HEIGHT + Math.max(0, rows - 1) * DASHBOARD_GRID_GAP;
+  // Multi-agent provenance chips (SPEC §17.3, #59) only appear once ≥2 distinct agent
+  // authors are on the board; below that the plain "AI" chip is used (byte-identical).
+  const multiAgent = distinctAgentActors(workspace).length >= 2;
   return html`
     <div class="dashboard-grid" style="min-height: ${minHeight}px" data-test-id="dashboard-grid">
       ${tab.widgets.map((widget) => {
@@ -1303,6 +1314,10 @@ function renderGrid(
           dragging && drag.mode === "move"
             ? `translate(${drag.pointerDx}px, ${drag.pointerDy}px)`
             : undefined;
+        const agentChip =
+          multiAgent && widget.createdBy
+            ? agentChipFor(widget.createdBy, viewState.highlightedAgent)
+            : null;
         return renderWidgetCell({
           widget,
           binding: viewState.bindingResults.get(widget.id) ?? null,
@@ -1314,6 +1329,7 @@ function renderGrid(
           builtinContext: buildBuiltinContext(props, state, workspace, widget),
           callbacks,
           ...(custom ? { custom } : {}),
+          ...(agentChip ? { agentChip } : {}),
         });
       })}
       ${renderDragGhost(viewState, tab)}
@@ -1749,7 +1765,68 @@ function renderBody(
     ${renderWorkspacesHeader(props, state, viewState, tab)}
     ${renderOnboardingBanner(props, viewState, workspace, () => props.onRequestUpdate?.())}
     ${renderTabStrip(props, state, viewState, workspace)}
+    ${renderAgentFilterBar(props, viewState, workspace)}
     ${renderGrid(props, state, viewState, workspace, tab)}
+  `;
+}
+
+/**
+ * The per-agent provenance filter (SPEC §17.3, #59): a row of deterministically-coloured
+ * agent chips shown ONLY on a multi-agent board (≥2 distinct agent authors). Clicking a
+ * chip highlights that agent's widgets (dimming the rest); clicking the active chip (or
+ * "All") clears the filter. A single-agent / operator board renders nothing here.
+ */
+function renderAgentFilterBar(
+  props: BoardstateViewProps,
+  viewState: DashboardViewState,
+  workspace: DashboardWorkspace,
+): TemplateResult | typeof nothing {
+  const actors = distinctAgentActors(workspace);
+  if (actors.length < 2) {
+    viewState.highlightedAgent = null; // never strand a filter when the board narrows
+    return nothing;
+  }
+  const setHighlight = (actor: string | null): void => {
+    viewState.highlightedAgent = viewState.highlightedAgent === actor ? null : actor;
+    props.onRequestUpdate?.();
+  };
+  const active = viewState.highlightedAgent;
+  return html`
+    <div
+      class="dashboard-agent-filter"
+      data-test-id="dashboard-agent-filter"
+      role="group"
+      aria-label=${t("dashboard.agentFilter.label")}
+    >
+      <span class="dashboard-agent-filter__label">${t("dashboard.agentFilter.label")}</span>
+      <button
+        class="dashboard-agent-filter__chip ${active === null ? "dashboard-agent-filter__chip--active" : ""}"
+        type="button"
+        data-test-id="dashboard-agent-filter-all"
+        aria-pressed=${active === null ? "true" : "false"}
+        @click=${() => setHighlight(null)}
+      >
+        ${t("dashboard.agentFilter.all")}
+      </button>
+      ${actors.map((actor) => {
+        const agentId = dashboardAgentProvenance(actor) ?? actor;
+        const isActive = active === actor;
+        return html`<button
+          class="dashboard-agent-filter__chip dashboard-agent-filter__chip--agent ${
+            isActive ? "dashboard-agent-filter__chip--active" : ""
+          }"
+          type="button"
+          style="--dashboard-agent-hue: ${agentHue(actor)}"
+          data-agent=${actor}
+          data-test-id="dashboard-agent-filter-chip"
+          aria-pressed=${isActive ? "true" : "false"}
+          title=${t("dashboard.widget.agentChipTooltip", { agent: actor })}
+          @click=${() => setHighlight(actor)}
+        >
+          ${shortAgentId(agentId)}
+        </button>`;
+      })}
+    </div>
   `;
 }
 

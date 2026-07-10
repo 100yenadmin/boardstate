@@ -26,6 +26,16 @@ export type RpcHandlerContext = {
   respond: (ok: boolean, result?: unknown, error?: { code: string; message: string }) => void;
   broadcast: (event: string, payload: unknown) => void;
   operatorId: string | null;
+  /**
+   * Server-bound acting-agent identity (SPEC §17.3, #59), threaded from the transport's
+   * {@link RequestContext} — NEVER from a request param. An in-process caller (the MCP
+   * session / the agent-tool adapter) sets it from its authenticated session seam; a raw
+   * networked caller carries NONE (the WS transport threads no identity), so a scoped grant
+   * fails closed for it. A handler that binds an actor for capability scope MUST read it
+   * from here, so a client can never claim another agent's scope through `params`.
+   */
+  agentId?: string;
+  sessionKey?: string;
 };
 
 export type RpcHandler = (ctx: RpcHandlerContext) => void | Promise<void>;
@@ -241,6 +251,11 @@ export function createInProcessHost(
             respond,
             broadcast,
             operatorId: resolveOperatorId(ctx),
+            // Server-bound identity flows from the transport context ONLY (SPEC §17.3): the
+            // WS transport passes no ctx, so a networked caller's `agentId` is undefined and
+            // scoped grants fail closed. A request param can never populate it.
+            ...(ctx?.agentId !== undefined ? { agentId: ctx.agentId } : {}),
+            ...(ctx?.sessionKey !== undefined ? { sessionKey: ctx.sessionKey } : {}),
           }),
         ).catch((error) => {
           const code =

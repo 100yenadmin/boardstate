@@ -520,6 +520,85 @@ select.bs-dialog__input {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
+/* Per-agent provenance chip (SPEC §17.3, #59): a deterministically-coloured chip on a
+   multi-agent board. The hue comes from `--dashboard-agent-hue` (set per widget); the
+   fill + text derive from it so every agent keeps one readable colour in light + dark. */
+.dashboard-widget__agent {
+  display: inline-flex;
+  align-items: center;
+  max-width: 8rem;
+  padding: 1px 6px;
+  border-radius: var(--bs-radius-full, 999px);
+  background: hsl(var(--dashboard-agent-hue, 250) 70% 50% / 0.18);
+  color: hsl(var(--dashboard-agent-hue, 250) 65% 42%);
+  font-size: 0.68em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (prefers-color-scheme: dark) {
+  .dashboard-widget__agent {
+    color: hsl(var(--dashboard-agent-hue, 250) 80% 72%);
+  }
+}
+.dashboard-widget__agent--dimmed {
+  opacity: 0.5;
+}
+/* Filter highlight: a non-matching widget recedes so the highlighted agent stands out. */
+.dashboard-widget--agent-dimmed {
+  opacity: 0.4;
+  filter: saturate(0.7);
+}
+/* The per-agent filter bar (SPEC §17.3, #59) — a row of agent chips above the grid. */
+.dashboard-agent-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px 8px;
+}
+.dashboard-agent-filter__label {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--bs-text-dim, #9ca3af);
+  margin-inline-end: 2px;
+}
+.dashboard-agent-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--bs-radius-full, 999px);
+  border: 1px solid var(--bs-border, #e5e7eb);
+  background: transparent;
+  color: var(--bs-text, #111827);
+  font-size: 0.72em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dashboard-agent-filter__chip--agent {
+  border-color: hsl(var(--dashboard-agent-hue, 250) 60% 55% / 0.5);
+  color: hsl(var(--dashboard-agent-hue, 250) 60% 40%);
+}
+.dashboard-agent-filter__chip--active {
+  background: hsl(var(--dashboard-agent-hue, 250) 70% 50% / 0.16);
+  border-color: hsl(var(--dashboard-agent-hue, 250) 65% 50%);
+}
+.dashboard-agent-filter__chip--active:not(.dashboard-agent-filter__chip--agent) {
+  background: color-mix(in srgb, var(--bs-accent, #6366f1) 16%, transparent);
+  border-color: var(--bs-accent, #6366f1);
+}
+@media (prefers-color-scheme: dark) {
+  .dashboard-agent-filter__chip--agent {
+    color: hsl(var(--dashboard-agent-hue, 250) 80% 72%);
+  }
+}
+/* Per-agent scope line in an approvals row (SPEC §17.3, #59). */
+.dashboard-approvals__scope {
+  font-size: 0.72em;
+  color: var(--bs-text-dim, #9ca3af);
+}
 .dashboard-widget__handle {
   display: inline-flex;
   align-items: center;

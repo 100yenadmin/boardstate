@@ -186,6 +186,30 @@ function readAutoConfirmSubset(record: Record<string, unknown>): string[] | unde
 }
 
 /**
+ * Read the optional per-agent scope (SPEC §17.3, #59): an array of agent actors
+ * (`agent:<id>`) the operator scoped this grant to. Absent ⇒ the approve sets no scope
+ * (and CLEARS any prior one — the approve verb is the sole writer). Shape is checked here;
+ * the schema validator additionally rejects non-agent actors, an empty list, and
+ * duplicates. Operator narrowing/widening is legitimate (this verb carries operator
+ * intent); only the agent/reconcile path re-pends on a scope change.
+ */
+function readAgentsScope(record: Record<string, unknown>): string[] | undefined {
+  const value = record.agents;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("agents must be an array of agent actors");
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || entry.length === 0 || entry.length > 71) {
+      throw new Error(`agents[${index}] must be an agent actor`);
+    }
+    return entry;
+  });
+}
+
+/**
  * Read the optional grant TTL (SPEC §17 TTLs, #64): an ISO-8601 instant that MUST be
  * future-dated at write (`nowMs` is the injected clock). Absent ⇒ a permanent grant.
  */
@@ -977,6 +1001,7 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
           "tools",
           "autoConfirm",
           "expiresAt",
+          "agents",
         ]);
         const name = readRequiredString(params, "name", "name");
         if (!CONNECTOR_NAME_PATTERN.test(name)) {
@@ -996,6 +1021,11 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
         // must be future-dated at write.
         const autoConfirmSubset = readAutoConfirmSubset(params);
         const expiresAt = readFutureExpiresAt(params, (options.now ?? Date.now)());
+        // Per-agent scope (SPEC §17.3, #59) — OPERATOR-ONLY, settable only here. Absent
+        // CLEARS any prior scope (undefined ⇒ dropped by the validator), so this verb is the
+        // single writer; narrowing or widening it is legitimate operator intent (unlike the
+        // agent/reconcile path, which re-pends on any scope drift).
+        const agentsScope = readAgentsScope(params);
         const actor = readOptionalActor(params);
         await respondWrite(
           opts,
@@ -1010,8 +1040,9 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                   throw new Error(`no capability request for connector: ${name}`);
                 }
                 if (decision === "revoked") {
-                  // Revoke clears the operator-only auto-run + TTL too (SPEC §17.2/§17 TTLs):
-                  // a revoked grant carries no active lease.
+                  // Revoke clears the operator-only auto-run + TTL + per-agent scope too
+                  // (SPEC §17.2/§17 TTLs/§17.3): a revoked grant carries no active lease or
+                  // scope.
                   registry[name] = {
                     ...existing,
                     status: "revoked",
@@ -1019,6 +1050,7 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                     grantedAt: undefined,
                     autoConfirm: undefined,
                     expiresAt: undefined,
+                    agents: undefined,
                   };
                   return;
                 }
@@ -1055,9 +1087,10 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                   ...(grantedTools !== undefined ? { tools: grantedTools } : {}),
                   ...(toolsHash !== undefined ? { toolsHash } : { toolsHash: undefined }),
                   // Absent params CLEAR the prior value (undefined ⇒ dropped on validate) so
-                  // this verb is the single source of truth for both operator-only fields.
+                  // this verb is the single source of truth for the operator-only fields.
                   autoConfirm: autoConfirmSubset,
                   expiresAt,
+                  agents: agentsScope,
                   grantedBy: actor,
                   grantedAt: new Date((options.now ?? Date.now)()).toISOString(),
                 };

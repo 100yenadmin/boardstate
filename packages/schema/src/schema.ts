@@ -138,6 +138,18 @@ export type DashboardCapabilityGrant = {
    * survives until the sweep flips it). Absent ⇒ the grant never times out (a deed).
    */
   expiresAt?: string;
+  /**
+   * Per-agent scope (SPEC §17.3, #59): the SUBSET of agent actors (`agent:<id>`) this
+   * grant's tools are usable by — the actor dimension of the AND-gate. ABSENT ⇒ every
+   * agent (back-compat, zero migration); PRESENT ⇒ only these actors pass, and any other
+   * actor (or an unauthenticated networked caller with no server-bound identity) is
+   * refused `capability_pending`. OPERATOR-SET ONLY (the approve verb): REQUEST / reconcile
+   * / import can never write or widen it — a drift on a still-granted grant re-pends the
+   * whole grant, exactly like `autoConfirm`/`expiresAt`, and every re-pend strips it. Only
+   * agent actors (never `user`/`system`), non-empty when present (absent already means
+   * "all"), no duplicates.
+   */
+  agents?: string[];
   /** Human-readable one-liner for the approval card. */
   description?: string;
   grantedBy?: DashboardActor;
@@ -184,6 +196,9 @@ export const CURRENT_WORKSPACE_SCHEMA_VERSION = 1;
 
 const TAB_SLUG_PATTERN = /^[a-z0-9-]{1,40}$/;
 const ACTOR_PATTERN = /^(user|system|agent:[A-Za-z0-9._-]{1,64})$/;
+// A grant's per-agent scope (SPEC §17.3) lists ONLY agent actors — `user`/`system` are
+// never scope targets (scoping governs agents), so this is stricter than ACTOR_PATTERN.
+const AGENT_ACTOR_PATTERN = /^agent:[A-Za-z0-9._-]{1,64}$/;
 const TAB_VISIBILITY_VALUES = new Set<DashboardTabVisibility>(["shared", "private"]);
 /** Bounded opaque operator-identity string (e.g. `device:<id>`). */
 const TAB_OWNER_PATTERN = /^[A-Za-z0-9:._-]{1,128}$/;
@@ -806,6 +821,7 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
       "toolsHash",
       "autoConfirm",
       "expiresAt",
+      "agents",
       "description",
       "grantedBy",
       "grantedAt",
@@ -896,6 +912,28 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
   ) {
     throw new Error(`${path}.expiresAt must be an ISO 8601 timestamp`);
   }
+  // `agents` (SPEC §17.3, #59): the per-agent scope. Each entry an agent actor
+  // (`agent:<id>` — never user/system); shape-validated, de-duplicated, and REQUIRED to be
+  // non-empty when present (absent already expresses "all agents", so an empty list would
+  // be an ambiguous footgun that silently locks everyone out — reject it). Omitted on
+  // output when absent so a pre-§17.3 grant stays byte-identical.
+  const agents =
+    record.agents === undefined
+      ? undefined
+      : requireArray(record.agents, `${path}.agents`).map((entry, index) => {
+          if (typeof entry !== "string" || !AGENT_ACTOR_PATTERN.test(entry)) {
+            throw new Error(`${path}.agents[${index}] is not a valid agent actor`);
+          }
+          return entry;
+        });
+  if (agents !== undefined) {
+    if (agents.length === 0) {
+      throw new Error(`${path}.agents must be a non-empty array (omit it to allow all agents)`);
+    }
+    if (new Set(agents).size !== agents.length) {
+      throw new Error(`${path}.agents contains duplicate actors`);
+    }
+  }
   const description = optionalString(record, "description", path);
   if (description !== undefined && description.length > 200) {
     throw new Error(`${path}.description must be 200 characters or fewer`);
@@ -913,6 +951,7 @@ function validateCapabilityGrant(value: unknown, path: string): DashboardCapabil
     ...(toolsHash !== undefined ? { toolsHash } : {}),
     ...(autoConfirm !== undefined ? { autoConfirm } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(agents !== undefined ? { agents } : {}),
     ...(description !== undefined ? { description } : {}),
     ...(grantedBy !== undefined ? { grantedBy } : {}),
     ...(grantedAt !== undefined ? { grantedAt } : {}),

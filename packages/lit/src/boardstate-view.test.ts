@@ -497,3 +497,94 @@ describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
     expect(container.querySelector('[data-test-id="dashboard-import-input"]')).not.toBeNull();
   });
 });
+
+/** A workspace with widgets authored by two distinct agents (a multi-agent board). */
+function multiAgentDoc() {
+  return {
+    schemaVersion: 1,
+    workspaceVersion: 1,
+    capabilitiesRegistry: {},
+    widgetsRegistry: {},
+    prefs: { tabOrder: ["main"] },
+    tabs: [
+      {
+        slug: "main",
+        title: "Main",
+        hidden: false,
+        widgets: [
+          {
+            id: "wa",
+            kind: "builtin:markdown",
+            title: "Alice widget",
+            grid: { x: 0, y: 0, w: 6, h: 2 },
+            collapsed: false,
+            createdBy: "agent:alice",
+            props: { markdown: "a" },
+          },
+          {
+            id: "wb",
+            kind: "builtin:markdown",
+            title: "Bob widget",
+            grid: { x: 6, y: 0, w: 6, h: 2 },
+            collapsed: false,
+            createdBy: "agent:bob",
+            props: { markdown: "b" },
+          },
+        ],
+      },
+    ],
+  } as never;
+}
+
+describe("multi-agent provenance chips (SPEC §17.3, #59)", () => {
+  it("renders a per-agent chip per widget + the filter bar when ≥2 agents author the board", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = multiAgentDoc();
+    state.activeSlug = "main";
+    const container = renderView(host);
+    const chips = container.querySelectorAll('[data-test-id="dashboard-widget-agent-chip"]');
+    expect(chips).toHaveLength(2);
+    expect([...chips].map((c) => c.getAttribute("data-agent")).sort()).toEqual([
+      "agent:alice",
+      "agent:bob",
+    ]);
+    // The filter bar appears with a chip per agent + an "All" reset.
+    expect(container.querySelector('[data-test-id="dashboard-agent-filter"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-test-id="dashboard-agent-filter-chip"]')).toHaveLength(
+      2,
+    );
+  });
+
+  it("hides chips + filter on a single-agent board (plain provenance chip only)", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc; // the base doc: one unstamped widget
+    state.activeSlug = "main";
+    const container = renderView(host);
+    expect(container.querySelector('[data-test-id="dashboard-widget-agent-chip"]')).toBeNull();
+    expect(container.querySelector('[data-test-id="dashboard-agent-filter"]')).toBeNull();
+  });
+
+  it("filtering to one agent dims the other agent's widgets", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = multiAgentDoc();
+    state.activeSlug = "main";
+    const container = document.createElement("div");
+    render(renderBoardstateView(baseProps(host)), container);
+    // Click the first agent's filter chip (alice — sorted first).
+    const aliceChip = container.querySelector<HTMLButtonElement>(
+      '[data-test-id="dashboard-agent-filter-chip"]',
+    );
+    aliceChip?.click();
+    render(renderBoardstateView(baseProps(host)), container);
+    const bobCell = container.querySelector('[data-widget-id="wb"]');
+    const aliceCell = container.querySelector('[data-widget-id="wa"]');
+    expect(bobCell?.classList.contains("dashboard-widget--agent-dimmed")).toBe(true);
+    expect(aliceCell?.classList.contains("dashboard-widget--agent-dimmed")).toBe(false);
+  });
+});

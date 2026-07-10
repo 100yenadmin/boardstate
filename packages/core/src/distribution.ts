@@ -166,13 +166,17 @@ export function sanitizeImportedWorkspace(parsed: unknown): Record<string, unkno
   const caps: Record<string, unknown> = {};
   for (const [name, entry] of Object.entries(capsInput)) {
     if (isRecord(entry)) {
-      // Strip who/when-granted AND the operator-only auto-run + TTL fields (SPEC §17.2/§17
-      // TTLs): an imported board is foreign authoring and carries no active lease.
+      // Strip who/when-granted AND every operator-only privilege field — auto-run,
+      // TTL lease, and per-agent scope (SPEC §17.2/§17.3): an imported board is
+      // foreign authoring; scope claims from a foreign doc are as untrustworthy as
+      // a granted status (adversarial verify 2026-07-11 — the import path had been
+      // missed when the other re-pend sites gained the agents strip).
       const {
         grantedBy: _grantedBy,
         grantedAt: _grantedAt,
         autoConfirm: _autoConfirm,
         expiresAt: _expiresAt,
+        agents: _agents,
         ...rest
       } = entry;
       caps[name] = { ...rest, status: "requested" };

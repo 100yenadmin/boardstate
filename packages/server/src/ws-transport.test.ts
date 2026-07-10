@@ -9,6 +9,11 @@ import { createServer, type Server as HttpServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { DashboardStore, MemoryStorageAdapter, createWsTransport } from "@boardstate/core";
 import { createInProcessHost, nodeRpcDeps, registerBoardstateRpc } from "./node.js";
+import {
+  installBrokerActions,
+  type ActionBroker,
+  type ActionToolManifest,
+} from "./broker-actions.js";
 import { attachWsTransport, type WsTransportHandle } from "./ws-transport.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -153,6 +158,75 @@ describe("attachWsTransport", () => {
       transport.request("dashboard.widget.approve", { name: "nope", decision: "approved" }),
     ).resolves.toBeDefined();
     transport.close();
+  });
+
+  it("actor authenticity: a networked client cannot pass a per-agent-scoped grant (SPEC §17.3, #59)", async () => {
+    // The load-bearing spoof (issue #59): scope is worthless if a WS client can claim an
+    // agent identity. The WS transport threads NO context, so a networked caller carries no
+    // server-bound `agentId` — a scoped grant fails closed for it, and a claimed `actor`
+    // param cannot help (invoke rejects the param AND the gate keys off the absent bound id).
+    const storage = new MemoryStorageAdapter();
+    const store = new DashboardStore({ storage });
+    const host = createInProcessHost(store, storage);
+    const READ = {
+      id: "officecli:read_mail",
+      connector: "officecli",
+      tool: "read_mail",
+      readOnly: true,
+    };
+    const broker: ActionBroker = {
+      connectorNames: () => ["officecli"],
+      listTools: async (): Promise<ActionToolManifest> => ({ tools: [READ], hash: "h" }),
+      callTool: async () => ({ content: [{ type: "text", text: "ok" }] }),
+      hashToolSubset: () => "h",
+    };
+    const actions = installBrokerActions(host, { broker, store, grantSweepMs: 0 });
+    registerBoardstateRpc(host, {
+      store,
+      ...nodeRpcDeps(),
+      capabilityToolsHash: actions.capabilityToolsHash,
+    });
+    await actions.ready;
+    // Operator (in-process, local) scopes the grant to agent:alice.
+    await host.request("dashboard.capability.approve", {
+      name: "officecli",
+      decision: "granted",
+      actor: "user",
+      agents: ["agent:alice"],
+    });
+
+    httpServer = createServer();
+    wsHandle = attachWsTransport(httpServer, host);
+    await new Promise<void>((resolve) => httpServer!.listen(0, "127.0.0.1", resolve));
+    const port = (httpServer!.address() as { port: number }).port;
+    const transport = createWsTransport(`ws://127.0.0.1:${port}/ws`);
+    await transport.ready;
+
+    // A) a plain networked invoke fails closed — no bound identity to satisfy the scope.
+    await expect(
+      transport.request("dashboard.action.invoke", { connector: "officecli", tool: "read_mail" }),
+    ).rejects.toThrow(/not granted/);
+    // B) claiming another agent's identity via a param cannot pass it either.
+    await expect(
+      transport.request("dashboard.action.invoke", {
+        connector: "officecli",
+        tool: "read_mail",
+        actor: "agent:alice",
+      }),
+    ).rejects.toBeDefined();
+
+    // C) an UNSCOPED grant stays usable over the wire (back-compat preserved).
+    await host.request("dashboard.capability.approve", {
+      name: "officecli",
+      decision: "granted",
+      actor: "user",
+    });
+    await expect(
+      transport.request("dashboard.action.invoke", { connector: "officecli", tool: "read_mail" }),
+    ).resolves.toBeDefined();
+
+    transport.close();
+    actions.stop();
   });
 
   it("closes on an unmasked client frame (RFC 6455 §5.1)", async () => {
