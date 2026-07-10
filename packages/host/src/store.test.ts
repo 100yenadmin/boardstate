@@ -408,6 +408,93 @@ describe("binding resolution", () => {
   });
 });
 
+describe("mcp read binding resolution (#45)", () => {
+  it("invokes the broker read path with the EXACT param shape and returns structuredContent", async () => {
+    // Wire-contract at the binding resolve seam: an mcp read binding resolves through
+    // dashboard.action.invoke { connector, tool, args } — a readOnly tool executes and
+    // returns { content, structuredContent }; we bind the parsed structuredContent.
+    const request = vi.fn(async () => ({
+      content: [{ type: "text", text: "raw" }],
+      structuredContent: { rows: [{ id: 1 }] },
+    }));
+    const transport = mockTransport({ request: request as never });
+    const result = await resolveBinding(transport, {
+      source: "mcp",
+      connector: "officecli",
+      tool: "workbook_query",
+      args: { sheet: "Q3" },
+    } as never);
+    expect(request).toHaveBeenCalledWith("dashboard.action.invoke", {
+      connector: "officecli",
+      tool: "workbook_query",
+      args: { sheet: "Q3" },
+    });
+    expect(result).toEqual({ value: { rows: [{ id: 1 }] } });
+  });
+
+  it("falls back to content and applies the JSON pointer", async () => {
+    const transport = mockTransport({
+      request: vi.fn(async () => ({ content: { total: 42 } })) as never,
+    });
+    const result = await resolveBinding(transport, {
+      source: "mcp",
+      connector: "c",
+      tool: "t",
+      pointer: "/total",
+    } as never);
+    expect(result).toEqual({ value: 42 });
+  });
+
+  it("REJECTS a parked mutation (invoke-time readOnly recheck, never auto-fires)", async () => {
+    // A non-readOnly tool PARKS instead of reading — a read binding must never target a
+    // mutation. The parked response is rejected as an error and never confirmed.
+    const transport = mockTransport({
+      request: vi.fn(async () => ({
+        pending: true,
+        id: "act_1",
+        expiresAt: "2026-07-10T00:00:00Z",
+      })) as never,
+    });
+    const result = await resolveBinding(transport, {
+      source: "mcp",
+      connector: "c",
+      tool: "delete_row",
+    } as never);
+    expect(result).toEqual({ error: "mcp read binding must target a readOnly tool." });
+  });
+
+  it("surfaces capability_pending for an ungranted tool, then recovers after grant", async () => {
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('tool "c:t" is not granted — request and approve it first'))
+      .mockResolvedValueOnce({ structuredContent: 7 });
+    const transport = mockTransport({ request: request as never });
+    const pending = await resolveBinding(transport, {
+      source: "mcp",
+      connector: "c",
+      tool: "t",
+    } as never);
+    expect(pending).toEqual({
+      error: 'tool "c:t" is not granted — request and approve it first',
+    });
+    // A later refresh (grant landed) re-calls and resolves the value.
+    const granted = await resolveBinding(transport, {
+      source: "mcp",
+      connector: "c",
+      tool: "t",
+    } as never);
+    expect(granted).toEqual({ value: 7 });
+  });
+
+  it("errors without touching the transport when connector/tool is missing", async () => {
+    const request = vi.fn(async () => ({}));
+    const transport = mockTransport({ request: request as never });
+    const result = await resolveBinding(transport, { source: "mcp", connector: "c" } as never);
+    expect(result).toEqual({ error: "mcp binding is missing a connector or tool." });
+    expect(request).not.toHaveBeenCalled();
+  });
+});
+
 describe("computed binding resolution", () => {
   it("reduces numeric inputs per op", () => {
     expect(resolveComputedBinding("sum", [1, 2, 3])).toEqual({ value: 6 });

@@ -331,12 +331,17 @@ async function main(): Promise<void> {
     sessionKey?: string;
     storage?: Pick<Storage, "getItem" | "setItem">;
     strings?: BoardstateStrings;
+    operator?: boolean;
   };
   boardView.transport = host;
   boardView.connected = true;
   boardView.storage = localStorage;
   boardView.basePath = basePath;
   boardView.sessionKey = SESSION_KEY;
+  // This reference app drives an in-process host — it IS the local operator, so it may
+  // offer inline confirm/deny for a parked action (SPEC §18). A networked embedder omits
+  // this; the confirm affordance then renders disabled-with-reason.
+  boardView.operator = true;
   activeViews.push(boardView);
   document.getElementById("board-area")!.appendChild(boardView);
 

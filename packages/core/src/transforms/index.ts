@@ -18,11 +18,14 @@ export {
   mapActionForm,
   coerceFieldValue,
   buildActionFormPrompt,
+  buildActionToolArgs,
   ACTION_FORM_DEFAULT_MAX_LENGTH,
   type ActionFormField,
   type ActionFormFieldType,
+  type ActionFormMode,
   type ActionFormModel,
 } from "./action-form.js";
+export { mapActionButton, type ActionButtonModel } from "./action-button.js";
 export { mapPreviewViewport, type PreviewViewport } from "./preview.js";
 export { mapAgentStatus, type AgentStatusRowModel, type AgentStatusModel } from "./agent-status.js";
 export {

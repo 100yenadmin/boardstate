@@ -1169,6 +1169,63 @@ select.bs-dialog__input {
   align-self: flex-start;
 }
 
+/* --- action-button widget (M5d-1) — invoke a granted external tool -------- */
+.dashboard-action-button {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.dashboard-action-button__invoke {
+  align-self: flex-start;
+}
+.dashboard-action-button__status,
+.dashboard-action-button__hint {
+  font-size: 12px;
+  color: var(--bs-text-muted, #6b7280);
+}
+.dashboard-action-button__pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--bs-text-muted, #6b7280);
+}
+.dashboard-action-button__pending-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.dashboard-action-button__result-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--bs-text-muted, #6b7280);
+}
+.dashboard-action-button__result-body {
+  margin: 4px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 8px;
+  font: 12px/1.5 var(--bs-font-mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--bs-text, #1a1d21);
+  background: var(--bs-surface-muted, #f3f4f6);
+  border-radius: var(--bs-radius-sm, 6px);
+}
+.dashboard-action-button__error {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--bs-danger, #b91c1c);
+}
+.dashboard-action-button__status[data-status="confirmed"] {
+  color: var(--bs-success, #15803d);
+}
+
 /* --- agent-status + approvals widgets (wave-ops) ------------------------- */
 .dashboard-agent-status,
 .dashboard-approvals {
