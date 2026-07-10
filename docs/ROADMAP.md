@@ -174,7 +174,7 @@ MCP-free).
 | S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | ✅     |
 | S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ✅     |
 | S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ✅     |
-| later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | 💤     |
+| later  | Seeds — graduated to Act 4 (#59–#64)           | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | ✅     |
 
 One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance: GLM key +
 OfficeCLI + one aggregator recipe → the agent builds a board that READS live external data
@@ -332,3 +332,21 @@ certain today). (d) **MCP Apps interop**: a thin adapter re-exposing Boardstate 
 3. Follow the repo's discipline: additive change → full gates (`pnpm build && typecheck &&
 test && lint`) → changeset → PR → CI + Pages green → live smoke of the demo.
 4. Hold the one line: **the provider loop is a client of the control plane, never in core.**
+
+## Act 4 — Polish wave + graduated seeds (owner-ratified 2026-07-11)
+
+Owner direction: _"the more polished the demo gets — and the more demo widgets and
+templates that come built-in — the better."_ Two tracks: the polish/content backlog, then
+the six #49 seeds graduated to spec'd issues.
+
+| Wave | Theme                                          | Issues                                                                                                                                                                                                                                    | Status |
+| ---- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| P1   | Polish + built-in content (4 parallel lanes)   | [#10](https://github.com/100yenadmin/boardstate/issues/10) [#11](https://github.com/100yenadmin/boardstate/issues/11) [#12](https://github.com/100yenadmin/boardstate/issues/12) [#4](https://github.com/100yenadmin/boardstate/issues/4) | 🔨     |
+| P2   | Trust-model trio: auto-confirm + TTLs + async  | [#62](https://github.com/100yenadmin/boardstate/issues/62) [#64](https://github.com/100yenadmin/boardstate/issues/64) [#63](https://github.com/100yenadmin/boardstate/issues/63)                                                          | 🔨     |
+| P3   | Multi-agent workspaces                         | [#59](https://github.com/100yenadmin/boardstate/issues/59)                                                                                                                                                                                | ⏳     |
+| P4   | Template gallery as programs + board-as-memory | [#60](https://github.com/100yenadmin/boardstate/issues/60) [#61](https://github.com/100yenadmin/boardstate/issues/61)                                                                                                                     | ⏳     |
+
+Sequencing is by shared surface, not priority: P2 runs parallel to P1 (no file overlap);
+P3 waits on P2 (both extend the grant record + approvals widget + engine gate); P4 waits
+on P1's content lane (templates/registry) and P1's view lane (gallery UI). One release
+train per wave-batch as PRs land.
