@@ -322,7 +322,11 @@ const server = createServer((req, res) => {
         return undefined;
       }
       if (pathname === "/pkg/lit/styles.css") {
-        const css = readFileSync(join(PKG_ROOTS.lit, "styles.css"));
+        // @boardstate/lit ships its board stylesheet as SOURCE (the package's
+        // `styles.css` export → src/styles/boardstate.css), not a dist artifact — so
+        // read it there. Reading dist/styles.css (which does not exist) left the board
+        // grid/widget CSS unloaded and the layout broken.
+        const css = readFileSync(join(ROOT, "packages/lit/src/styles/boardstate.css"));
         res.writeHead(200, { "Content-Type": MIME[".css"] });
         return res.end(css);
       }
