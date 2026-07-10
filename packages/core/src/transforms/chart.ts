@@ -18,6 +18,14 @@ export type ChartModel = {
   values: number[];
   min: number;
   max: number;
+  /**
+   * Detail mode (`props.detail`) — opt-in labeled axes, gridlines, and value
+   * tooltips over the default axis-light look. Ignored by `sparkline`, which
+   * stays minimal by definition. Off ⇒ a byte-identical render to the old model.
+   */
+  detail: boolean;
+  /** `sparkline` only: show the trailing value as an end-of-line label. */
+  label: boolean;
 };
 
 /** Pull a numeric y from a point-like entry (`y`, else `value`). */
@@ -60,5 +68,12 @@ export function mapChart(widget: DashboardWidget, value: unknown): ChartModel {
   const values = normalizeSeries(value);
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 0;
-  return { type: resolveType(props), values, min, max };
+  return {
+    type: resolveType(props),
+    values,
+    min,
+    max,
+    detail: props.detail === true,
+    label: props.label === true,
+  };
 }
