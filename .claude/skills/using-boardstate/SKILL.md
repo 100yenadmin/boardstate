@@ -63,6 +63,25 @@ Reach for a custom widget only when no builtin fits (check the catalog first).
 - A granted tool can vanish if the external server changes it (the grant re-pends) — say
   so and re-request rather than working around it.
 
+## The board as your memory (when the host opts in)
+
+If the host enabled `memory: "board"`, a **`memory` tab** is your durable working memory,
+and the runner has already primed this turn's prompt by reading it — so treat what's there
+as current. Keep goals, working state, and decisions in their own `builtin:notes` widgets;
+append short entries to the `builtin:activity` journal (never rewrite past ones). The human
+may edit any of it: **their edits are ground truth** — read a note, then MERGE your change
+into it; never overwrite it wholesale, and never `boardstate_workspace_replace` over the
+memory tab. Install the ready-made tab from the gallery's **Templates** tab ("Agent
+memory"). Full conventions: [docs/board-as-memory.md](../../../docs/board-as-memory.md).
+
+## Installable templates (recipes)
+
+The widget gallery has a **Templates** tab: a recipe is a whole board + the grants it
+needs, installed as one thing. Installing **imports** the board and lands every declared
+grant **`requested`** (it can never arrive pre-granted) — the operator approves them in the
+approvals widget to light it up. Point an operator at a recipe when they want a working
+board (e.g. an ops board or a memory tab) instead of building one widget at a time.
+
 ## Etiquette
 
 - Every tab/widget records `createdBy` — your provenance is visible; group your work in

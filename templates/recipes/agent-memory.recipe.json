@@ -1,0 +1,80 @@
+{
+  "recipeVersion": 1,
+  "name": "agent-memory",
+  "title": "Agent memory",
+  "description": "A pre-structured memory tab an agent uses as durable, human-auditable working memory: notes for goals, working state, and decisions, plus an append-style activity journal. Ordinary board state you can read and edit. Pair with the agent's memory:\"board\" opt-in.",
+  "doc": {
+    "schemaVersion": 1,
+    "workspaceVersion": 1,
+    "prefs": { "tabOrder": ["memory"] },
+    "widgetsRegistry": {},
+    "tabs": [
+      {
+        "slug": "memory",
+        "title": "Memory",
+        "icon": "notes",
+        "hidden": false,
+        "createdBy": "system",
+        "widgets": [
+          {
+            "id": "memory-goals",
+            "kind": "builtin:notes",
+            "title": "Goals",
+            "grid": { "x": 0, "y": 0, "w": 4, "h": 4 },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "text": "What we're trying to achieve, in priority order.\n\n1. (add the current objective)\n\nHuman edits here are ground truth — the agent reads this before each session and never overwrites it wholesale."
+            }
+          },
+          {
+            "id": "memory-working-state",
+            "kind": "builtin:notes",
+            "title": "Working state",
+            "grid": { "x": 4, "y": 0, "w": 4, "h": 4 },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "text": "Where things stand right now — the scratchpad the agent updates as it works.\n\n- Current focus:\n- Blocked on:\n- Next step:"
+            }
+          },
+          {
+            "id": "memory-decisions",
+            "kind": "builtin:notes",
+            "title": "Decisions",
+            "grid": { "x": 8, "y": 0, "w": 4, "h": 4 },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "text": "Durable decisions and their rationale, so they survive across sessions.\n\n- (decision) — (why), (date)"
+            }
+          },
+          {
+            "id": "memory-journal",
+            "kind": "builtin:activity",
+            "title": "Activity journal",
+            "grid": { "x": 0, "y": 4, "w": 12, "h": 5 },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "static",
+                "value": {
+                  "entries": [
+                    {
+                      "ts": 1783510292000,
+                      "jobName": "system",
+                      "status": "ok",
+                      "summary": "Memory tab installed — the agent will append its session journal here."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "grantsManifest": {}
+}

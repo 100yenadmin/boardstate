@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Type } from "typebox";
 import type { AgentTool } from "@boardstate/server";
-import { buildSystemPrompt, compositionGuideTool, COMPOSITION_GUIDE } from "./system-prompt.js";
+import {
+  buildSystemPrompt,
+  compositionGuideTool,
+  COMPOSITION_GUIDE,
+  MEMORY_CONVENTIONS,
+} from "./system-prompt.js";
 
 const stub = (name: string, readOnly = false): AgentTool => ({
   name,
@@ -34,6 +39,20 @@ describe("buildSystemPrompt", () => {
 
   it("handles an empty tool set", () => {
     expect(buildSystemPrompt([])).toContain("- (none)");
+  });
+
+  it("is byte-identical whether options are omitted or memory is off (#61)", () => {
+    const tools = [stub("dashboard_workspace_get", true), stub("dashboard_widget_update")];
+    expect(buildSystemPrompt(tools, {})).toBe(buildSystemPrompt(tools));
+    expect(buildSystemPrompt(tools)).not.toContain("Board as memory");
+  });
+
+  it('appends the memory conventions only when memory:"board" is set (#61)', () => {
+    const tools = [stub("dashboard_workspace_get", true)];
+    const on = buildSystemPrompt(tools, { memory: "board" });
+    expect(on).toContain(MEMORY_CONVENTIONS);
+    expect(on).toContain("GROUND TRUTH");
+    expect(on).toBe(`${buildSystemPrompt(tools)}\n\n${MEMORY_CONVENTIONS}`);
   });
 });
 

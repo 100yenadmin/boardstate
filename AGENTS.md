@@ -109,6 +109,18 @@ Keys are read from your host's environment. They never enter the board document,
 browser never sees them unless _you_ run the provider client-side (the reference app does,
 deliberately, with the user's own key).
 
+### The board as durable memory (opt-in)
+
+Pass `memory: "board"` to `createAgentChatAgent` to use the board as the agent's durable,
+human-auditable working memory. The system prompt gains the memory conventions and the
+runner **primes each turn by reading a `memory` tab** (through the existing
+`dashboard_workspace_get` verb — no new tools) so the agent always sees the human's latest
+edits. It is additive and default-off: with `memory` absent the prompt is byte-identical.
+Keep goals / working-state / decisions in separate `builtin:notes` widgets and append to a
+`builtin:activity` journal; **human edits are ground truth** — read-then-merge, never
+`workspace_replace` over them. Install the ready-made tab from the gallery's **Templates**
+tab ("Agent memory"). Full conventions: [`docs/board-as-memory.md`](docs/board-as-memory.md).
+
 ## 3. Let the board act (`@boardstate/broker` + the grant loop)
 
 The board consumes external MCP servers through an **operator-authored** connector config —

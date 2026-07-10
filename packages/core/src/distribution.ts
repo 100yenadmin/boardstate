@@ -6,6 +6,7 @@
 // download/upload glue lives in the view; structural re-validation is left to the
 // server (`dashboard.workspace.replace` calls `validateWorkspaceDoc`).
 
+import type { RecipeConnectorGrant, TemplateRecipe } from "@boardstate/schema";
 import type { DashboardWidgetStatus } from "./types.js";
 
 const PENDING_STATUS: DashboardWidgetStatus = "pending";
@@ -183,4 +184,59 @@ export function sanitizeImportedWorkspace(parsed: unknown): Record<string, unkno
   }
   doc.capabilitiesRegistry = caps;
   return doc;
+}
+
+// --- Template recipes (install = import) --------------------------------------
+//
+// A recipe (`@boardstate/schema` `TemplateRecipe`) is `{ doc, grantsManifest }`.
+// Installing it is IMPORTING it: the doc's `capabilitiesRegistry` is built FROM the
+// human-labeled `grantsManifest` (the manifest is authoritative — it overwrites any
+// grants the doc author left behind), then the whole doc goes through the EXISTING
+// `sanitizeImportedWorkspace` re-pend seam. So every manifest grant lands `requested`,
+// custom widgets land `pending`, and a recipe can NEVER arrive pre-granted — that
+// invariant is enforced by the distribution re-pend here AND, independently, by
+// `reconcileReplaceApproval` at the store. No code runs at install; recipes are pure data.
+
+/** The one-liner (grant `description`) for a connector's approval card. */
+function recipeGrantDescription(grant: RecipeConnectorGrant): string | undefined {
+  const reason = grant.reason?.trim();
+  return reason && reason.length > 0 ? reason.slice(0, 200) : undefined;
+}
+
+/**
+ * Build the workspace doc a recipe installs: the recipe's `doc` with its
+ * `capabilitiesRegistry` REPLACED by the grants the `grantsManifest` declares, each
+ * `requested`. The result is NOT yet re-pended — pass it through
+ * `sanitizeImportedWorkspace` (as `buildRecipeImportDoc` does) so it travels the same
+ * seam every imported board does. `toolsHash` is deliberately omitted: the broker
+ * reconciles a `requested` grant's tool surface to the connector's live manifest on its
+ * next refresh, so the recipe declares INTENT and the host owns the authoritative hash.
+ */
+export function buildRecipeInstallDoc(recipe: TemplateRecipe): Record<string, unknown> {
+  const doc = structuredClone(recipe.doc) as Record<string, unknown>;
+  const caps: Record<string, unknown> = {};
+  for (const [connector, grant] of Object.entries(recipe.grantsManifest)) {
+    const description = recipeGrantDescription(grant);
+    const tools = (grant.tools ?? []).map((tool) => tool.id);
+    caps[connector] = {
+      status: "requested",
+      methods: grant.methods ?? [],
+      streams: grant.streams ?? [],
+      ...(tools.length > 0 ? { tools } : {}),
+      ...(description !== undefined ? { description } : {}),
+    };
+  }
+  doc.capabilitiesRegistry = caps;
+  return doc;
+}
+
+/**
+ * The doc to hand `dashboard.workspace.replace` when installing a recipe: the recipe's
+ * board with its manifest grants merged in, then run through the SAME
+ * `sanitizeImportedWorkspace` re-pend as any imported workspace. Install therefore
+ * inherits every import guarantee — pending widgets, requested grants, stripped
+ * auto-run/TTL — for free, and can never grant.
+ */
+export function buildRecipeImportDoc(recipe: TemplateRecipe): Record<string, unknown> {
+  return sanitizeImportedWorkspace(buildRecipeInstallDoc(recipe));
 }

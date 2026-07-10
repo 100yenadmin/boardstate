@@ -215,6 +215,18 @@ export const de: BoardstateStrings = {
   "dashboard.gallery.noCapabilities": "Keine besonderen Berechtigungen angefordert.",
   "dashboard.gallery.pendingNote":
     "Installierte Widgets bleiben ausstehend, bis Sie sie genehmigen, und laufen danach in einer Sandbox.",
+  "dashboard.gallery.tabWidgets": "Widgets",
+  "dashboard.gallery.tabTemplates": "Vorlagen",
+  "dashboard.gallery.recipesEmpty": "In dieser Registry wurden keine Vorlagen gefunden.",
+  "dashboard.gallery.recipeNeedsNothing":
+    "Funktioniert sofort — keine Berechtigungen erforderlich.",
+  "dashboard.gallery.recipeNeedsConnectors": "Benötigt: {connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "Dieses Board fragt diese Tools an",
+  "dashboard.gallery.recipeNoGrants": "Keine externen Tools — sofort einsatzbereit.",
+  "dashboard.gallery.recipeReadOnly": "schreibgeschützt",
+  "dashboard.gallery.recipeInstall": "Vorlage installieren",
+  "dashboard.gallery.recipeInstallNote":
+    "Beim Installieren wird das Board importiert und seine Berechtigungen werden angefragt — genehmigen Sie sie im Genehmigungs-Widget, um es zu aktivieren.",
   "dashboard.distribution.export": "Exportieren",
   "dashboard.distribution.exportTitle": "Diesen Arbeitsbereich als JSON-Datei herunterladen",
   "dashboard.distribution.import": "Importieren",

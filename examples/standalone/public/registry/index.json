@@ -30,5 +30,32 @@
       "description": "A compact 2048 tile game showing off state:persist — best score and board survive a reload.",
       "manifestUrl": "./twenty48.bundle.json"
     }
+  ],
+  "recipes": [
+    {
+      "name": "agent-memory",
+      "title": "Agent memory",
+      "description": "A pre-structured memory tab an agent uses as durable, human-auditable working memory: notes for goals, working state, and decisions, plus an append-style activity journal. Ordinary board state you can read and edit. Pair with the agent's memory:\"board\" opt-in.",
+      "manifestUrl": "./agent-memory.recipe.json",
+      "connectors": []
+    },
+    {
+      "name": "ops-board",
+      "title": "Ops board",
+      "description": "Reads a live workbook through a granted OfficeCLI tool and generates a report document with an operator-confirmed action. Wired for the operational-demo's fake OfficeCLI connector, so it works keyless end to end.",
+      "manifestUrl": "./ops-board.recipe.json",
+      "connectors": [
+        "officecli"
+      ]
+    },
+    {
+      "name": "saas-metrics",
+      "title": "SaaS metrics + actions",
+      "description": "MRR, active subscriptions, and churn at a glance, plus a one-click refund action wired through an aggregator connector. The stat cards preview from static data; the live charge feed and the refund action need a real Pipedream/Composio connector with keys (see docs/connectors).",
+      "manifestUrl": "./saas-metrics.recipe.json",
+      "connectors": [
+        "pipedream"
+      ]
+    }
   ]
 }

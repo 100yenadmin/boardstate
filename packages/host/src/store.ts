@@ -9,6 +9,7 @@
 
 import {
   applyPointer,
+  buildRecipeImportDoc,
   normalizeWorkspace,
   parseWorkspaceImport,
   resolveActiveSlug,
@@ -23,6 +24,7 @@ import {
   type DashboardTabLayout,
   type DashboardWidget,
   type DashboardWorkspace,
+  type TemplateRecipe,
   type Transport,
   type WorkspaceExportOptions,
 } from "@boardstate/core";
@@ -630,6 +632,37 @@ export async function importWorkspace(
     const doc = sanitizeImportedWorkspace(parseWorkspaceImport(text));
     await transport.request("dashboard.workspace.replace", { doc });
     // Refresh immediately rather than wait for the boardstate.changed echo.
+    await loadWorkspace(state, transport, { silent: true });
+    return true;
+  } catch (err) {
+    state.actionError = formatError(err);
+    notify(state);
+    return false;
+  }
+}
+
+/**
+ * Install a template recipe (issue #60): INSTALL = IMPORT. The recipe's board is merged
+ * with the grants its `grantsManifest` declares (each `requested`) and run through the
+ * SAME `sanitizeImportedWorkspace` re-pend as any imported workspace
+ * (`buildRecipeImportDoc`), then applied via `dashboard.workspace.replace` (which the
+ * store re-validates AND re-pends via `reconcileReplaceApproval`). So installing can
+ * never grant: every manifest grant lands `requested`, every custom widget `pending`.
+ * A validation failure surfaces as an `actionError` toast; returns whether it applied.
+ */
+export async function installRecipe(
+  state: DashboardUiState,
+  transport: Transport | null,
+  recipe: TemplateRecipe,
+): Promise<boolean> {
+  if (!transport) {
+    return false;
+  }
+  state.actionError = null;
+  notify(state);
+  try {
+    const doc = buildRecipeImportDoc(recipe);
+    await transport.request("dashboard.workspace.replace", { doc });
     await loadWorkspace(state, transport, { silent: true });
     return true;
   } catch (err) {

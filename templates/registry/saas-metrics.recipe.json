@@ -1,0 +1,216 @@
+{
+  "recipeVersion": 1,
+  "name": "saas-metrics",
+  "title": "SaaS metrics + actions",
+  "description": "MRR, active subscriptions, and churn at a glance, plus a one-click refund action wired through an aggregator connector. The stat cards preview from static data; the live charge feed and the refund action need a real Pipedream/Composio connector with keys (see docs/connectors).",
+  "doc": {
+    "schemaVersion": 1,
+    "workspaceVersion": 1,
+    "prefs": {
+      "tabOrder": [
+        "metrics"
+      ]
+    },
+    "widgetsRegistry": {},
+    "tabs": [
+      {
+        "slug": "metrics",
+        "title": "Metrics",
+        "hidden": false,
+        "createdBy": "system",
+        "widgets": [
+          {
+            "id": "mrr",
+            "kind": "builtin:stat-card",
+            "title": "MRR",
+            "grid": {
+              "x": 0,
+              "y": 0,
+              "w": 3,
+              "h": 2
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "static",
+                "value": 128400
+              }
+            },
+            "props": {
+              "format": "usd",
+              "label": "MRR"
+            }
+          },
+          {
+            "id": "active-subs",
+            "kind": "builtin:stat-card",
+            "title": "Active subscriptions",
+            "grid": {
+              "x": 3,
+              "y": 0,
+              "w": 3,
+              "h": 2
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "static",
+                "value": 1842
+              }
+            },
+            "props": {
+              "format": "int",
+              "label": "Active subs"
+            }
+          },
+          {
+            "id": "churn",
+            "kind": "builtin:stat-card",
+            "title": "Churn",
+            "grid": {
+              "x": 6,
+              "y": 0,
+              "w": 3,
+              "h": 2
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "static",
+                "value": 0.021
+              }
+            },
+            "props": {
+              "format": "percent",
+              "label": "Monthly churn"
+            }
+          },
+          {
+            "id": "revenue-trend",
+            "kind": "builtin:chart",
+            "title": "MRR trend (last 6 months)",
+            "grid": {
+              "x": 0,
+              "y": 2,
+              "w": 8,
+              "h": 5
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "static",
+                "value": [
+                  98200,
+                  104500,
+                  111800,
+                  118000,
+                  123900,
+                  128400
+                ]
+              }
+            },
+            "props": {
+              "type": "area"
+            }
+          },
+          {
+            "id": "charges",
+            "kind": "builtin:table",
+            "title": "Recent charges (needs a connector)",
+            "grid": {
+              "x": 8,
+              "y": 2,
+              "w": 4,
+              "h": 5
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "mcp",
+                "connector": "pipedream",
+                "tool": "stripe-charges-list"
+              }
+            },
+            "props": {
+              "columns": [
+                "created",
+                "customer",
+                "amount",
+                "status"
+              ]
+            }
+          },
+          {
+            "id": "about",
+            "kind": "builtin:markdown",
+            "title": "Wiring the live data",
+            "grid": {
+              "x": 0,
+              "y": 7,
+              "w": 8,
+              "h": 3
+            },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "markdown": "The three stat cards and the trend preview from static data. The **Recent charges** table and the **Issue refund** button read/act through an aggregator connector named `pipedream` — install one with real keys (see `docs/connectors/pipedream.md` or `docs/connectors/composio.md`) and approve the requested grant to light them up. The refund is a *mutation*, so it parks for operator confirm."
+            }
+          },
+          {
+            "id": "refund",
+            "kind": "builtin:action-form",
+            "title": "Issue a refund",
+            "grid": {
+              "x": 8,
+              "y": 7,
+              "w": 4,
+              "h": 3
+            },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "mode": "tool",
+              "connector": "pipedream",
+              "tool": "stripe-refund-create",
+              "template": "Refund charge {charge_id}",
+              "buttonLabel": "Issue refund",
+              "fields": [
+                {
+                  "name": "charge_id",
+                  "label": "Charge ID",
+                  "type": "text",
+                  "maxLength": 64
+                }
+              ],
+              "argsFrom": {
+                "charge": "charge_id"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "grantsManifest": {
+    "pipedream": {
+      "label": "Pipedream (aggregator)",
+      "reason": "Reads your recent Stripe charges and issues refunds on your behalf.",
+      "tools": [
+        {
+          "id": "pipedream:stripe-charges-list",
+          "label": "List recent Stripe charges",
+          "readOnly": true
+        },
+        {
+          "id": "pipedream:stripe-refund-create",
+          "label": "Create a Stripe refund (parks for operator confirm)"
+        }
+      ]
+    }
+  }
+}
