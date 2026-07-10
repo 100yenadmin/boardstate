@@ -324,6 +324,19 @@ describe("boardstate_tool_search (#43)", () => {
     expect(toolNames(h)).not.toContain("acme__echo");
   });
 
+  it("accumulates successive REQUESTs onto the grant's tool set (union)", async () => {
+    // Behavioral guard: the union is computed inside the mutate producer from the locked
+    // `current` grant, so successive requests accumulate. (The specific concurrent
+    // lose-update the inside-the-lock computation prevents can't be reproduced
+    // deterministically through the public request() API — mutate re-reads fresh under
+    // its exclusive lock — so this asserts the observable accumulation, not that timing.)
+    const h = await setup();
+    await search(h).execute("r1", { mode: "request", connector: CONNECTOR, tools: ["acme:echo"] });
+    await search(h).execute("r2", { mode: "request", connector: CONNECTOR, tools: ["acme:send"] });
+    const g = (await h.store.read()).capabilitiesRegistry![CONNECTOR]!;
+    expect(g.tools).toEqual(expect.arrayContaining(["acme:echo", "acme:send"]));
+  });
+
   it("end-to-end: request 5 → operator grants 2 → exactly those 2 are callable", async () => {
     const h = await setup();
     const requested = ["acme:echo", "acme:lookup", "acme:status", "acme:write_note", "acme:send"];
