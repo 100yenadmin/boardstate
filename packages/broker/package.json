@@ -1,0 +1,46 @@
+{
+  "name": "@boardstate/broker",
+  "version": "0.1.0",
+  "description": "The MCP client manager: connect outward to external MCP servers, discover their tools, and call them behind a narrow, provider-safe API",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/100yenadmin/boardstate#readme",
+  "bugs": "https://github.com/100yenadmin/boardstate/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "client",
+    "broker",
+    "tools",
+    "boardstate"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "boardstate-fake-mcp": "./dist/fixture/stdio-entry.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@boardstate/server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/100yenadmin/boardstate.git",
+    "directory": "packages/broker"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
