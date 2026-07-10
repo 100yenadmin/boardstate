@@ -589,3 +589,82 @@ describe("gallery install method", () => {
     });
   });
 });
+
+/** A deterministic subset hash within the schema's TOOLS_HASH_PATTERN alphabet. */
+function stubHash(_connector: string, toolIds: readonly string[]): string {
+  return `h-${[...toolIds].sort().join(".").replaceAll(":", "-")}`;
+}
+
+describe("dashboard.capability.approve — partial tool grants (SPEC §17.1)", () => {
+  async function withGrantHost<T>(
+    run: (ctx: { host: InProcessHost; store: DashboardStore }) => Promise<T>,
+  ): Promise<T> {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "boardstate-cap-"));
+    try {
+      const storage = new FsStorageAdapter({ storageDir: stateDir });
+      const store = new DashboardStore({ storage });
+      const host = createInProcessHost(store, storage);
+      // Inject a deterministic subset-hash resolver (the real broker wires
+      // McpBroker.hashToolSubset) so the granted subset gets its OWN hash. The token
+      // stays within the schema's TOOLS_HASH_PATTERN alphabet.
+      registerBoardstateRpc(host, {
+        store,
+        dataRead: { stateDir },
+        ...nodeRpcDeps(),
+        capabilityToolsHash: stubHash,
+      });
+      // Seed a `requested` tools grant (as broker registration would).
+      await store.mutate(
+        (draft) => {
+          draft.capabilitiesRegistry = {
+            officecli: {
+              status: "requested",
+              methods: [],
+              streams: [],
+              tools: ["officecli:read_mail", "officecli:send_mail"],
+              toolsHash: stubHash("officecli", ["officecli:read_mail", "officecli:send_mail"]),
+            },
+          };
+        },
+        { actor: "system" },
+      );
+      return await run({ host, store });
+    } finally {
+      await fs.rm(stateDir, { recursive: true, force: true });
+    }
+  }
+
+  it("grants only the intersection of the requested set and records the subset's own hash", async () => {
+    await withGrantHost(async ({ host, store }) => {
+      const res = await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+        // `unlisted:tool` is not in the requested set — it must be dropped.
+        tools: ["officecli:read_mail", "unlisted:tool"],
+      });
+      expect(res.ok).toBe(true);
+      const grant = (await store.read()).capabilitiesRegistry!.officecli!;
+      expect(grant.status).toBe("granted");
+      expect(grant.tools).toEqual(["officecli:read_mail"]);
+      expect(grant.toolsHash).toBe(stubHash("officecli", ["officecli:read_mail"]));
+      expect(grant.grantedBy).toBe("user");
+    });
+  });
+
+  it("approve-all (no tools param) grants the full requested set unchanged", async () => {
+    await withGrantHost(async ({ host, store }) => {
+      await call(host, "dashboard.capability.approve", {
+        name: "officecli",
+        decision: "granted",
+        actor: "user",
+      });
+      const grant = (await store.read()).capabilitiesRegistry!.officecli!;
+      expect(grant.status).toBe("granted");
+      expect(grant.tools).toEqual(["officecli:read_mail", "officecli:send_mail"]);
+      expect(grant.toolsHash).toBe(
+        stubHash("officecli", ["officecli:read_mail", "officecli:send_mail"]),
+      );
+    });
+  });
+});

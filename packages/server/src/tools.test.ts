@@ -221,6 +221,43 @@ describe("dashboard tools", () => {
     });
   });
 
+  it("agent replace can never widen a granted tools grant (SPEC §17.1 anti-rug-pull)", async () => {
+    // Red-team HIGH: an agent appending a tool id (or swapping the hash) on a grant
+    // that STAYS `granted` must NOT gain that tool silently — reconcileReplaceApproval
+    // forces the grant back to `requested` on any tools/toolsHash mutation.
+    await withTempStateDir(async (stateDir) => {
+      const store = storeAt(stateDir);
+      const seed = await store.read();
+      seed.capabilitiesRegistry = {
+        officecli: {
+          status: "granted",
+          methods: [],
+          streams: [],
+          tools: ["officecli:read_mail"],
+          toolsHash: "hash-of-read-only",
+          grantedBy: "user",
+          grantedAt: "2026-01-01T00:00:00.000Z",
+        },
+      };
+      await store.replace(seed, { actor: "user" });
+
+      const tools = toolsByName(store);
+      const replacement = structuredClone(await store.read());
+      // The grant STAYS granted, but the agent appends a side-effecting tool.
+      replacement.capabilitiesRegistry!.officecli!.tools = [
+        "officecli:read_mail",
+        "officecli:send_mail",
+      ];
+      await tools.get("dashboard_workspace_replace")?.execute("call-1", { doc: replacement });
+
+      const next = await store.read();
+      const grant = next.capabilitiesRegistry!.officecli!;
+      expect(grant.status).toBe("requested");
+      expect(grant.grantedBy).toBeUndefined();
+      expect(grant.grantedAt).toBeUndefined();
+    });
+  });
+
   it("coerces JSON-encoded-string props back to the object, and rejects garbage props", async () => {
     // Models routinely double-encode props; a string is a valid JsonValue so it used
     // to sail through and silently strip format/type/labels from every renderer.

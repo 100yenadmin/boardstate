@@ -408,6 +408,57 @@ describe("approvals render (wave-ops)", () => {
       ?.click();
     expect(onDecide).toHaveBeenCalledWith(item, "approve");
   });
+
+  it("confirms a pending action row (SPEC §18) with the Confirm affordance", () => {
+    const onDecide = vi.fn();
+    const item = {
+      id: "act_1",
+      kind: "action" as const,
+      title: "officecli:send_mail",
+      requestedBy: "agent:main",
+      detail: "awaiting confirm",
+    };
+    const container = renderToContainer(
+      renderApprovals(widget({ kind: "builtin:approvals" }), null, {
+        ...STRICT_EMBED,
+        approvals: { pending: [item], onDecide },
+      }),
+    );
+    const approve = container.querySelector<HTMLButtonElement>(
+      '[data-test-id="dashboard-approvals-approve"]',
+    )!;
+    expect(approve.textContent?.trim()).toBe("Confirm");
+    approve.click();
+    expect(onDecide).toHaveBeenCalledWith(item, "approve");
+  });
+
+  it("grants only the ticked tools of a capability row (SPEC §17.1 partial grant)", () => {
+    const onDecide = vi.fn();
+    const item = {
+      id: "officecli",
+      kind: "capability" as const,
+      title: "officecli",
+      requestedBy: null,
+      detail: "wants 2 tools",
+      tools: ["officecli:read_mail", "officecli:send_mail"],
+    };
+    const container = renderToContainer(
+      renderApprovals(widget({ kind: "builtin:approvals" }), null, {
+        ...STRICT_EMBED,
+        approvals: { pending: [item], onDecide },
+      }),
+    );
+    // Untick the mutating tool, then approve → only the read tool is granted.
+    const boxes = container.querySelectorAll<HTMLInputElement>(
+      '[data-test-id="dashboard-approvals-tools"] input[type="checkbox"]',
+    );
+    expect(boxes).toHaveLength(2);
+    boxes[1]!.checked = false;
+    container
+      .querySelector<HTMLButtonElement>('[data-test-id="dashboard-approvals-approve"]')
+      ?.click();
+    expect(onDecide).toHaveBeenCalledWith(item, "approve", { tools: ["officecli:read_mail"] });
+  });
 });
 
 describe("chat render (wave-chat)", () => {

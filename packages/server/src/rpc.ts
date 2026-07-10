@@ -77,6 +77,14 @@ export type RegisterBoardstateRpcOptions = {
    * is registered; when absent, a host with no agent loop rejects `chat.send`.
    */
   chatAgent?: ChatAgent;
+  /**
+   * Anti-rug-pull hash resolver for the partial-grant path (SPEC §17.1): given a
+   * connector and the SUBSET of `connector:tool` ids being granted, return the digest
+   * over exactly those tools' live schemas. A broker-aware node host injects
+   * `installBrokerActions(...).capabilityToolsHash`; absent (browser host, no broker)
+   * ⇒ a partial approve carries the existing `toolsHash` forward.
+   */
+  capabilityToolsHash?: (connector: string, toolIds: string[]) => string | undefined;
 };
 
 function respondError(respond: Respond, error: unknown) {
@@ -124,6 +132,28 @@ function readOptionalString(record: Record<string, unknown>, key: string): strin
     throw new Error(`${key} must be a string`);
   }
   return value.trim();
+}
+
+/**
+ * Read the optional partial-grant `tools` subset (SPEC §17.1): an array of
+ * `connector:tool` ids the operator ticked. Absent ⇒ approve-all (undefined). Shape
+ * is checked here; the intersection with the requested set (which is already
+ * schema-validated) discards anything not actually requested.
+ */
+function readToolsSubset(record: Record<string, unknown>): string[] | undefined {
+  const value = record.tools;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("tools must be an array of connector:tool ids");
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || entry.length === 0 || entry.length > 129) {
+      throw new Error(`tools[${index}] must be a connector:tool id`);
+    }
+    return entry;
+  });
 }
 
 function readOptionalActor(record: Record<string, unknown>): DashboardActor {
@@ -886,10 +916,10 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
     "dashboard.capability.approve",
     async (opts) => {
       try {
-        // Operator-only (SPEC §17): grant or revoke a connector's data capability. Not
-        // in the agent tool catalog and covered by OPERATOR_ONLY_METHODS, so an agent
-        // or a networked client can never reach it — only the local operator.
-        const params = readParams(opts.params, ["name", "decision", "actor"]);
+        // Operator-only (SPEC §17): grant or revoke a connector's data/tool capability.
+        // Not in the agent tool catalog and covered by OPERATOR_ONLY_METHODS, so an
+        // agent or a networked client can never reach it — only the local operator.
+        const params = readParams(opts.params, ["name", "decision", "actor", "tools"]);
         const name = readRequiredString(params, "name", "name");
         if (!CONNECTOR_NAME_PATTERN.test(name)) {
           throw new Error("name is invalid");
@@ -898,6 +928,10 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
         if (decision !== "granted" && decision !== "revoked") {
           throw new Error("decision must be granted or revoked");
         }
+        // Partial grant (SPEC §17.1): the operator may tick a SUBSET of the requested
+        // `connector:tool` ids. The decision applies to the intersection with the
+        // requested set; the granted subset gets its OWN anti-rug-pull hash.
+        const toolsSubset = readToolsSubset(params);
         const actor = readOptionalActor(params);
         await respondWrite(
           opts,
@@ -911,12 +945,34 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                 if (!existing) {
                   throw new Error(`no capability request for connector: ${name}`);
                 }
+                if (decision === "revoked") {
+                  registry[name] = {
+                    ...existing,
+                    status: "revoked",
+                    grantedBy: undefined,
+                    grantedAt: undefined,
+                  };
+                  return;
+                }
+                // Granting a subset records ONLY that subset (intersection with the
+                // requested `tools`) plus the subset's hash; approve-all (no `tools`
+                // param) grants the full requested set unchanged.
+                const grantedTools =
+                  toolsSubset === undefined
+                    ? existing.tools
+                    : (existing.tools ?? []).filter((tool) => toolsSubset.includes(tool));
+                const toolsHash =
+                  toolsSubset === undefined
+                    ? existing.toolsHash
+                    : (options.capabilityToolsHash?.(name, grantedTools ?? []) ??
+                      existing.toolsHash);
                 registry[name] = {
                   ...existing,
-                  status: decision,
-                  ...(decision === "granted"
-                    ? { grantedBy: actor, grantedAt: new Date().toISOString() }
-                    : { grantedBy: undefined, grantedAt: undefined }),
+                  status: "granted",
+                  ...(grantedTools !== undefined ? { tools: grantedTools } : {}),
+                  ...(toolsHash !== undefined ? { toolsHash } : { toolsHash: undefined }),
+                  grantedBy: actor,
+                  grantedAt: new Date().toISOString(),
                 };
               },
               { actor },

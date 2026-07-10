@@ -134,6 +134,32 @@ describe("sanitizeImportedWorkspace", () => {
     expect(() => sanitizeImportedWorkspace("nope")).toThrow(/workspace object/);
   });
 
+  it("re-pends a granted tools grant to requested and keeps the tools snapshot (§17.1)", () => {
+    // An imported board is foreign authoring — it carries NO active tool grant, so a
+    // `granted` tools grant re-pends (mirrors the reconcile anti-rug-pull direction).
+    const doc = sampleDoc();
+    doc.capabilitiesRegistry = {
+      officecli: {
+        status: "granted",
+        methods: [],
+        streams: [],
+        tools: ["officecli:send_mail"],
+        toolsHash: "hash-x",
+        grantedBy: "user",
+        grantedAt: "2026-01-01T00:00:00.000Z",
+      },
+    };
+    const sanitized = sanitizeImportedWorkspace(doc);
+    const caps = sanitized.capabilitiesRegistry as Record<string, Record<string, unknown>>;
+    expect(caps.officecli).toEqual({
+      status: "requested",
+      methods: [],
+      streams: [],
+      tools: ["officecli:send_mail"],
+      toolsHash: "hash-x",
+    });
+  });
+
   it("round-trips a workspace through export → parse → sanitize (custom widgets pending)", () => {
     const json = serializeWorkspaceExport(sampleDoc());
     const sanitized = sanitizeImportedWorkspace(parseWorkspaceImport(json));
