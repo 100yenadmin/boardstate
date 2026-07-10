@@ -70,16 +70,19 @@ function canonicalize(value: unknown): unknown {
 }
 
 /**
- * Hash the sorted (manifest id + canonical input schema) pairs. Deterministic across
- * runs and process boundaries; changes iff a tool is added, removed, renamed, or its
- * input schema changes. Description/annotation churn deliberately does NOT move the hash
- * — the grant cares about the callable surface, not the prose.
+ * Hash the sorted (manifest id + canonical input schema + readOnly) tuples.
+ * Deterministic across runs and process boundaries; changes iff a tool is added,
+ * removed, renamed, its input schema changes, or its readOnly classification flips.
+ * readOnly MUST participate: it decides direct-execute vs pending-action downstream,
+ * so a read tool silently becoming a mutation is exactly the rug-pull the hash
+ * exists to catch. Description churn deliberately does NOT move the hash — the
+ * grant cares about the callable surface, not the prose.
  */
 export function manifestHash(entries: readonly ToolManifestEntry[]): string {
-  const pairs = entries
-    .map((entry) => [entry.id, canonicalize(entry.inputSchema)] as const)
+  const tuples = entries
+    .map((entry) => [entry.id, canonicalize(entry.inputSchema), entry.readOnly] as const)
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  return createHash("sha256").update(JSON.stringify(pairs)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(tuples)).digest("hex");
 }
 
 /**

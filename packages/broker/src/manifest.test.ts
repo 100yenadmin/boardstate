@@ -69,6 +69,23 @@ describe("buildManifest", () => {
     expect(buildManifest(withNewDesc).hash).toBe(before.hash);
   });
 
+  it("hash MOVES when a tool's readOnly classification flips (read -> mutating rug-pull)", () => {
+    const base = buildManifest(tools());
+    const flipped = new Map([
+      [
+        "office",
+        tools()
+          .get("office")!
+          .map((t) =>
+            t.annotations?.readOnlyHint === true
+              ? { ...t, annotations: { ...t.annotations, readOnlyHint: undefined } }
+              : t,
+          ),
+      ],
+    ]);
+    expect(buildManifest(flipped).hash).not.toBe(base.hash);
+  });
+
   it("hash MOVES when a tool is added, removed, renamed, or a schema changes", () => {
     const base = buildManifest(tools());
 
