@@ -1,5 +1,25 @@
 # @boardstate/lit
 
+## 0.7.0
+
+### Minor Changes
+
+- [#69](https://github.com/100yenadmin/boardstate/pull/69) [`eae965d`](https://github.com/100yenadmin/boardstate/commit/eae965df70f36c65e7d12008bfa097a70901b1de) Thanks [@100yenadmin](https://github.com/100yenadmin)! - View polish (issue [#4](https://github.com/100yenadmin/boardstate/issues/4)): the version-history snapshot preview now reads as an
+  intentional layout — each cell shows a per-kind glyph (a faux sparkline for
+  charts, stacked rows for tables/lists, a value bar for stat cards; no live data
+  resolved) and the grid is captioned "Layout at version N". History list rows gain
+  a compact change summary ("+2 · 1 moved · actor"). The widget gallery list shows a
+  CSS-only scroll-shadow affordance when rows are cut off. The stylesheet's remaining
+  physical left/right properties were converted to logical equivalents
+  (`padding-inline`, `border-start-start-radius`, `text-align: start`, …) to harden
+  RTL. New English strings are added to the default table only.
+
+### Patch Changes
+
+- Updated dependencies [[`eae965d`](https://github.com/100yenadmin/boardstate/commit/eae965df70f36c65e7d12008bfa097a70901b1de)]:
+  - @boardstate/core@1.6.0
+  - @boardstate/host@1.6.0
+
 ## 0.6.0
 
 ### Minor Changes
