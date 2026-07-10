@@ -128,6 +128,33 @@ describe("attachWsTransport", () => {
     transport.close();
   });
 
+  it("refuses operator-only methods over the wire by default, allows other writes", async () => {
+    const { url } = await startHost();
+    const transport = createWsTransport(url());
+    await transport.ready;
+    // A normal write (composing the board) is fine over the networked transport.
+    await expect(
+      transport.request("dashboard.tab.create", { title: "Ops" }),
+    ).resolves.toBeDefined();
+    // The operator approval action is refused BEFORE it reaches the host.
+    await expect(
+      transport.request("dashboard.widget.approve", { name: "x", decision: "approved" }),
+    ).rejects.toThrow(/operator-only/);
+    transport.close();
+  });
+
+  it("allows operator-only methods when the host opts in (it owns the auth)", async () => {
+    const { url } = await startHost({ allowOperatorMethods: true });
+    const transport = createWsTransport(url());
+    await transport.ready;
+    // Now it reaches the host (it no longer hits the transport gate): the call
+    // resolves through to dashboard.widget.approve instead of an operator-only refusal.
+    await expect(
+      transport.request("dashboard.widget.approve", { name: "nope", decision: "approved" }),
+    ).resolves.toBeDefined();
+    transport.close();
+  });
+
   it("closes on an unmasked client frame (RFC 6455 §5.1)", async () => {
     const { handle } = await startHost();
     const port = (httpServer!.address() as { port: number }).port;

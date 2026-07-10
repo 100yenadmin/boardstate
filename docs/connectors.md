@@ -71,8 +71,10 @@ attachWsTransport(httpServer, host); // server half — opt-in, path-scoped, ver
 `DEFAULT_FORWARDED_EVENTS` includes every `STREAM_EVENT_ALLOWLIST` channel, so a
 networked view receives exactly what an in-process view can subscribe to. Networked
 requests carry **no operator identity** — private tabs are filtered fail-closed for
-unidentified operators; run your own auth in `verifyClient` if the endpoint isn't
-localhost.
+unidentified operators, and **operator-only methods (`dashboard.widget.approve`) are
+refused over the wire by default** (a networked client is not the local operator; pass
+`allowOperatorMethods: true` only if you authenticate the operator yourself in
+`verifyClient`). Run your own auth in `verifyClient` if the endpoint isn't localhost.
 
 ## The three gates (why this is safe by construction)
 

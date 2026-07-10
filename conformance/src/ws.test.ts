@@ -99,7 +99,10 @@ async function makeWsHarness(): Promise<WsHarness> {
   });
 
   const httpServer = createServer();
-  const wsHandle = attachWsTransport(httpServer, host);
+  // The conformance run drives the FULL control-plane contract (incl. the operator
+  // approve flow) over the wire, so it opts into operator-only methods — a real
+  // networked host would gate these behind its own operator auth instead.
+  const wsHandle = attachWsTransport(httpServer, host, { allowOperatorMethods: true });
   await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const address = httpServer.address();
   const port = typeof address === "object" && address ? address.port : 0;

@@ -62,6 +62,19 @@ const OP_CLOSE = 0x8;
 const OP_PING = 0x9;
 const OP_PONG = 0xa;
 
+/**
+ * Operator-only control-plane methods a NETWORKED client must not reach by default.
+ * The WS transport threads no operator identity (a networked caller is `operatorId:
+ * null` — fail-closed for private-tab reads), so an operator ACTION arriving over the
+ * wire has no authenticated operator behind it. Approving a pending widget is the
+ * canonical one: it's the human's decision to run foreign code (SPEC §11-I3), and a
+ * networked client is by definition not the local operator. Blocked unless the host
+ * explicitly opts in with `allowOperatorMethods` (e.g. behind its own SSO on
+ * `verifyClient`). Prevents the confused-deputy footgun where opening a read-only
+ * networked viewer silently also hands out the approval gate.
+ */
+export const OPERATOR_ONLY_METHODS: readonly string[] = ["dashboard.widget.approve"];
+
 export type AttachWsTransportOptions = {
   /** Upgrade path this endpoint owns (default `/ws`). A mismatch destroys the socket. */
   path?: string;
@@ -75,6 +88,13 @@ export type AttachWsTransportOptions = {
    * your own auth here; absent ⇒ every upgrade on `path` is accepted.
    */
   verifyClient?: (req: IncomingMessage) => boolean;
+  /**
+   * Allow {@link OPERATOR_ONLY_METHODS} over this endpoint. Default `false`: a
+   * networked client can compose/drive the board but never perform an operator
+   * approval, because the wire carries no authenticated operator. Set `true` ONLY
+   * when the host authenticates the operator itself (e.g. in `verifyClient`).
+   */
+  allowOperatorMethods?: boolean;
 };
 
 export type WsTransportHandle = {
@@ -96,6 +116,9 @@ export function attachWsTransport(
 ): WsTransportHandle {
   const path = options.path ?? "/ws";
   const forwardEvents = options.forwardEvents ?? DEFAULT_FORWARDED_EVENTS;
+  const blockedMethods = options.allowOperatorMethods
+    ? new Set<string>()
+    : new Set(OPERATOR_ONLY_METHODS);
   const connections = new Set<Connection>();
 
   const onUpgrade = (req: IncomingMessage, socket: Duplex): void => {
@@ -125,7 +148,7 @@ export function attachWsTransport(
         `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
     );
 
-    const connection = new Connection(socket, host, forwardEvents, () =>
+    const connection = new Connection(socket, host, forwardEvents, blockedMethods, () =>
       connections.delete(connection),
     );
     connections.add(connection);
@@ -162,6 +185,7 @@ class Connection {
     private readonly socket: Duplex,
     private readonly host: InProcessHost,
     forwardEvents: readonly string[],
+    private readonly blockedMethods: ReadonlySet<string>,
     private readonly onClose: () => void,
   ) {
     // Mirror each host broadcast to this client as an `{ event, payload }` frame.
@@ -264,6 +288,18 @@ class Connection {
     }
     if (typeof frame.method !== "string") {
       this.sendJson({ id, error: { code: "bad_request", message: "method is required" } });
+      return;
+    }
+    if (this.blockedMethods.has(frame.method)) {
+      // Operator-only over an unauthenticated wire — refuse before dispatch (the host
+      // never sees it), so a networked client can't perform an operator action.
+      this.sendJson({
+        id,
+        error: {
+          code: "operator_only",
+          message: `${frame.method} is an operator-only method and is not available over this networked transport`,
+        },
+      });
       return;
     }
     try {
