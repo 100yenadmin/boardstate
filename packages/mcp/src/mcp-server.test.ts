@@ -43,6 +43,7 @@ const EXPECTED_TOOL_NAMES = [
   "boardstate_undo",
   "boardstate_widget_catalog",
   "boardstate_design_review",
+  "boardstate_board_view",
   "boardstate_data_read",
   "boardstate_widget_approve",
 ];
@@ -145,6 +146,32 @@ describe("@boardstate/mcp server", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it("exposes the MCP Apps board view: linked tool meta + a self-contained ui:// resource", async () => {
+    const { client } = await connect();
+    // The tool advertises its UI resource via the SEP-1865 nested meta key.
+    const { tools } = await client.listTools();
+    const boardTool = tools.find((tool) => tool.name === "boardstate_board_view");
+    expect(boardTool?._meta).toMatchObject({ ui: { resourceUri: "ui://boardstate/board.html" } });
+
+    // The resource lists with the Apps mimeType and reads back as self-contained HTML.
+    const { resources } = await client.listResources();
+    const boardResource = resources.find((r) => r.uri === "ui://boardstate/board.html");
+    expect(boardResource?.mimeType).toBe("text/html;profile=mcp-app");
+    const read = await client.readResource({ uri: "ui://boardstate/board.html" });
+    const html = (read.contents[0] as { text: string }).text;
+    expect(html).toContain("boardstate-view"); // the client creates the element
+    expect(html).toContain("<script>"); // the inlined client bundle
+    expect(html.length).toBeGreaterThan(100_000); // genuinely self-contained
+    // Deny-by-default CSP means the page may fetch NOTHING: no external URLs in tags.
+    expect(html).not.toMatch(/src="https?:/);
+    expect(html).not.toMatch(/href="https?:/);
+
+    // Calling the tool returns the JSON summary (the text fallback for non-UI hosts).
+    const result = await client.callTool({ name: "boardstate_board_view", arguments: {} });
+    const payload = parseToolResult(result as never) as { workspaceVersion: number };
+    expect(payload.workspaceVersion).toBeGreaterThanOrEqual(0);
   });
 
   it("returns an isError result for an invalid tool call", async () => {

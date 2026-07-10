@@ -31,6 +31,13 @@ import {
   type AgentTool,
   type InProcessHost,
 } from "@boardstate/server/node";
+import {
+  BOARD_RESOURCE_MIME_TYPE,
+  BOARD_RESOURCE_URI,
+  BOARD_TOOL_DESCRIPTOR,
+  BOARD_TOOL_NAME,
+  boardAppHtml,
+} from "./apps.js";
 
 export const SERVER_NAME = "boardstate-mcp";
 export const SERVER_VERSION = "0.0.0";
@@ -148,6 +155,9 @@ export function createBoardstateMcpServer(
         inputSchema: schema.inputSchema,
       };
     });
+    // MCP Apps (SEP-1865): calling this renders the live board inline in UI-capable
+    // hosts; others get the JSON summary (graceful text fallback per the spec).
+    tools.push({ ...BOARD_TOOL_DESCRIPTOR });
     tools.push({
       name: APPROVE_TOOL_NAME,
       description:
@@ -162,6 +172,12 @@ export function createBoardstateMcpServer(
     const mcpName = request.params.name;
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;
     try {
+      if (mcpName === BOARD_TOOL_NAME) {
+        // The UI resource does the rendering; the tool result is the same JSON
+        // summary every face gets — also the text fallback for non-UI hosts.
+        const doc = await store.read();
+        return textResult({ doc, workspaceVersion: doc.workspaceVersion });
+      }
       if (mcpName === APPROVE_TOOL_NAME) {
         // Operator action → the control-plane RPC, stamped as the operator (`user`).
         const result = await host.request("dashboard.widget.approve", {
@@ -191,10 +207,25 @@ export function createBoardstateMcpServer(
         description: "The current dashboard workspace document as JSON.",
         mimeType: "application/json",
       },
+      {
+        uri: BOARD_RESOURCE_URI,
+        name: "Boardstate board view",
+        description:
+          "The interactive board (MCP Apps): the real <boardstate-view> wired back " +
+          "through the boardstate_* tools. Self-contained; fetches nothing.",
+        mimeType: BOARD_RESOURCE_MIME_TYPE,
+      },
     ],
   }));
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    if (request.params.uri === BOARD_RESOURCE_URI) {
+      return {
+        contents: [
+          { uri: BOARD_RESOURCE_URI, mimeType: BOARD_RESOURCE_MIME_TYPE, text: boardAppHtml() },
+        ],
+      };
+    }
     if (request.params.uri !== WORKSPACE_RESOURCE_URI) {
       throw new Error(`unknown resource: ${request.params.uri}`);
     }

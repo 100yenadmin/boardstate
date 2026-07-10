@@ -14,3 +14,12 @@ export {
 } from "./mcp-server.js";
 export { parseCliArgs, USAGE, type CliOptions } from "./cli-args.js";
 export { startServeHost, type ServeHostOptions, type ServeHostHandle } from "./serve-host.js";
+
+// MCP Apps interop (SEP-1865): the board rendered inline in UI-capable hosts.
+export {
+  BOARD_RESOURCE_MIME_TYPE,
+  BOARD_RESOURCE_URI,
+  BOARD_TOOL_DESCRIPTOR,
+  BOARD_TOOL_NAME,
+  boardAppHtml,
+} from "./apps.js";

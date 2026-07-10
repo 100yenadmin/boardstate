@@ -2,6 +2,11 @@
 
 exports[`@boardstate/mcp server > emits a standard JSON Schema inputSchema for every tool 1`] = `
 {
+  "boardstate_board_view": {
+    "additionalProperties": false,
+    "properties": {},
+    "type": "object",
+  },
   "boardstate_data_read": {
     "additionalProperties": false,
     "properties": {

@@ -35,10 +35,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@boardstate/schema": "workspace:*",
     "@boardstate/core": "workspace:*",
-    "@boardstate/server": "workspace:*",
     "@boardstate/lit": "workspace:*",
+    "@boardstate/schema": "workspace:*",
+    "@boardstate/server": "workspace:*",
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "repository": {
