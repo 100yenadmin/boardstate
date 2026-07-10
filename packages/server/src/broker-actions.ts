@@ -397,6 +397,32 @@ export function installBrokerActions(
     entry.waiters = [];
   }
 
+  /**
+   * `dashboard.connector.read` — the PURE-READ verb for `source:"mcp"` bindings.
+   * Unlike `invoke`, it NEVER parks: a non-readOnly tool is refused outright, so a
+   * refreshing read binding can never spawn pending actions (a read must have no
+   * side effect — SPEC §18). A readOnly granted tool executes and returns its value.
+   */
+  async function read(ctx: {
+    params: unknown;
+    respond: (ok: boolean, result?: unknown, error?: { code: string; message: string }) => void;
+  }): Promise<void> {
+    try {
+      const { connector, tool, args } = readInvokeParams(ctx.params);
+      checkRate(connector);
+      const { id, readOnly } = await gateCall(connector, tool);
+      if (!readOnly) {
+        throw new ActionError(
+          "not_readonly",
+          `tool "${id}" is not readOnly — a read binding cannot target a side-effecting tool`,
+        );
+      }
+      ctx.respond(true, await broker.callTool(id, args));
+    } catch (error) {
+      respondActionError(ctx.respond, error);
+    }
+  }
+
   async function invoke(ctx: {
     params: unknown;
     respond: (ok: boolean, result?: unknown, error?: { code: string; message: string }) => void;
@@ -540,6 +566,7 @@ export function installBrokerActions(
     return entry;
   }
 
+  host.registerRpc("dashboard.connector.read", (opts) => read(opts), { scope: "read" });
   host.registerRpc("dashboard.action.invoke", (opts) => invoke(opts), { scope: "write" });
   host.registerRpc("dashboard.action.confirm", (opts) => confirm(opts), { scope: "write" });
   host.registerRpc("dashboard.action.deny", (opts) => deny(opts), { scope: "write" });

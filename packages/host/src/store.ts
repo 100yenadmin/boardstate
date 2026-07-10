@@ -701,17 +701,17 @@ export async function resolveBinding(
 }
 
 /**
- * Resolve an `mcp` read binding (SPEC §18 / #45) through the connector broker. The
- * broker-backed read RPC is `dashboard.action.invoke`, which AND-gates the tool at
- * invoke time (granted + connector-configured + manifest-hash unchanged) and executes
- * a `readOnly` granted tool DIRECTLY, returning its result.
+ * Resolve an `mcp` read binding (SPEC §18 / #45) through the connector broker via
+ * the PURE-READ verb `dashboard.connector.read`, which AND-gates the tool (granted +
+ * connector-configured + manifest-hash unchanged) and executes a `readOnly` granted
+ * tool DIRECTLY, returning its result.
  *
- * readOnly-ONLY, invoke-time fail-safe (epic invariant #5): a binding may only READ.
- * If the bound tool is a MUTATION, `invoke` never executes it — it PARKS a pending
- * action (`{ pending: true }`). A read binding re-resolves on every refresh, so
- * auto-firing (or even parking) a mutation would be a footgun; we reject the parked
- * response as an error and never confirm it. An ungranted / re-pended tool surfaces
- * the engine's `capability_pending` through the standard binding-error card.
+ * readOnly-ONLY, fail-safe (epic invariant #5): a binding may only READ. `connector.read`
+ * REFUSES a non-readOnly tool outright — it never parks a pending action. This matters
+ * because a read binding re-resolves on every refresh: routing through `action.invoke`
+ * would have PARKED a pending mutation into the operator queue on each refresh (queue
+ * spam, and an operator confirm would then fire the mutation). An ungranted / re-pended
+ * tool surfaces the engine's `capability_pending` through the standard binding-error card.
  */
 async function resolveMcpBinding(
   transport: Transport,
@@ -720,16 +720,11 @@ async function resolveMcpBinding(
   if (!binding.connector || !binding.tool) {
     return { error: "mcp binding is missing a connector or tool." };
   }
-  const result = await transport.request("dashboard.action.invoke", {
+  const result = await transport.request("dashboard.connector.read", {
     connector: binding.connector,
     tool: binding.tool,
     ...(binding.args ? { args: binding.args } : {}),
   });
-  if (isRecord(result) && result.pending === true) {
-    // The engine parked a mutation instead of reading — a read binding must never
-    // target a side-effecting tool (invoke-time readOnly recheck, fail-safe).
-    return { error: "mcp read binding must target a readOnly tool." };
-  }
   return { value: applyPointer(mcpReadValue(result), binding.pointer) };
 }
 
