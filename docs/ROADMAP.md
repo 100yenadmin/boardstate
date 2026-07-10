@@ -160,6 +160,27 @@ by design: `selfReview:"loop"`, signed-grant tokens (forward-compatible), grant 
 architectural line still held: the provider/agent loop is a client of the control plane,
 never in `@boardstate/core`.
 
+## Act 3 — M5: The Operational Workspace (epic [#37](https://github.com/100yenadmin/boardstate/issues/37))
+
+Owner-ratified 2026-07-10 ("yes let's turn this into a full epic and specced out issues and
+sprint/s"). Boardstate becomes an MCP **client**: external tool servers (OfficeCLI,
+Pipedream, Composio, any MCP server) plug in through the M4b capability broker — reads
+become board data, side-effecting tools become operator-confirmed **actions**. Full spec in
+the epic; the line still holds (broker is host-side; core stays pure; browser bundles stay
+MCP-free).
+
+| Sprint | Theme                                          | Issues                                                                                                                                                                                                                                     | Status |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | 🔨     |
+| S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ⏳     |
+| S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ⏳     |
+| later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                   | 💤     |
+
+One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance: GLM key +
+OfficeCLI + one aggregator recipe → the agent builds a board that READS live external data
+and ACTS through approved tools, every grant revocable in the approvals widget, every
+consequential action operator-confirmed.
+
 ## Phases (historical build record)
 
 Substrate = M0–M1; the bridge library = M2; the app = M3; the frontier = M4. **M3 app work
