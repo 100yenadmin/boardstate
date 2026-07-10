@@ -141,20 +141,24 @@ build record.
 ## Act 2 — IN PROGRESS: finish M4 + launch + portback
 
 Owner-ratified 2026-07-10 ("all of it, in the order you choose … file as issues … get to
-work … do our releases"). Every phase is a tracked issue (label `roadmap`). **Locked order:**
+work … do our releases"). **All code phases SHIPPED + released + Sigstore-attested; only
+launch (owner-posted) remains.** Packages are at **1.0.0** for schema/core/server.
 
-| Phase    | Issue                                                      | What                                                                               |
-| -------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| R1       | [#23](https://github.com/100yenadmin/boardstate/issues/23) | Networked WebSocket transport + browser bundle (land PRs #20/#21 + WS hardening)   |
-| R2       | [#24](https://github.com/100yenadmin/boardstate/issues/24) | `dashboard_widget_catalog` tool — close the prop-shape gap (first-try correctness) |
-| Launch   | [#28](https://github.com/100yenadmin/boardstate/issues/28) | Show HN (owner posts) + awesome-list placements                                    |
-| M4c      | [#25](https://github.com/100yenadmin/boardstate/issues/25) | Live-bindings hardening: first-class host connector contract + reference connector |
-| M4d      | [#26](https://github.com/100yenadmin/boardstate/issues/26) | MCP Apps interop — widgets as `ui://` resources (Claude Desktop distribution)      |
-| M4b      | [#27](https://github.com/100yenadmin/boardstate/issues/27) | Capability broker — approval gate for data sources/tools (spec-first)              |
-| Portback | [#29](https://github.com/100yenadmin/boardstate/issues/29) | Port Act-1/Act-2 fixes upstream to OpenClaw (parallel lane)                        |
+| Phase    | Issue                                                      | Status   | What                                                                        |
+| -------- | ---------------------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| R1       | [#23](https://github.com/100yenadmin/boardstate/issues/23) | ✅       | Networked WebSocket transport + browser bundle (+ WS hardening)             |
+| R2       | [#24](https://github.com/100yenadmin/boardstate/issues/24) | ✅       | `dashboard_widget_catalog` — first-try correctness (+2 latent bugs fixed)   |
+| Sec      | 51a8ef9                                                    | ✅       | WS operator-method gate — approve unreachable over the wire                 |
+| M4c      | [#25](https://github.com/100yenadmin/boardstate/issues/25) | ✅       | Host connector contract (`installConnector`) + reference sidecar + SPEC §16 |
+| M4d      | [#26](https://github.com/100yenadmin/boardstate/issues/26) | ✅       | MCP Apps interop — board as a `ui://` resource in Claude Desktop            |
+| M4b      | [#27](https://github.com/100yenadmin/boardstate/issues/27) | ✅       | Capability broker — approval-gated data grants (SPEC §17) + grant console   |
+| Launch   | [#28](https://github.com/100yenadmin/boardstate/issues/28) | ⏳ owner | Show HN (staged, ready to paste) + awesome-list placements                  |
+| Portback | [#29](https://github.com/100yenadmin/boardstate/issues/29) | ⏳ owner | `widget_update` fix → openclaw#15 (mergeable)                               |
 
-The one architectural line still held: the provider/agent loop is a client of the control
-plane, never in `@boardstate/core`.
+**M4 is complete** (M4a self-review, M4b broker, M4c live bindings, M4d MCP Apps). Deferred
+by design: `selfReview:"loop"`, signed-grant tokens (forward-compatible), grant TTL. The one
+architectural line still held: the provider/agent loop is a client of the control plane,
+never in `@boardstate/core`.
 
 ## Phases (historical build record)
 
