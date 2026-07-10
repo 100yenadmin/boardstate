@@ -1793,13 +1793,6 @@ select.bs-dialog__input {
   color: var(--bs-text, #1a1d21);
   font-variant-numeric: tabular-nums;
 }
-.dashboard-history__change-actor {
-  color: var(--bs-text-dim, #9ca3af);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
 .dashboard-history__detail {
   display: flex;
   flex-direction: column;

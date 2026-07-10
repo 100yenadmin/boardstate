@@ -36,7 +36,6 @@ function normalizeSummary(value: unknown): DashboardHistorySummary | undefined {
     retitled: count(value.retitled),
     tabsChanged: count(value.tabsChanged),
     total: count(value.total),
-    actor: typeof value.actor === "string" ? value.actor : null,
   };
 }
 

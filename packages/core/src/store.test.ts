@@ -148,17 +148,16 @@ describe("DashboardStore", () => {
       const history = await store.listHistory();
       const byVersion = new Map(history.map((entry) => [entry.version, entry]));
 
-      // v3 snapshot vs its v2 predecessor: one tab retitle, attributed to the
-      // tab's `createdBy` (the seed's "system" — the schema stores no per-widget
-      // or per-mutation author beyond that).
+      // v3 snapshot vs its v2 predecessor: one tab retitle. Counts only — the diff
+      // has no honest change-author to offer (mutate()'s actor isn't persisted; the
+      // tab's createdBy is its CREATOR, not this edit's author).
       expect(byVersion.get(3)?.summary).toMatchObject({
         tabsChanged: 1,
         total: 1,
-        actor: "system",
       });
-      // v2 snapshot vs its v1 predecessor: one widget added (widgets carry no
-      // provenance, so the summary actor is null).
-      expect(byVersion.get(2)?.summary).toMatchObject({ added: 1, total: 1, actor: null });
+      expect(byVersion.get(3)?.summary && "actor" in byVersion.get(3)!.summary!).toBe(false);
+      // v2 snapshot vs its v1 predecessor: one widget added.
+      expect(byVersion.get(2)?.summary).toMatchObject({ added: 1, total: 1 });
       // v1 is the oldest snapshot in the ring — no predecessor to diff against.
       expect(byVersion.get(1)?.summary).toBeUndefined();
     });

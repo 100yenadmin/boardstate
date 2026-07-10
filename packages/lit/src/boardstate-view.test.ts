@@ -362,7 +362,6 @@ describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
                 retitled: 0,
                 tabsChanged: 0,
                 total: 1,
-                actor: "agent:main",
               },
             },
           ],
@@ -416,7 +415,9 @@ describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
     // The list row shows the compact change summary + dominant actor.
     const change = container.querySelector(".dashboard-history__change");
     expect(change?.textContent).toContain("+1");
-    expect(change?.textContent).toContain("agent:main");
+    // No actor in the row — creator provenance must not masquerade as change authorship
+    // (adversarial verify 2026-07-11; counts-only until the ring stores a per-save author).
+    expect(change?.textContent).not.toContain("agent:main");
     stopDashboard(host);
   });
 

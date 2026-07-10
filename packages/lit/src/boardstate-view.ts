@@ -1997,13 +1997,12 @@ function renderHistoryChangeSummary(
   if (!summary) {
     return nothing;
   }
+  // Counts only — deliberately no actor: the diff can only attribute a touched item's
+  // CREATOR (createdBy), which under a "what changed" row reads as "who changed this"
+  // and mislabels human edits to system/agent-created items. Per-change attribution
+  // needs a snapshot manifest (tracked separately).
   return html`<span class="dashboard-history__change">
     <span class="dashboard-history__change-label">${historySummaryLabel(summary)}</span>
-    ${
-      summary.actor
-        ? html`<span class="dashboard-history__change-actor">${summary.actor}</span>`
-        : nothing
-    }
   </span>`;
 }
 

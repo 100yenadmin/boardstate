@@ -34,7 +34,6 @@ describe("history RPC loaders", () => {
             retitled: 0,
             tabsChanged: 0,
             total: 3,
-            actor: "agent:main",
           },
         },
         // A malformed / pre-summary entry keeps its metadata but drops the summary.
@@ -49,7 +48,6 @@ describe("history RPC loaders", () => {
       retitled: 0,
       tabsChanged: 0,
       total: 3,
-      actor: "agent:main",
     });
     expect(list[1]).not.toHaveProperty("summary");
   });

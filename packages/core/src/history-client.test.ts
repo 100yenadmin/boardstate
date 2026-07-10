@@ -156,21 +156,22 @@ describe("summarizeWorkspaceDiff", () => {
       retitled: 1,
       tabsChanged: 2,
       total: 7,
-      // user has 4 entries vs agent:main's 3 — the dominant actor wins.
-      actor: "user",
     });
   });
 
-  it("breaks an actor tie toward the first-seen actor and ignores null actors", () => {
+  it("carries NO actor field — creator provenance must not masquerade as change authorship", () => {
+    // Adversarial verify 2026-07-11: the only actor available to the diff is the touched
+    // item's `createdBy` (its CREATOR); rendering that under "what changed" mislabeled a
+    // human edit to a system-created tab as "system". Counts only until the ring stores
+    // a real per-save author.
     const summary = summarizeWorkspaceDiff([
       entry("widget-added", "agent:main"),
       entry("widget-removed", "user"),
-      entry("widget-moved", null),
     ]);
-    expect(summary.actor).toBe("agent:main");
+    expect("actor" in summary).toBe(false);
   });
 
-  it("reports an all-zero summary with a null actor for an empty changelist", () => {
+  it("reports an all-zero summary for an empty changelist", () => {
     expect(summarizeWorkspaceDiff([])).toEqual({
       added: 0,
       removed: 0,
@@ -178,7 +179,6 @@ describe("summarizeWorkspaceDiff", () => {
       retitled: 0,
       tabsChanged: 0,
       total: 0,
-      actor: null,
     });
   });
 });

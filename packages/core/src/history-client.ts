@@ -165,14 +165,13 @@ export type DashboardHistorySummary = {
   tabsChanged: number;
   /** Total change entries across every kind. */
   total: number;
-  /**
-   * The actor credited with the most entries (first-seen wins ties), or null when
-   * no entry carried provenance. This is the changed widget/tab's `createdBy`, the
-   * same best-effort attribution `computeWorkspaceDiff` groups by — not a per-save
-   * author log (the ring stores no such field).
-   */
-  actor: string | null;
 };
+// NOTE deliberately NO `actor` field: the only provenance available here is the touched
+// item's `createdBy` — who CREATED it, not who made THIS change (`mutate()`'s actor is
+// not persisted; the ring stores raw docs with no per-save author log). Surfacing the
+// creator where the UI reads "who changed this" mislabels human edits to system-created
+// items as "system" (adversarial verify, 2026-07-11). True per-change attribution needs
+// a snapshot manifest — tracked separately; until then the summary stays counts-only.
 
 /**
  * Condense a flat changelist into a `DashboardHistorySummary`. A retitled tab and
@@ -187,9 +186,7 @@ export function summarizeWorkspaceDiff(entries: DashboardDiffEntry[]): Dashboard
     retitled: 0,
     tabsChanged: 0,
     total: entries.length,
-    actor: null,
   };
-  const actorCounts = new Map<string, number>();
   for (const entry of entries) {
     switch (entry.kind) {
       case "widget-added":
@@ -209,18 +206,6 @@ export function summarizeWorkspaceDiff(entries: DashboardDiffEntry[]): Dashboard
       case "tab-retitled":
         summary.tabsChanged += 1;
         break;
-    }
-    if (entry.actor) {
-      actorCounts.set(entry.actor, (actorCounts.get(entry.actor) ?? 0) + 1);
-    }
-  }
-  // Insertion order is first-seen order, and we only replace on a STRICT increase,
-  // so a tie resolves to the actor that appeared first in the changelist.
-  let best = 0;
-  for (const [actor, count] of actorCounts) {
-    if (count > best) {
-      best = count;
-      summary.actor = actor;
     }
   }
   return summary;
