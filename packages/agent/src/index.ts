@@ -14,6 +14,12 @@ export {
   type CreateAgentChatAgentOptions,
 } from "./chat-agent.js";
 export { buildSystemPrompt, compositionGuideTool, COMPOSITION_GUIDE } from "./system-prompt.js";
+export {
+  applyToolDefBudget,
+  estimateToolDefTokens,
+  COLLAPSED_TOOL_HINT,
+  type BudgetableToolDef,
+} from "./tool-budget.js";
 export { anthropicAdapter, type AnthropicAdapterOptions } from "./adapters/anthropic.js";
 export { openAICompatAdapter, type OpenAICompatAdapterOptions } from "./adapters/openai-compat.js";
 export {

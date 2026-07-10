@@ -61,6 +61,9 @@ export {
   createDashboardCoreTools,
   type DashboardCoreToolParams,
   type DashboardBroadcast,
+  type ToolSearchCapability,
+  type ToolSearchResult,
+  type ToolSearchRequestResult,
 } from "./tools.js";
 
 // Pure CLI parsers (no fs) are handy for browser tooling too.
