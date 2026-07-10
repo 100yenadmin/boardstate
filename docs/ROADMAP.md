@@ -172,8 +172,8 @@ MCP-free).
 | Sprint | Theme                                          | Issues                                                                                                                                                                                                                                      | Status |
 | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | ✅     |
-| S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ⏳     |
-| S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ⏳     |
+| S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ✅     |
+| S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | 🔨     |
 | later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | 💤     |
 
 One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance: GLM key +
@@ -188,6 +188,17 @@ both-direction anti-rug-pull, partial grants, the server-enforced pending-action
 `dashboard.action.confirm` is operator-only over the wire). Adversarial verify caught and
 fixed six real defects across the sprint — including a pre-existing self-elevation hole on
 main where the agent's `workspace.replace` tool bypassed the M4b grant gate.
+
+**S5-2 SHIPPED 2026-07-10** (all attested): the agent surface + the board's hands.
+`@boardstate/agent@0.3.0` gets the broker→AgentTool adapter (granted tools reach the agent
+per-turn; mutations route through the operator-confirm pending-action gate; a
+definition-token budget keeps a huge catalog from blowing the prompt) and
+`boardstate_tool_search` (the agent asks → operator grants → usable next turn loop).
+`@boardstate/{core,server,host}@1.3.0` / `lit@0.5.0` add `builtin:action-button`,
+action-form `mode:"tool"`, and `source:"mcp"` read bindings via a dedicated pure-read verb
+(`dashboard.connector.read`) that refuses a mutation without parking. Verify caught three
+more defects — a read binding that spammed the operator queue by parking mutations on every
+refresh, a concurrent-confirm double-execution race, and a grant-tools lose-update.
 
 ## Phases (historical build record)
 
