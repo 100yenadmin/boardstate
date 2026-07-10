@@ -1,5 +1,12 @@
 # @boardstate/host
 
+## 1.5.0
+
+### Patch Changes
+
+- Updated dependencies [[`85e129c`](https://github.com/100yenadmin/boardstate/commit/85e129c9a4dbb4b553e22802d7428c371c38b6ed)]:
+  - @boardstate/core@1.5.0
+
 ## 1.3.0
 
 ### Minor Changes
