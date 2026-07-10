@@ -1,5 +1,16 @@
 # boardstate-example-standalone
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`6eb44b3`](https://github.com/100yenadmin/boardstate/commit/6eb44b389b14903662eeef0cf9ea515f98ee8803), [`ddc2710`](https://github.com/100yenadmin/boardstate/commit/ddc2710ab1532ef66351cd6bd991ddf6568e9cc9)]:
+  - @boardstate/schema@1.8.0
+  - @boardstate/core@1.8.0
+  - @boardstate/host@1.8.0
+  - @boardstate/lit@0.9.0
+  - @boardstate/server@1.8.0
+
 ## 0.0.17
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @boardstate/broker
 
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [[`ddc2710`](https://github.com/100yenadmin/boardstate/commit/ddc2710ab1532ef66351cd6bd991ddf6568e9cc9)]:
+  - @boardstate/server@1.8.0
+
 ## 0.3.3
 
 ### Patch Changes

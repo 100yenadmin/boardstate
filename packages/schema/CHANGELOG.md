@@ -1,5 +1,61 @@
 # @boardstate/schema
 
+## 1.8.0
+
+### Minor Changes
+
+- [#75](https://github.com/100yenadmin/boardstate/pull/75) [`6eb44b3`](https://github.com/100yenadmin/boardstate/commit/6eb44b389b14903662eeef0cf9ea515f98ee8803) Thanks [@100yenadmin](https://github.com/100yenadmin)! - Installable template recipes ([#60](https://github.com/100yenadmin/boardstate/issues/60)) + board-as-agent-memory ([#61](https://github.com/100yenadmin/boardstate/issues/61)).
+
+  - **Template recipes ([#60](https://github.com/100yenadmin/boardstate/issues/60), `@boardstate/schema` + `@boardstate/core`).** A new
+    `TemplateRecipe` format (`validateRecipe`) = a workspace doc + a `grantsManifest`
+    (connector → requested tools with human labels), schema-validated and static-hostable
+    (the registry index gains a `recipes[]` array). **Install = import:** the board is applied
+    through the existing distribution re-pend seam (`buildRecipeImportDoc` →
+    `sanitizeImportedWorkspace` → `dashboard.workspace.replace`), so every manifest grant
+    lands `requested` and custom widgets `pending` — a recipe can **never** arrive
+    pre-granted (proven at store ground truth through `reconcileReplaceApproval`). Ships two
+    operational recipes — a keyless **Ops board** (the operational-demo's fake OfficeCLI
+    connector, live end to end) and a **SaaS metrics + actions** board (builtins + an
+    aggregator-shaped manifest) — plus an **Agent memory** template.
+  - **Templates gallery tab ([#60](https://github.com/100yenadmin/boardstate/issues/60), `@boardstate/lit`).** The widget-gallery dialog grows a
+    **Templates** tab that browses recipes and renders each recipe's honest "this board will
+    ask for these tools" grant list before install; installing navigates to the board and the
+    approvals widget surfaces the pending grant cards. New locale keys land in all five
+    complete locales.
+  - **Board-as-memory ([#61](https://github.com/100yenadmin/boardstate/issues/61), `@boardstate/agent`).** Opt-in `memory: "board"` on
+    `createAgentChatAgent`: the system prompt gains the memory conventions
+    (`buildSystemPrompt(tools, { memory: "board" })` / `MEMORY_CONVENTIONS`) and the runner
+    **primes each turn** by reading a `memory` tab through the existing
+    `dashboard_workspace_get` verb (no new tools). Additive and default-off — the prompt is
+    byte-identical when off. See `docs/board-as-memory.md`.
+
+- [#74](https://github.com/100yenadmin/boardstate/pull/74) [`ddc2710`](https://github.com/100yenadmin/boardstate/commit/ddc2710ab1532ef66351cd6bd991ddf6568e9cc9) Thanks [@100yenadmin](https://github.com/100yenadmin)! - Multi-agent workspaces ([#59](https://github.com/100yenadmin/boardstate/issues/59), SPEC §17.3): several agents sharing one board, distinguishable
+  and separately governed.
+
+  - **Per-agent grant scoping (schema + engine).** A capability grant gains an optional
+    operator-set `agents?: string[]` — the ACTOR dimension of the AND-gate. Absent ⇒ all agents
+    (back-compat, zero migration); present ⇒ only those agent actors pass, at BOTH tool-set
+    assembly (the agent-tool adapter surfaces a scoped grant only to a bound, listed agent —
+    covering the direct `readOnly` path) and invoke/read time (`dashboard.action.invoke` /
+    `dashboard.connector.read` fail-safe recheck). Operator-set ONLY (the approve verb);
+    `tool_search` REQUEST / `workspace.replace` / import can never write or widen it — any scope
+    drift on a still-granted grant re-pends the whole grant, and every re-pend (manifest drift,
+    replace/import, REQUEST, TTL expiry, revoke) strips it, exactly like `autoConfirm`/`expiresAt`.
+  - **Actor authenticity (load-bearing).** The acting agent is bound from the server-side
+    session/tool-registration identity (threaded `RequestContext → RpcHandlerContext`), NEVER a
+    request param. A parked mutation records the server-bound requester and the confirm-time
+    re-gate re-checks scope against IT. The WS transport threads no identity, so a scoped grant
+    FAILS CLOSED for an unauthenticated networked caller (`capability_pending`) — a client-claimed
+    `actor` can never pass another agent's scope (wire-contract tested).
+  - **Per-agent rate budgets.** The per-connector invoke limit gains an optional
+    `perAgentInvokeRateMax`: an agent's ceiling becomes `min(connector, per-agent)`. Unset ⇒
+    connector-only, byte-identical to prior behavior.
+  - **Provenance chips + filter (lit).** On a board with ≥2 distinct agent authors, each widget
+    header shows a compact deterministically-coloured chip (short id, full actor on hover) and a
+    toolbar affordance filters/highlights one agent's widgets. The approvals widget renders each
+    grant's per-agent scope. Zero schema change; single-agent boards are unchanged. New i18n keys
+    added to the five complete locales.
+
 ## 1.7.0
 
 ### Minor Changes
