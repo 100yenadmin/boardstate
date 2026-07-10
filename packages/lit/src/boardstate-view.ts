@@ -12,7 +12,6 @@ import {
   DASHBOARD_ROW_HEIGHT,
   beginDrag,
   buildApprovalsSource,
-  buildWidgetApprovalsSource,
   collides,
   computeWorkspaceDiff,
   customWidgetName,

@@ -169,12 +169,12 @@ become board data, side-effecting tools become operator-confirmed **actions**. F
 the epic; the line still holds (broker is host-side; core stays pure; browser bundles stay
 MCP-free).
 
-| Sprint | Theme                                          | Issues                                                                                                                                                                                                                                     | Status |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| Sprint | Theme                                          | Issues                                                                                                                                                                                                                                      | Status |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | S5-1   | Substrate: broker + schema train + trust gates | [#38](https://github.com/100yenadmin/boardstate/issues/38) [#39](https://github.com/100yenadmin/boardstate/issues/39) [#40](https://github.com/100yenadmin/boardstate/issues/40) [#41](https://github.com/100yenadmin/boardstate/issues/41) | 🔨     |
 | S5-2   | The hands: agent surface + action affordances  | [#42](https://github.com/100yenadmin/boardstate/issues/42) [#43](https://github.com/100yenadmin/boardstate/issues/43) [#44](https://github.com/100yenadmin/boardstate/issues/44) [#45](https://github.com/100yenadmin/boardstate/issues/45) | ⏳     |
 | S5-3   | The product: blessed integrations + the story  | [#46](https://github.com/100yenadmin/boardstate/issues/46) [#47](https://github.com/100yenadmin/boardstate/issues/47) [#48](https://github.com/100yenadmin/boardstate/issues/48)                                                            | ⏳     |
-| later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                   | 💤     |
+| later  | Seeds (not sprint-committed)                   | [#49](https://github.com/100yenadmin/boardstate/issues/49)                                                                                                                                                                                  | 💤     |
 
 One release train per sprint; ALL M5 schema surface rides S5-1. Demo acceptance: GLM key +
 OfficeCLI + one aggregator recipe → the agent builds a board that READS live external data
