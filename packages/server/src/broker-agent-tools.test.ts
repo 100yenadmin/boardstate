@@ -251,7 +251,7 @@ describe("broker→AgentTool adapter (#42)", () => {
     // frame carries the RESULT, never `parked:true`.
     const h = await setup();
     await grant(h, ["acme:send"]);
-    const pending = getTool(h, "acme__send")!.execute("c-block", { to: "x" });
+    const pending = Promise.resolve(getTool(h, "acme__send")!.execute("c-block", { to: "x" }));
     let settled = false;
     void pending.then(() => {
       settled = true;
