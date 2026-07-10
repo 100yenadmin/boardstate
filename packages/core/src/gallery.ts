@@ -4,10 +4,15 @@
 // model: the gateway NEVER fetches, it only receives already-fetched bytes. This
 // module only parses + shape-checks the fetched text.
 
+import { validateRecipe, type RecipeIndexEntry, type TemplateRecipe } from "@boardstate/schema";
 import type { DashboardWidgetCapability } from "./types.js";
+
+export type { RecipeIndexEntry, TemplateRecipe };
 
 /** Hard client-side cap on a fetched bundle; the host re-checks server-side. */
 export const GALLERY_BUNDLE_MAX_BYTES = 512 * 1024;
+/** Hard client-side cap on a fetched recipe bundle (a doc can be large but bounded). */
+export const GALLERY_RECIPE_MAX_BYTES = 512 * 1024;
 /** Hard client-side cap on a fetched registry index. */
 export const GALLERY_INDEX_MAX_BYTES = 256 * 1024;
 
@@ -142,4 +147,75 @@ export function parseWidgetBundle(text: string): GalleryBundle {
     manifest,
     files,
   };
+}
+
+const RECIPE_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+
+/**
+ * Parse a registry `index.json` text's `recipes` array (CLIENT-fetched), sibling of the
+ * widget entries. Relative `manifestUrl`s resolve against `indexUrl`; malformed entries
+ * are dropped rather than throwing. An index with no `recipes` key yields `[]`.
+ */
+export function parseRecipeIndex(text: string, indexUrl: string): RecipeIndexEntry[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("The gallery index is not valid JSON.");
+  }
+  const rawList = isRecord(parsed) && Array.isArray(parsed.recipes) ? parsed.recipes : null;
+  if (!rawList) {
+    return [];
+  }
+  const entries: RecipeIndexEntry[] = [];
+  for (const raw of rawList) {
+    if (!isRecord(raw)) {
+      continue;
+    }
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    const manifestUrlRaw = typeof raw.manifestUrl === "string" ? raw.manifestUrl.trim() : "";
+    if (!RECIPE_NAME_PATTERN.test(name) || !manifestUrlRaw) {
+      continue;
+    }
+    let manifestUrl: string;
+    try {
+      manifestUrl = new URL(manifestUrlRaw, indexUrl).toString();
+    } catch {
+      continue;
+    }
+    const connectors = Array.isArray(raw.connectors)
+      ? raw.connectors.filter((c): c is string => typeof c === "string")
+      : [];
+    entries.push({
+      name,
+      title: typeof raw.title === "string" && raw.title ? raw.title : name,
+      description: typeof raw.description === "string" ? raw.description : "",
+      manifestUrl,
+      connectors,
+    });
+  }
+  return entries;
+}
+
+/**
+ * Parse + fully validate a recipe bundle text (CLIENT-fetched). Unlike a widget bundle
+ * (whose manifest is authoritatively validated server-side on install), a recipe is pure
+ * data applied through `dashboard.workspace.replace`, so it is validated in full HERE with
+ * the shared `validateRecipe` — the same guard the honesty gate runs over every shipped
+ * recipe. Throws a friendly error on malformed input.
+ */
+export function parseRecipeBundle(text: string): TemplateRecipe {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("The recipe bundle is not valid JSON.");
+  }
+  try {
+    return validateRecipe(parsed);
+  } catch (err) {
+    throw new Error(
+      `The recipe bundle is invalid: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }

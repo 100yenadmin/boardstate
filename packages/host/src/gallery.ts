@@ -9,16 +9,21 @@
 import {
   GALLERY_BUNDLE_MAX_BYTES,
   GALLERY_INDEX_MAX_BYTES,
+  GALLERY_RECIPE_MAX_BYTES,
   galleryByteLength,
   parseGalleryIndex,
+  parseRecipeBundle,
+  parseRecipeIndex,
   parseWidgetBundle,
   type GalleryBundle,
   type GalleryEntry,
+  type RecipeIndexEntry,
+  type TemplateRecipe,
   type Transport,
 } from "@boardstate/core";
 
-export { GALLERY_BUNDLE_MAX_BYTES, GALLERY_INDEX_MAX_BYTES };
-export type { GalleryBundle, GalleryEntry };
+export { GALLERY_BUNDLE_MAX_BYTES, GALLERY_INDEX_MAX_BYTES, GALLERY_RECIPE_MAX_BYTES };
+export type { GalleryBundle, GalleryEntry, RecipeIndexEntry, TemplateRecipe };
 
 async function fetchTextCapped(url: string, maxBytes: number, label: string): Promise<string> {
   if (typeof fetch !== "function") {
@@ -57,6 +62,25 @@ export async function fetchGalleryIndex(indexUrl: string): Promise<GalleryEntry[
 export async function fetchWidgetBundle(bundleUrl: string): Promise<GalleryBundle> {
   const text = await fetchTextCapped(bundleUrl, GALLERY_BUNDLE_MAX_BYTES, "The widget bundle");
   return parseWidgetBundle(text);
+}
+
+/**
+ * Fetch the `recipes` half of a registry `index.json` (CLIENT fetch), sibling of the
+ * widget entries. An index with no `recipes` key yields `[]`; malformed entries drop.
+ */
+export async function fetchGalleryRecipes(indexUrl: string): Promise<RecipeIndexEntry[]> {
+  const text = await fetchTextCapped(indexUrl, GALLERY_INDEX_MAX_BYTES, "The gallery index");
+  return parseRecipeIndex(text, indexUrl);
+}
+
+/**
+ * Fetch a recipe bundle (CLIENT fetch) and fully validate it with the shared
+ * `validateRecipe`. Enforces the 512 KB cap before parsing. A recipe is pure data
+ * applied through `dashboard.workspace.replace`, so it is validated in full here.
+ */
+export async function fetchRecipe(recipeUrl: string): Promise<TemplateRecipe> {
+  const text = await fetchTextCapped(recipeUrl, GALLERY_RECIPE_MAX_BYTES, "The recipe bundle");
+  return parseRecipeBundle(text);
 }
 
 /**

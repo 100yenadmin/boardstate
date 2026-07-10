@@ -1,0 +1,109 @@
+{
+  "recipeVersion": 1,
+  "name": "ops-board",
+  "title": "Ops board",
+  "description": "Reads a live workbook through a granted OfficeCLI tool and generates a report document with an operator-confirmed action. Wired for the operational-demo's fake OfficeCLI connector, so it works keyless end to end.",
+  "doc": {
+    "schemaVersion": 1,
+    "workspaceVersion": 1,
+    "prefs": {
+      "tabOrder": [
+        "report"
+      ]
+    },
+    "widgetsRegistry": {},
+    "tabs": [
+      {
+        "slug": "report",
+        "title": "Quarterly report",
+        "hidden": false,
+        "createdBy": "system",
+        "widgets": [
+          {
+            "id": "about",
+            "kind": "builtin:markdown",
+            "title": "What you're looking at",
+            "grid": {
+              "x": 0,
+              "y": 0,
+              "w": 12,
+              "h": 2
+            },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "markdown": "**Live external data + a governed action.** The table below reads a workbook through a granted `officecli` tool (`source:\"mcp\"`). The button generates a document through a *mutating* tool — it PARKS until the local operator confirms it. This board installed with its grant **requested**; approve `officecli` in the approvals widget to light it up."
+            }
+          },
+          {
+            "id": "workbook",
+            "kind": "builtin:table",
+            "title": "Revenue by quarter (live from the workbook)",
+            "grid": {
+              "x": 0,
+              "y": 2,
+              "w": 8,
+              "h": 5
+            },
+            "collapsed": false,
+            "hidden": false,
+            "bindings": {
+              "value": {
+                "source": "mcp",
+                "connector": "officecli",
+                "tool": "read_workbook"
+              }
+            },
+            "props": {
+              "columns": [
+                "quarter",
+                "region",
+                "revenue",
+                "deals"
+              ]
+            }
+          },
+          {
+            "id": "generate",
+            "kind": "builtin:action-button",
+            "title": "Generate the report document",
+            "grid": {
+              "x": 8,
+              "y": 2,
+              "w": 4,
+              "h": 5
+            },
+            "collapsed": false,
+            "hidden": false,
+            "props": {
+              "connector": "officecli",
+              "tool": "generate_document",
+              "label": "Generate .docx",
+              "args": {
+                "title": "Quarterly Revenue Report",
+                "format": "docx"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "grantsManifest": {
+    "officecli": {
+      "label": "OfficeCLI",
+      "reason": "Reads your quarterly workbook and generates the report document.",
+      "tools": [
+        {
+          "id": "officecli:read_workbook",
+          "label": "Read a workbook range and return its rows",
+          "readOnly": true
+        },
+        {
+          "id": "officecli:generate_document",
+          "label": "Generate a .docx/.pdf document (parks for operator confirm)"
+        }
+      ]
+    }
+  }
+}

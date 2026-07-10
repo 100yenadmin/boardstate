@@ -50,11 +50,14 @@ import {
   dispatchRateLimitedPrompt,
   exportWorkspace,
   fetchGalleryIndex,
+  fetchGalleryRecipes,
+  fetchRecipe,
   fetchWidgetBundle,
   getDashboardState,
   hideWidget,
   importWorkspace,
   installGalleryWidget,
+  installRecipe,
   loadHistoryList,
   loadHistorySnapshot,
   loadWidgetManifestView,
@@ -81,6 +84,8 @@ import {
   type DashboardUiState,
   type GalleryBundle,
   type GalleryEntry,
+  type RecipeIndexEntry,
+  type TemplateRecipe,
 } from "@boardstate/host";
 import { CHAT_EVENT, type AgentStreamEvent } from "@boardstate/schema";
 import {
@@ -237,8 +242,14 @@ function initialHistoryViewState(): DashboardHistoryViewState {
  */
 type DashboardGalleryState = {
   indexUrl: string;
+  /** Which tab of the gallery dialog is active (w3 widgets, #60 recipes). */
+  mode: "widgets" | "templates";
   entries: GalleryEntry[] | null;
   selected: GalleryBundle | null;
+  /** Browsed recipe index entries (#60), or null before a browse. */
+  recipes: RecipeIndexEntry[] | null;
+  /** A client-fetched, fully-validated recipe awaiting the operator's install (#60). */
+  selectedRecipe: TemplateRecipe | null;
   busy: boolean;
   error: string | null;
 };
@@ -1788,8 +1799,11 @@ function onWorkspaceImportChange(
 function openGallery(props: BoardstateViewProps, viewState: DashboardViewState): void {
   viewState.gallery = {
     indexUrl: readGalleryUrl(props.storage),
+    mode: "widgets",
     entries: null,
     selected: null,
+    recipes: null,
+    selectedRecipe: null,
     busy: false,
     error: null,
   };
@@ -2318,6 +2332,13 @@ function renderGalleryDialog(
   const onUrlInput = (event: Event) => {
     gallery.indexUrl = (event.currentTarget as HTMLInputElement).value;
   };
+  const setMode = (mode: "widgets" | "templates") => {
+    gallery.mode = mode;
+    gallery.selected = null;
+    gallery.selectedRecipe = null;
+    gallery.error = null;
+    requestUpdate();
+  };
   const browse = async () => {
     const url = gallery.indexUrl.trim();
     if (!url) {
@@ -2326,10 +2347,17 @@ function renderGalleryDialog(
     gallery.busy = true;
     gallery.error = null;
     gallery.selected = null;
+    gallery.selectedRecipe = null;
     requestUpdate();
     try {
-      const entries = await fetchGalleryIndex(url);
+      // One registry index carries both halves (widgets + recipes); fetch both so the
+      // operator can flip between the Widgets and Templates tabs without re-browsing.
+      const [entries, recipes] = await Promise.all([
+        fetchGalleryIndex(url),
+        fetchGalleryRecipes(url),
+      ]);
       gallery.entries = entries;
+      gallery.recipes = recipes;
       persistGalleryUrl(props.storage, url);
     } catch (err) {
       gallery.error = formatGalleryError(err);
@@ -2347,6 +2375,51 @@ function renderGalleryDialog(
     } catch (err) {
       gallery.error = formatGalleryError(err);
     } finally {
+      gallery.busy = false;
+      requestUpdate();
+    }
+  };
+  const previewRecipe = async (entry: RecipeIndexEntry) => {
+    gallery.busy = true;
+    gallery.error = null;
+    requestUpdate();
+    try {
+      gallery.selectedRecipe = await fetchRecipe(entry.manifestUrl);
+    } catch (err) {
+      gallery.error = formatGalleryError(err);
+    } finally {
+      gallery.busy = false;
+      requestUpdate();
+    }
+  };
+  const installRecipeFlow = async () => {
+    const recipe = gallery.selectedRecipe;
+    if (!recipe) {
+      return;
+    }
+    gallery.busy = true;
+    gallery.error = null;
+    requestUpdate();
+    try {
+      // Install = import: the board is applied through the distribution re-pend seam, so
+      // every declared grant lands `requested`. Navigate the operator to the recipe's
+      // first tab; the approvals widget then shows the pending grant cards + callout.
+      const applied = await installRecipe(state, props.transport, recipe);
+      if (!applied) {
+        gallery.error = state.actionError ?? formatGalleryError(new Error("Install failed."));
+        gallery.busy = false;
+        requestUpdate();
+        return;
+      }
+      const firstSlug = recipe.doc.tabs[0]?.slug;
+      if (firstSlug) {
+        state.activeSlug = firstSlug;
+        props.onNavigate?.(firstSlug);
+      }
+      viewState.gallery = null;
+      requestUpdate();
+    } catch (err) {
+      gallery.error = formatGalleryError(err);
       gallery.busy = false;
       requestUpdate();
     }
@@ -2384,6 +2457,32 @@ function renderGalleryDialog(
       requestUpdate();
     }
   };
+  // Arrow consts (not hoisted declarations) so the `gallery` non-null narrowing above is
+  // preserved inside them — the Widgets and Templates tab bodies.
+  const renderWidgetsTab = (): TemplateResult | typeof nothing =>
+    gallery.selected
+      ? renderGalleryDetail(
+          gallery.selected,
+          () => {
+            gallery.selected = null;
+            requestUpdate();
+          },
+          () => void install(),
+          gallery.busy,
+        )
+      : renderGalleryList(gallery, (entry) => void preview(entry));
+  const renderTemplatesTab = (): TemplateResult | typeof nothing =>
+    gallery.selectedRecipe
+      ? renderRecipeDetail(
+          gallery.selectedRecipe,
+          () => {
+            gallery.selectedRecipe = null;
+            requestUpdate();
+          },
+          () => void installRecipeFlow(),
+          gallery.busy,
+        )
+      : renderRecipeList(gallery, (entry) => void previewRecipe(entry));
   return renderModal(
     t("dashboard.gallery.title"),
     close,
@@ -2392,6 +2491,28 @@ function renderGalleryDialog(
         <div class="dashboard-gallery__header">
           <div class="card-title">${t("dashboard.gallery.title")}</div>
           <div class="card-sub">${t("dashboard.gallery.subtitle")}</div>
+        </div>
+        <div class="dashboard-gallery__tabs" role="tablist">
+          <button
+            class="dashboard-gallery__tab ${gallery.mode === "widgets" ? "is-active" : ""}"
+            type="button"
+            role="tab"
+            aria-selected=${gallery.mode === "widgets"}
+            data-test-id="dashboard-gallery-tab-widgets"
+            @click=${() => setMode("widgets")}
+          >
+            ${t("dashboard.gallery.tabWidgets")}
+          </button>
+          <button
+            class="dashboard-gallery__tab ${gallery.mode === "templates" ? "is-active" : ""}"
+            type="button"
+            role="tab"
+            aria-selected=${gallery.mode === "templates"}
+            data-test-id="dashboard-gallery-tab-templates"
+            @click=${() => setMode("templates")}
+          >
+            ${t("dashboard.gallery.tabTemplates")}
+          </button>
         </div>
         <div class="dashboard-gallery__browse">
           <input
@@ -2421,19 +2542,7 @@ function renderGalleryDialog(
               </div>`
             : nothing
         }
-        ${
-          gallery.selected
-            ? renderGalleryDetail(
-                gallery.selected,
-                () => {
-                  gallery.selected = null;
-                  requestUpdate();
-                },
-                () => void install(),
-                gallery.busy,
-              )
-            : renderGalleryList(gallery, (entry) => void preview(entry))
-        }
+        ${gallery.mode === "templates" ? renderTemplatesTab() : renderWidgetsTab()}
       </div>
     `,
   );
@@ -2514,6 +2623,131 @@ function renderGalleryDetail(
           @click=${onInstall}
         >
           ${t("dashboard.gallery.install")}
+        </button>
+        <button class="bs-btn" type="button" @click=${onBack}>${t("common.back")}</button>
+      </div>
+    </div>
+  `;
+}
+
+/** Templates tab list (#60): one row per recipe, with its "what it needs" connector hint. */
+function renderRecipeList(
+  gallery: DashboardGalleryState,
+  onSelect: (entry: RecipeIndexEntry) => void,
+): TemplateResult | typeof nothing {
+  if (gallery.recipes === null) {
+    return nothing;
+  }
+  if (gallery.recipes.length === 0) {
+    return html`<div class="dashboard-gallery__empty">${t("dashboard.gallery.recipesEmpty")}</div>`;
+  }
+  return html`
+    <ul class="dashboard-gallery__list" data-test-id="dashboard-gallery-recipe-list">
+      ${gallery.recipes.map(
+        (entry) => html`
+          <li class="dashboard-gallery__item">
+            <div class="dashboard-gallery__item-body">
+              <div class="dashboard-gallery__item-name">${entry.title}</div>
+              ${
+                entry.description
+                  ? html`<div class="dashboard-gallery__item-desc">${entry.description}</div>`
+                  : nothing
+              }
+              <div class="dashboard-gallery__recipe-needs">
+                ${
+                  entry.connectors.length === 0
+                    ? t("dashboard.gallery.recipeNeedsNothing")
+                    : t("dashboard.gallery.recipeNeedsConnectors", {
+                        connectors: entry.connectors.join(", "),
+                      })
+                }
+              </div>
+            </div>
+            <button
+              class="bs-btn bs-btn--small"
+              type="button"
+              data-test-id="dashboard-gallery-recipe-select"
+              ?disabled=${gallery.busy}
+              @click=${() => onSelect(entry)}
+            >
+              ${t("dashboard.gallery.view")}
+            </button>
+          </li>
+        `,
+      )}
+    </ul>
+  `;
+}
+
+/**
+ * Selected-recipe detail (#60): an HONEST "what this board will ask for" — the grant
+ * list, per connector, with a human label for each tool — surfaced BEFORE install. On
+ * install the grants land `requested`; the approvals widget shows the pending cards.
+ */
+function renderRecipeDetail(
+  recipe: TemplateRecipe,
+  onBack: () => void,
+  onInstall: () => void,
+  busy: boolean,
+): TemplateResult {
+  const connectors = Object.entries(recipe.grantsManifest);
+  return html`
+    <div class="dashboard-gallery__detail" data-test-id="dashboard-gallery-recipe-detail">
+      <div class="dashboard-gallery__item-name">${recipe.title}</div>
+      <div class="dashboard-gallery__item-desc">${recipe.description}</div>
+      <div class="dashboard-gallery__recipe-grants">
+        <div class="dashboard-gallery__caps-label">${t("dashboard.gallery.recipeNeedsLabel")}</div>
+        ${
+          connectors.length === 0
+            ? html`<div class="dashboard-gallery__recipe-nogrants">
+                ${t("dashboard.gallery.recipeNoGrants")}
+              </div>`
+            : connectors.map(
+                ([, grant]) => html`
+                  <div class="dashboard-gallery__recipe-connector">
+                    <div class="dashboard-gallery__recipe-connector-name">${grant.label}</div>
+                    ${
+                      grant.reason
+                        ? html`<div class="dashboard-gallery__recipe-connector-reason">
+                            ${grant.reason}
+                          </div>`
+                        : nothing
+                    }
+                    <ul class="dashboard-gallery__recipe-tools">
+                      ${(grant.tools ?? []).map(
+                        (tool) => html`
+                          <li
+                            class="dashboard-gallery__recipe-tool"
+                            data-test-id="dashboard-gallery-recipe-tool"
+                          >
+                            <code>${tool.id}</code>
+                            <span>${tool.label}</span>
+                            ${
+                              tool.readOnly
+                                ? html`<span class="dashboard-gallery__recipe-readonly"
+                                    >${t("dashboard.gallery.recipeReadOnly")}</span
+                                  >`
+                                : nothing
+                            }
+                          </li>
+                        `,
+                      )}
+                    </ul>
+                  </div>
+                `,
+              )
+        }
+      </div>
+      <div class="dashboard-gallery__pending-note">${t("dashboard.gallery.recipeInstallNote")}</div>
+      <div class="bs-dialog__actions">
+        <button
+          class="bs-btn bs-btn--primary"
+          type="button"
+          data-test-id="dashboard-gallery-recipe-install"
+          ?disabled=${busy}
+          @click=${onInstall}
+        >
+          ${t("dashboard.gallery.recipeInstall")}
         </button>
         <button class="bs-btn" type="button" @click=${onBack}>${t("common.back")}</button>
       </div>

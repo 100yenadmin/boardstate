@@ -89,8 +89,42 @@ for (const name of readdirSync(WIDGETS_DIR).sort()) {
   });
 }
 
-const index = `${JSON.stringify({ widgets: entries }, null, 2)}\n`;
+// ── Template recipes (issue #60): a board + the grants it needs, as one installable ──
+// Sources live in templates/recipes/<name>.recipe.json (pure data — no assembly). The
+// generator verifies name===filename, copies each to the served registry, and adds a
+// static-hostable `recipes[]` index entry. Full `validateRecipe` runs in the honesty
+// test (packages/core templates.test.ts), which fails the build on any broken recipe.
+const RECIPES_DIR = join(ROOT, "templates/recipes");
+const recipeEntries = [];
+let recipeNames = [];
+try {
+  recipeNames = readdirSync(RECIPES_DIR)
+    .filter((f) => f.endsWith(".recipe.json"))
+    .sort();
+} catch {
+  /* no recipes dir yet */
+}
+for (const file of recipeNames) {
+  const stem = file.slice(0, -".recipe.json".length);
+  const recipe = JSON.parse(readFileSync(join(RECIPES_DIR, file), "utf8"));
+  if (recipe.name !== stem) {
+    throw new Error(`${file}: recipe name "${recipe.name}" != filename stem "${stem}"`);
+  }
+  const serialized = `${JSON.stringify(recipe, null, 2)}\n`;
+  writeFileSync(join(REGISTRY_DIR, file), serialized);
+  writeFileSync(join(PUBLIC_DIR, "registry", file), serialized);
+  recipeEntries.push({
+    name: recipe.name,
+    title: recipe.title,
+    description: recipe.description,
+    manifestUrl: `./${file}`,
+    connectors: Object.keys(recipe.grantsManifest ?? {}).sort(),
+  });
+}
+
+const index = `${JSON.stringify({ widgets: entries, recipes: recipeEntries }, null, 2)}\n`;
 writeFileSync(join(REGISTRY_DIR, "index.json"), index);
 writeFileSync(join(PUBLIC_DIR, "registry", "index.json"), index);
 
 console.log(`registry: ${entries.map((entry) => entry.name).join(", ")}`);
+console.log(`recipes: ${recipeEntries.map((entry) => entry.name).join(", ") || "(none)"}`);

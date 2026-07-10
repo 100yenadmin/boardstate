@@ -203,6 +203,17 @@ export const ja_JP: BoardstateStrings = {
   "dashboard.gallery.noCapabilities": "特別な権限はリクエストされていません。",
   "dashboard.gallery.pendingNote":
     "インストールしたウィジェットは承認するまで保留となり、承認後はサンドボックスで実行されます。",
+  "dashboard.gallery.tabWidgets": "ウィジェット",
+  "dashboard.gallery.tabTemplates": "テンプレート",
+  "dashboard.gallery.recipesEmpty": "このレジストリにテンプレートが見つかりません。",
+  "dashboard.gallery.recipeNeedsNothing": "そのまま動作します。権限は不要です。",
+  "dashboard.gallery.recipeNeedsConnectors": "必要: {connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "このボードは次のツールを要求します",
+  "dashboard.gallery.recipeNoGrants": "外部ツールなし。すぐに使えます。",
+  "dashboard.gallery.recipeReadOnly": "読み取り専用",
+  "dashboard.gallery.recipeInstall": "テンプレートをインストール",
+  "dashboard.gallery.recipeInstallNote":
+    "インストールするとボードは権限を要求状態でインポートされます。承認ウィジェットで承認して有効化してください。",
   "dashboard.distribution.export": "エクスポート",
   "dashboard.distribution.exportTitle": "このワークスペースを JSON ファイルとしてダウンロード",
   "dashboard.distribution.import": "インポート",

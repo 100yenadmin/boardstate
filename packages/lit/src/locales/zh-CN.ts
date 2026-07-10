@@ -194,6 +194,17 @@ export const zh_CN: BoardstateStrings = {
   "dashboard.gallery.noCapabilities": "未请求任何特殊权限。",
   "dashboard.gallery.pendingNote":
     "已安装的小组件在获得批准前保持待处理状态，批准后将在沙盒环境中运行。",
+  "dashboard.gallery.tabWidgets": "小组件",
+  "dashboard.gallery.tabTemplates": "模板",
+  "dashboard.gallery.recipesEmpty": "此注册表中未找到模板。",
+  "dashboard.gallery.recipeNeedsNothing": "开箱即用，无需授权。",
+  "dashboard.gallery.recipeNeedsConnectors": "需要：{connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "此看板将请求以下工具",
+  "dashboard.gallery.recipeNoGrants": "无外部工具，安装后即可使用。",
+  "dashboard.gallery.recipeReadOnly": "只读",
+  "dashboard.gallery.recipeInstall": "安装模板",
+  "dashboard.gallery.recipeInstallNote":
+    "安装会导入看板并将其授权设为已请求——在审批小组件中批准即可启用。",
   "dashboard.distribution.export": "导出",
   "dashboard.distribution.exportTitle": "将此工作区下载为 JSON 文件",
   "dashboard.distribution.import": "导入",

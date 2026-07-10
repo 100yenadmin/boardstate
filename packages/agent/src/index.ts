@@ -13,7 +13,13 @@ export {
   truncateHistory,
   type CreateAgentChatAgentOptions,
 } from "./chat-agent.js";
-export { buildSystemPrompt, compositionGuideTool, COMPOSITION_GUIDE } from "./system-prompt.js";
+export {
+  buildSystemPrompt,
+  compositionGuideTool,
+  COMPOSITION_GUIDE,
+  MEMORY_CONVENTIONS,
+  type BuildSystemPromptOptions,
+} from "./system-prompt.js";
 export {
   createActionSettlementWake,
   frameSettlement,

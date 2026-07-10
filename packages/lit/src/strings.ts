@@ -203,6 +203,17 @@ export const en = {
   "dashboard.gallery.noCapabilities": "No special capabilities requested.",
   "dashboard.gallery.pendingNote":
     "Installed widgets stay pending until you approve them, then run sandboxed.",
+  "dashboard.gallery.tabWidgets": "Widgets",
+  "dashboard.gallery.tabTemplates": "Templates",
+  "dashboard.gallery.recipesEmpty": "No templates found at this registry.",
+  "dashboard.gallery.recipeNeedsNothing": "Works out of the box — no grants required.",
+  "dashboard.gallery.recipeNeedsConnectors": "Needs: {connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "This board will ask for these tools",
+  "dashboard.gallery.recipeNoGrants": "No external tools — installs ready to use.",
+  "dashboard.gallery.recipeReadOnly": "read-only",
+  "dashboard.gallery.recipeInstall": "Install template",
+  "dashboard.gallery.recipeInstallNote":
+    "Installing imports the board with its grants requested — approve them in the approvals widget to light it up.",
   "dashboard.distribution.export": "Export",
   "dashboard.distribution.exportTitle": "Download this workspace as a JSON file",
   "dashboard.distribution.import": "Import",

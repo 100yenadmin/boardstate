@@ -456,6 +456,36 @@ describe("workspace header actions (wave-m2 / wave-w3 / wave-w5)", () => {
     expect(container.querySelector('[data-test-id="dashboard-gallery"]')).not.toBeNull();
   });
 
+  it("shows the Widgets/Templates tabs and switches to Templates (#60)", () => {
+    const host = {};
+    const state = getDashboardState(host);
+    state.loaded = true;
+    state.workspace = doc;
+    state.activeSlug = "main";
+    const container = document.createElement("div");
+    render(renderBoardstateView(baseProps(host)), container);
+    container.querySelector<HTMLButtonElement>('[data-test-id="dashboard-gallery-open"]')?.click();
+    render(renderBoardstateView(baseProps(host)), container);
+    const widgetsTab = container.querySelector<HTMLButtonElement>(
+      '[data-test-id="dashboard-gallery-tab-widgets"]',
+    );
+    const templatesTab = container.querySelector<HTMLButtonElement>(
+      '[data-test-id="dashboard-gallery-tab-templates"]',
+    );
+    expect(widgetsTab).not.toBeNull();
+    expect(templatesTab).not.toBeNull();
+    // Widgets is the default tab.
+    expect(widgetsTab!.getAttribute("aria-selected")).toBe("true");
+    // Switching to Templates flips the active tab.
+    templatesTab!.click();
+    render(renderBoardstateView(baseProps(host)), container);
+    expect(
+      container
+        .querySelector('[data-test-id="dashboard-gallery-tab-templates"]')
+        ?.getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+
   it("exposes the export/import distribution controls", () => {
     const host = {};
     const state = getDashboardState(host);

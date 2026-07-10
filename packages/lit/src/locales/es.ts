@@ -206,6 +206,17 @@ export const es: BoardstateStrings = {
   "dashboard.gallery.noCapabilities": "No se solicitaron permisos especiales.",
   "dashboard.gallery.pendingNote":
     "Los widgets instalados permanecen pendientes hasta que los apruebes, y luego se ejecutan en un sandbox.",
+  "dashboard.gallery.tabWidgets": "Widgets",
+  "dashboard.gallery.tabTemplates": "Plantillas",
+  "dashboard.gallery.recipesEmpty": "No se encontraron plantillas en este registro.",
+  "dashboard.gallery.recipeNeedsNothing": "Funciona de inmediato: no requiere permisos.",
+  "dashboard.gallery.recipeNeedsConnectors": "Necesita: {connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "Este panel solicitará estas herramientas",
+  "dashboard.gallery.recipeNoGrants": "Sin herramientas externas: se instala listo para usar.",
+  "dashboard.gallery.recipeReadOnly": "solo lectura",
+  "dashboard.gallery.recipeInstall": "Instalar plantilla",
+  "dashboard.gallery.recipeInstallNote":
+    "Al instalar se importa el panel con sus permisos solicitados: apruébalos en el widget de aprobaciones para activarlo.",
   "dashboard.distribution.export": "Exportar",
   "dashboard.distribution.exportTitle": "Descargar este espacio de trabajo como archivo JSON",
   "dashboard.distribution.import": "Importar",

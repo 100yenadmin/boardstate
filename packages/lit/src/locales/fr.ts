@@ -208,6 +208,17 @@ export const fr: BoardstateStrings = {
   "dashboard.gallery.noCapabilities": "Aucune autorisation spéciale demandée.",
   "dashboard.gallery.pendingNote":
     "Les widgets installés restent en attente jusqu'à ce que vous les approuviez, puis s'exécutent dans un bac à sable.",
+  "dashboard.gallery.tabWidgets": "Widgets",
+  "dashboard.gallery.tabTemplates": "Modèles",
+  "dashboard.gallery.recipesEmpty": "Aucun modèle trouvé dans ce registre.",
+  "dashboard.gallery.recipeNeedsNothing": "Fonctionne immédiatement — aucune autorisation requise.",
+  "dashboard.gallery.recipeNeedsConnectors": "Nécessite : {connectors}",
+  "dashboard.gallery.recipeNeedsLabel": "Ce tableau demandera ces outils",
+  "dashboard.gallery.recipeNoGrants": "Aucun outil externe — prêt à l'emploi après installation.",
+  "dashboard.gallery.recipeReadOnly": "lecture seule",
+  "dashboard.gallery.recipeInstall": "Installer le modèle",
+  "dashboard.gallery.recipeInstallNote":
+    "L'installation importe le tableau avec ses autorisations demandées — approuvez-les dans le widget d'approbations pour l'activer.",
   "dashboard.distribution.export": "Exporter",
   "dashboard.distribution.exportTitle": "Télécharger cet espace de travail au format JSON",
   "dashboard.distribution.import": "Importer",
