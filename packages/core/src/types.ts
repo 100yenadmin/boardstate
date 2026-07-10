@@ -92,6 +92,17 @@ export type DashboardWidgetRegistryEntry = {
   approvedAt?: string;
 };
 
+/** UI read model of one capability grant (SPEC §17, M4b). */
+export type DashboardCapabilityStatus = "requested" | "granted" | "revoked";
+export type DashboardCapabilityGrant = {
+  status: DashboardCapabilityStatus;
+  methods: string[];
+  streams: string[];
+  description?: string;
+  grantedBy?: DashboardCreatedBy;
+  grantedAt?: string;
+};
+
 export type DashboardWorkspace = {
   schemaVersion: number;
   workspaceVersion: number;
@@ -99,6 +110,8 @@ export type DashboardWorkspace = {
   prefs: DashboardPrefs;
   /** Custom-widget install/approval state, keyed by widget name (`custom:<name>`). */
   widgetsRegistry: Record<string, DashboardWidgetRegistryEntry>;
+  /** Data-source capability grants (SPEC §17), keyed by connector name. */
+  capabilitiesRegistry: Record<string, DashboardCapabilityGrant>;
 };
 
 /** Capability names a custom widget may hold (SPEC §8.1). */

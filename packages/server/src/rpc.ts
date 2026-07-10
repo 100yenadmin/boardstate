@@ -55,6 +55,7 @@ export type BindingResolver = (
 const TAB_SLUG_PATTERN = /^[a-z0-9-]{1,40}$/;
 const WIDGET_ID_PATTERN = /^[A-Za-z0-9_-]{1,48}$/;
 const CUSTOM_WIDGET_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 type Ctx = RpcHandlerContext;
 type Respond = Ctx["respond"];
@@ -869,6 +870,53 @@ export function registerBoardstateRpc(host: ServerHost, options: RegisterBoardst
                   ...(decision === "approved"
                     ? { approvedBy: actor, approvedAt: new Date().toISOString() }
                     : {}),
+                };
+              },
+              { actor },
+            ),
+        );
+      } catch (error) {
+        respondError(opts.respond, error);
+      }
+    },
+    { scope: "write" },
+  );
+
+  host.registerRpc(
+    "dashboard.capability.approve",
+    async (opts) => {
+      try {
+        // Operator-only (SPEC §17): grant or revoke a connector's data capability. Not
+        // in the agent tool catalog and covered by OPERATOR_ONLY_METHODS, so an agent
+        // or a networked client can never reach it — only the local operator.
+        const params = readParams(opts.params, ["name", "decision", "actor"]);
+        const name = readRequiredString(params, "name", "name");
+        if (!CONNECTOR_NAME_PATTERN.test(name)) {
+          throw new Error("name is invalid");
+        }
+        const decision = readRequiredString(params, "decision", "decision");
+        if (decision !== "granted" && decision !== "revoked") {
+          throw new Error("decision must be granted or revoked");
+        }
+        const actor = readOptionalActor(params);
+        await respondWrite(
+          opts,
+          actor,
+          undefined,
+          async () =>
+            await store.mutate(
+              (draft) => {
+                const registry = (draft.capabilitiesRegistry ??= {});
+                const existing = registry[name];
+                if (!existing) {
+                  throw new Error(`no capability request for connector: ${name}`);
+                }
+                registry[name] = {
+                  ...existing,
+                  status: decision,
+                  ...(decision === "granted"
+                    ? { grantedBy: actor, grantedAt: new Date().toISOString() }
+                    : { grantedBy: undefined, grantedAt: undefined }),
                 };
               },
               { actor },

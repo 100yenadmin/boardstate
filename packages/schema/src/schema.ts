@@ -75,11 +75,39 @@ export type DashboardWidgetRegistryEntry = {
   approvedBy?: DashboardActor;
   approvedAt?: string;
 };
+
+export type DashboardCapabilityStatus = "requested" | "granted" | "revoked";
+
+/**
+ * A data-source capability grant (SPEC §17, M4b). A connector self-declares the
+ * allowlisted read methods + stream channels it needs; the entry lands `requested`
+ * and an OPERATOR approves it to `granted` before any binding it covers resolves.
+ * `methods`/`streams` are the concrete SNAPSHOT the grant authorizes — a connector
+ * changing its shape re-requests. Keyed by connector name in `capabilitiesRegistry`.
+ */
+export type DashboardCapabilityGrant = {
+  status: DashboardCapabilityStatus;
+  /** Allowlisted `DATA_READ_RPC_ALLOWLIST` methods this connector's reads cover. */
+  methods: string[];
+  /** Allowlisted `STREAM_EVENT_ALLOWLIST` channels this connector's streams cover. */
+  streams: string[];
+  /** Human-readable one-liner for the approval card. */
+  description?: string;
+  grantedBy?: DashboardActor;
+  grantedAt?: string;
+};
+
 export type WorkspaceDoc = {
   schemaVersion: 1;
   workspaceVersion: number;
   tabs: DashboardTab[];
   widgetsRegistry: Record<string, DashboardWidgetRegistryEntry>;
+  /**
+   * Data-source capability grants (SPEC §17), keyed by connector name. Optional on
+   * INPUT (pre-§17 docs and code-built literals may omit it); `validateWorkspaceDoc`
+   * always returns it populated (`{}` when absent), so a validated doc always has it.
+   */
+  capabilitiesRegistry?: Record<string, DashboardCapabilityGrant>;
   prefs: { tabOrder: string[] };
 };
 
@@ -570,6 +598,72 @@ function validateWidgetsRegistry(value: unknown): Record<string, DashboardWidget
   return registry;
 }
 
+const CAPABILITY_STATUSES = new Set<DashboardCapabilityStatus>(["requested", "granted", "revoked"]);
+const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+
+function validateCapabilityGrant(value: unknown, path: string): DashboardCapabilityGrant {
+  const record = assertRecord(value, path);
+  assertKnownKeys(
+    record,
+    ["status", "methods", "streams", "description", "grantedBy", "grantedAt"],
+    path,
+  );
+  const status = record.status;
+  if (typeof status !== "string" || !CAPABILITY_STATUSES.has(status as DashboardCapabilityStatus)) {
+    throw new Error(`${path}.status must be requested, granted, or revoked`);
+  }
+  const methods = requireArray(record.methods, `${path}.methods`).map((method, index) => {
+    if (
+      typeof method !== "string" ||
+      !DATA_READ_RPC_ALLOWLIST.includes(method as (typeof DATA_READ_RPC_ALLOWLIST)[number])
+    ) {
+      throw new Error(`${path}.methods[${index}] is not an allowlisted read method`);
+    }
+    return method;
+  });
+  const streams = requireArray(record.streams, `${path}.streams`).map((event, index) => {
+    if (
+      typeof event !== "string" ||
+      !STREAM_EVENT_ALLOWLIST.includes(event as (typeof STREAM_EVENT_ALLOWLIST)[number])
+    ) {
+      throw new Error(`${path}.streams[${index}] is not an allowlisted stream channel`);
+    }
+    return event;
+  });
+  const description = optionalString(record, "description", path);
+  if (description !== undefined && description.length > 200) {
+    throw new Error(`${path}.description must be 200 characters or fewer`);
+  }
+  const grantedBy =
+    record.grantedBy === undefined
+      ? undefined
+      : validateActor(record.grantedBy, `${path}.grantedBy`);
+  const grantedAt = optionalString(record, "grantedAt", path);
+  return {
+    status: status as DashboardCapabilityStatus,
+    methods,
+    streams,
+    ...(description !== undefined ? { description } : {}),
+    ...(grantedBy !== undefined ? { grantedBy } : {}),
+    ...(grantedAt !== undefined ? { grantedAt } : {}),
+  };
+}
+
+function validateCapabilitiesRegistry(value: unknown): Record<string, DashboardCapabilityGrant> {
+  if (value === undefined) {
+    return {}; // Optional key — pre-§17 docs simply have no grants.
+  }
+  const record = assertRecord(value, "capabilitiesRegistry");
+  const registry: Record<string, DashboardCapabilityGrant> = {};
+  for (const [name, entry] of Object.entries(record)) {
+    if (!CONNECTOR_NAME_PATTERN.test(name)) {
+      throw new Error(`capabilitiesRegistry.${name} connector name is invalid`);
+    }
+    registry[name] = validateCapabilityGrant(entry, `capabilitiesRegistry.${name}`);
+  }
+  return registry;
+}
+
 function validatePrefs(value: unknown, tabSlugs: Set<string>): WorkspaceDoc["prefs"] {
   const record = assertRecord(value, "prefs");
   assertKnownKeys(record, ["tabOrder"], "prefs");
@@ -618,7 +712,14 @@ export function validateWorkspaceDoc(value: unknown): WorkspaceDoc {
   const record = assertRecord(value, "workspace");
   assertKnownKeys(
     record,
-    ["schemaVersion", "workspaceVersion", "tabs", "widgetsRegistry", "prefs"],
+    [
+      "schemaVersion",
+      "workspaceVersion",
+      "tabs",
+      "widgetsRegistry",
+      "capabilitiesRegistry",
+      "prefs",
+    ],
     "workspace",
   );
   if (record.schemaVersion !== CURRENT_WORKSPACE_SCHEMA_VERSION) {
@@ -642,6 +743,7 @@ export function validateWorkspaceDoc(value: unknown): WorkspaceDoc {
     workspaceVersion,
     tabs,
     widgetsRegistry: validateWidgetsRegistry(record.widgetsRegistry),
+    capabilitiesRegistry: validateCapabilitiesRegistry(record.capabilitiesRegistry),
     prefs: validatePrefs(record.prefs, tabSlugs),
   };
 }

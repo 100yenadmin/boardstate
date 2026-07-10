@@ -90,5 +90,6 @@ export const DEFAULT_DASHBOARD_WORKSPACE: WorkspaceDoc = {
     },
   ],
   widgetsRegistry: {},
+  capabilitiesRegistry: {},
   prefs: { tabOrder: ["main"] },
 };

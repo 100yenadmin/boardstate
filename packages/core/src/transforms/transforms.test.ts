@@ -334,6 +334,7 @@ describe("approvals mapping", () => {
     return {
       schemaVersion: 1,
       workspaceVersion: 1,
+      capabilitiesRegistry: {},
       tabs: [],
       prefs: { tabOrder: [] },
       widgetsRegistry: registry,

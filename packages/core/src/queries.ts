@@ -8,6 +8,8 @@ import {
   DASHBOARD_GRID_COLUMNS,
   dashboardAgentProvenance,
   type DashboardBinding,
+  type DashboardCapabilityGrant,
+  type DashboardCapabilityStatus,
   type DashboardEphemeral,
   type DashboardGridRect,
   type DashboardTab,
@@ -169,6 +171,43 @@ function normalizeWidgetsRegistry(value: unknown): Record<string, DashboardWidge
   return registry;
 }
 
+const CAPABILITY_STATUSES = new Set<DashboardCapabilityStatus>(["requested", "granted", "revoked"]);
+
+/** Read one capability grant defensively; drops a malformed entry (returns null). */
+function normalizeCapabilityGrant(value: unknown): DashboardCapabilityGrant | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const status = value.status;
+  if (typeof status !== "string" || !CAPABILITY_STATUSES.has(status as DashboardCapabilityStatus)) {
+    return null;
+  }
+  const strings = (raw: unknown): string[] =>
+    Array.isArray(raw) ? raw.filter((entry): entry is string => typeof entry === "string") : [];
+  return {
+    status: status as DashboardCapabilityStatus,
+    methods: strings(value.methods),
+    streams: strings(value.streams),
+    ...(typeof value.description === "string" ? { description: value.description } : {}),
+    ...(typeof value.grantedBy === "string" ? { grantedBy: value.grantedBy } : {}),
+    ...(typeof value.grantedAt === "string" ? { grantedAt: value.grantedAt } : {}),
+  };
+}
+
+function normalizeCapabilitiesRegistry(value: unknown): Record<string, DashboardCapabilityGrant> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const registry: Record<string, DashboardCapabilityGrant> = {};
+  for (const [name, raw] of Object.entries(value)) {
+    const grant = normalizeCapabilityGrant(raw);
+    if (grant) {
+      registry[name] = grant;
+    }
+  }
+  return registry;
+}
+
 export function normalizeWorkspace(payload: unknown): DashboardWorkspace {
   const record = isRecord(payload) ? payload : {};
   const tabs = Array.isArray(record.tabs)
@@ -184,6 +223,7 @@ export function normalizeWorkspace(payload: unknown): DashboardWorkspace {
     tabs,
     prefs: { tabOrder },
     widgetsRegistry: normalizeWidgetsRegistry(record.widgetsRegistry),
+    capabilitiesRegistry: normalizeCapabilitiesRegistry(record.capabilitiesRegistry),
   };
 }
 

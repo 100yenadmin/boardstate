@@ -66,6 +66,7 @@ describe("renderBoardstateView", () => {
     state.workspace = {
       schemaVersion: 1,
       workspaceVersion: 1,
+      capabilitiesRegistry: {},
       tabs: [],
       widgetsRegistry: {},
       prefs: { tabOrder: [] },

@@ -74,6 +74,7 @@ describe("boardstate control plane", () => {
         "dashboard.widget.remove",
         "dashboard.widget.setLayout",
         "dashboard.widget.approve",
+        "dashboard.capability.approve",
         "dashboard.widget.install",
         "dashboard.workspace.replace",
         "dashboard.workspace.undo",

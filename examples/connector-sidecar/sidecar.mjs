@@ -62,12 +62,9 @@ function sample() {
   };
 }
 
-installConnector(host, {
-  reads: {
-    health: () => ({ ok: true, uptimeSec: Math.round(process.uptime()) }),
-  },
-  streams: [{ event: "presence", intervalMs: 1000, payload: sample }],
-});
+// The connector is installed + approved AFTER the board is set up below — a
+// `workspace.replace` rewrites the whole doc (and reconcile re-pends grants), so the
+// grant must be (re)declared and approved once the board document is in place.
 
 // ---- the board (stream + rpc bindings over that connector) --------------------
 await host.request("dashboard.workspace.replace", {
@@ -140,6 +137,25 @@ await host.request("dashboard.workspace.replace", {
       },
     ],
   },
+});
+
+// ---- the connector + its grant (SPEC §17) — installed after the board is set up --
+installConnector(host, {
+  name: "machine-metrics",
+  store,
+  description: "This machine's live memory + load",
+  reads: {
+    health: () => ({ ok: true, uptimeSec: Math.round(process.uptime()) }),
+  },
+  streams: [{ event: "presence", intervalMs: 1000, payload: sample }],
+});
+// The grant lands `requested`; an operator approves it before any data flows. This is
+// a single-operator localhost demo, so we auto-approve at boot — a shared/remote host
+// would surface the approval card instead.
+await host.request("dashboard.capability.approve", {
+  name: "machine-metrics",
+  decision: "granted",
+  actor: "user",
 });
 
 // ---- the page: lit browser bundle + the real WS transport ---------------------

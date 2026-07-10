@@ -157,5 +157,18 @@ export function sanitizeImportedWorkspace(parsed: unknown): Record<string, unkno
     registry[name] ??= { status: PENDING_STATUS, createdBy: "user" };
   }
   doc.widgetsRegistry = registry;
+
+  // Capability grants (SPEC §17) re-pend on import for the same reason: an imported
+  // board is foreign authoring and must NEVER carry an active data grant. Force every
+  // grant back to `requested` and strip who/when-granted; the operator re-approves.
+  const capsInput = isRecord(doc.capabilitiesRegistry) ? doc.capabilitiesRegistry : {};
+  const caps: Record<string, unknown> = {};
+  for (const [name, entry] of Object.entries(capsInput)) {
+    if (isRecord(entry)) {
+      const { grantedBy: _grantedBy, grantedAt: _grantedAt, ...rest } = entry;
+      caps[name] = { ...rest, status: "requested" };
+    }
+  }
+  doc.capabilitiesRegistry = caps;
   return doc;
 }

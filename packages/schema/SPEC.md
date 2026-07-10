@@ -270,6 +270,37 @@ contract hosts implement.
 The reference implementation is `installConnector` (`@boardstate/server`, browser-safe)
 plus the runnable sidecar in `examples/connector-sidecar/` — see `docs/connectors.md`.
 
+## 17. Capability broker — data-source grants (normative)
+
+The approval gate (§11-I3) covers agent-authored WIDGET code. §17 extends the same
+model to DATA sources: a host CONNECTOR (§16) self-declares the allowlisted read
+methods + stream channels it needs, and an OPERATOR grants that capability before any
+binding it covers resolves. Decision record: `docs/decisions/0001-capability-broker.md`.
+
+- **The registry.** `capabilitiesRegistry` is a top-level workspace-doc map keyed by
+  connector name. Each entry is a grant `{ status: "requested"|"granted"|"revoked",
+methods: string[], streams: string[], description?, grantedBy?, grantedAt? }`. Absent
+  ⇒ no grants (pre-§17 docs validate unchanged). `methods`/`streams` are the concrete
+  SNAPSHOT the grant authorizes; every entry is allowlist-validated (§3).
+- **Request.** A connector registers its grant `requested` on install, snapshotting its
+  methods+streams. A connector whose declared shape differs from an existing grant
+  re-requests (a connector cannot silently reach more than it was approved for).
+- **Approve (operator-only).** `dashboard.capability.approve({ name, decision:
+"granted"|"revoked", actor })` flips the status. It MUST be operator-only: NOT in the
+  agent tool catalog, and unreachable over an unauthenticated networked transport
+  (`OPERATOR_ONLY_METHODS`). An agent can never grant its own capability.
+- **Enforcement (AND-gate).** A binding resolves only if BOTH (a) its method/channel is
+  in the frozen schema allowlist (§3) AND (b) its connector's grant is `granted`. The
+  grant path never becomes a second, weaker widening surface. An ungranted read answers
+  `capability_pending`; an ungranted stream broadcasts nothing.
+- **No self-elevation.** `workspace.replace` (and import) can never set a grant to
+  `granted`; a grant newly `granted` that was not already granted is forced back to
+  `requested` in the write lock (mirrors §8.2 widget approval). Import re-pends every
+  grant to `requested` and strips `grantedBy`/`grantedAt` — an imported board is foreign
+  and carries no active capability.
+- **Revocation** is re-checked at resolution (never cached in widget state): revoking a
+  grant stops all its bindings immediately.
+
 ---
 
 _Spec version 0.2-draft · 2026-07-10 · License: MIT_

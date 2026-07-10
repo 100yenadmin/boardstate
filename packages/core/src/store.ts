@@ -67,6 +67,19 @@ export function reconcileReplaceApproval(
       delete entry.approvedAt;
     }
   }
+  // Capability grants (SPEC §17) get the same structural gate: a `replace` can never
+  // elevate a grant to `granted` — only `dashboard.capability.approve` can. Any newly
+  // `granted` entry that wasn't already granted in `current` is forced back to
+  // `requested`, so a self-grant smuggled through replace/import cannot mount data.
+  const currentCaps = current.capabilitiesRegistry ?? {};
+  const incomingCaps = incoming.capabilitiesRegistry ?? {};
+  for (const [name, grant] of Object.entries(incomingCaps)) {
+    if (grant.status === "granted" && currentCaps[name]?.status !== "granted") {
+      grant.status = "requested";
+      delete grant.grantedBy;
+      delete grant.grantedAt;
+    }
+  }
   return incoming;
 }
 

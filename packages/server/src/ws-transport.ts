@@ -73,7 +73,10 @@ const OP_PONG = 0xa;
  * `verifyClient`). Prevents the confused-deputy footgun where opening a read-only
  * networked viewer silently also hands out the approval gate.
  */
-export const OPERATOR_ONLY_METHODS: readonly string[] = ["dashboard.widget.approve"];
+export const OPERATOR_ONLY_METHODS: readonly string[] = [
+  "dashboard.widget.approve",
+  "dashboard.capability.approve",
+];
 
 export type AttachWsTransportOptions = {
   /** Upgrade path this endpoint owns (default `/ws`). A mismatch destroys the socket. */
