@@ -1,6 +1,6 @@
 {
   "name": "@boardstate/host",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Framework-free DOM host for Boardstate custom widgets: sandbox mount + postMessage bridge",
   "type": "module",
   "license": "MIT",
