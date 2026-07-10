@@ -66,6 +66,42 @@ describe("dashboard widget cell", () => {
     expect(container.querySelector(".dashboard-widget__resize")).not.toBeNull();
   });
 
+  it("carries the card with the pointer during a move drag", () => {
+    // dragTransform + dragging → the cell wears the carried class and the raw
+    // translate, ON TOP of its grid placement (the lift-and-carry drag).
+    const container = renderToContainer(
+      renderWidgetCell({
+        widget: widget(),
+        binding: { value: 1 },
+        menuOpen: false,
+        pending: false,
+        dragging: true,
+        dragTransform: "translate(37px, -14px)",
+        builtinContext: BUILTIN_CONTEXT,
+        callbacks: noopCallbacks(),
+      }),
+    );
+    const cell = container.querySelector<HTMLElement>(".dashboard-widget")!;
+    expect(cell.classList.contains("dashboard-widget--carried")).toBe(true);
+    expect(cell.getAttribute("style")).toContain("transform: translate(37px, -14px)");
+    expect(cell.getAttribute("style")).toContain("grid-column");
+    // Without a transform (a resize drag), no carried class and no transform.
+    const resizeContainer = renderToContainer(
+      renderWidgetCell({
+        widget: widget(),
+        binding: { value: 1 },
+        menuOpen: false,
+        pending: false,
+        dragging: true,
+        builtinContext: BUILTIN_CONTEXT,
+        callbacks: noopCallbacks(),
+      }),
+    );
+    const resizeCell = resizeContainer.querySelector<HTMLElement>(".dashboard-widget")!;
+    expect(resizeCell.classList.contains("dashboard-widget--carried")).toBe(false);
+    expect(resizeCell.getAttribute("style") ?? "").not.toContain("transform:");
+  });
+
   it("strips a trailing (custom) suffix from the visible title but keeps the full title attr", () => {
     const container = renderToContainer(
       renderWidgetCell({

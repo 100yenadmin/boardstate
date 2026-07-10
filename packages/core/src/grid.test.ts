@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  beginDrag,
   clampRect,
   collides,
   columnWidth,
@@ -11,6 +12,7 @@ import {
   rectsOverlap,
   resolveDrop,
   snapCells,
+  updateDrag,
 } from "./grid.js";
 import type { DashboardWidget } from "./types.js";
 
@@ -49,6 +51,30 @@ describe("dashboard grid math", () => {
     expect(collides({ x: 2, y: 0, w: 4, h: 2 }, widgets, "b")).toBe(true);
     expect(collides({ x: 0, y: 0, w: 4, h: 2 }, widgets, "a")).toBe(false);
     expect(collides({ x: 8, y: 0, w: 4, h: 2 }, widgets, "c")).toBe(false);
+  });
+
+  it("tracks raw pointer deltas alongside the snapped ghost during a move drag", () => {
+    // The carried card follows the pointer 1:1 (pointerDx/Dy, UNSNAPPED) while
+    // ghostRect stays the snapped landing cell — the direct-manipulation contract.
+    const drag = beginDrag({
+      widget: widget("a", 0, 0, 4, 2),
+      mode: "move",
+      clientX: 100,
+      clientY: 100,
+      metrics: { width: 720 }, // column unit 49 + gap 12 = 61px/cell
+    });
+    expect(drag.pointerDx).toBe(0);
+    expect(drag.pointerDy).toBe(0);
+
+    updateDrag(drag, 130, 108); // less than half a cell: ghost stays put
+    expect(drag.pointerDx).toBe(30);
+    expect(drag.pointerDy).toBe(8);
+    expect(drag.ghostRect).toEqual({ x: 0, y: 0, w: 4, h: 2 });
+
+    updateDrag(drag, 161, 156); // one column right, one row down — ghost snaps
+    expect(drag.pointerDx).toBe(61);
+    expect(drag.pointerDy).toBe(56);
+    expect(drag.ghostRect).toEqual({ x: 1, y: 1, w: 4, h: 2 });
   });
 
   it("accepts a non-overlapping drop as-is", () => {

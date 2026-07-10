@@ -77,6 +77,12 @@ export type DashboardWidgetCellProps = {
   pending: boolean;
   /** When set, this cell is the live drag/resize ghost source. */
   dragging: boolean;
+  /**
+   * CSS transform carrying the card with the pointer during a move drag
+   * (`translate(dx, dy)` from raw pixel deltas). Undefined when not dragging or
+   * when resizing — resize keeps the card in place and previews via the ghost.
+   */
+  dragTransform?: string;
   /** Ambient context builtins may need (embed policy for iframe-embed). */
   builtinContext: BuiltinWidgetContext;
   callbacks: DashboardWidgetCellCallbacks;
@@ -354,13 +360,19 @@ export function renderWidgetCell(props: DashboardWidgetCellProps): TemplateResul
     widget.collapsed ? "dashboard-widget--collapsed" : "",
     props.pending ? "dashboard-widget--pending" : "",
     props.dragging ? "dashboard-widget--dragging" : "",
+    props.dragging && props.dragTransform ? "dashboard-widget--carried" : "",
   ]
     .filter(Boolean)
     .join(" ");
+  const placement = gridPlacementStyle(widget.grid);
+  const style =
+    props.dragging && props.dragTransform
+      ? `${placement}; transform: ${props.dragTransform}`
+      : placement;
   return html`
     <section
       class=${classes}
-      style=${gridPlacementStyle(widget.grid)}
+      style=${style}
       data-widget-id=${widget.id}
       data-test-id="dashboard-widget"
     >

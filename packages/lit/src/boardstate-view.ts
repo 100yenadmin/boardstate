@@ -1213,13 +1213,22 @@ function renderGrid(
       ${tab.widgets.map((widget) => {
         const custom = buildCustomContext(props, state, viewState, workspace, widget, tab.slug);
         const blame = computeWidgetBlame(props, viewState, widget);
+        const drag = viewState.drag;
+        const dragging = drag?.widgetId === widget.id;
+        // Move drags carry the card 1:1 with the pointer (Mac-style direct
+        // manipulation); resize keeps the card in place and previews via the ghost.
+        const dragTransform =
+          dragging && drag.mode === "move"
+            ? `translate(${drag.pointerDx}px, ${drag.pointerDy}px)`
+            : undefined;
         return renderWidgetCell({
           widget,
           binding: viewState.bindingResults.get(widget.id) ?? null,
           ...(blame ? { blame } : {}),
           menuOpen: viewState.openMenuWidgetId === widget.id,
           pending: state.pendingWidgetIds.has(widget.id),
-          dragging: viewState.drag?.widgetId === widget.id,
+          dragging,
+          ...(dragTransform ? { dragTransform } : {}),
           builtinContext: buildBuiltinContext(props, state, workspace, widget),
           callbacks,
           ...(custom ? { custom } : {}),
@@ -1301,8 +1310,11 @@ function makeCallbacks(
     });
     viewState.drag = drag;
     const target = event.target as Element;
-    if (target.setPointerCapture) {
-      target.setPointerCapture(event.pointerId);
+    try {
+      target.setPointerCapture?.(event.pointerId);
+    } catch {
+      // A pointer that vanished between pointerdown and capture (pen lift,
+      // synthetic events) must not kill the drag wiring below.
     }
     let settled = false;
     const teardown = () => {

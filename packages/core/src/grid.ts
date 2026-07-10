@@ -24,6 +24,13 @@ export type DashboardDragState = {
   originClientY: number;
   /** Live snapped rect, updated as the pointer moves. */
   ghostRect: DashboardGridRect;
+  /**
+   * Raw, UNSNAPPED pointer deltas from drag start, in CSS pixels. The view uses
+   * these to carry the dragged card 1:1 with the pointer (direct manipulation);
+   * `ghostRect` stays the snapped landing cell.
+   */
+  pointerDx: number;
+  pointerDy: number;
   /** Width of one grid column in pixels, captured from the grid element. */
   columnWidth: number;
 };
@@ -98,6 +105,8 @@ export function beginDrag(params: {
     originClientX: params.clientX,
     originClientY: params.clientY,
     ghostRect: { ...params.widget.grid },
+    pointerDx: 0,
+    pointerDy: 0,
     columnWidth: columnWidth(params.metrics),
   };
 }
@@ -108,6 +117,8 @@ export function updateDrag(
   clientX: number,
   clientY: number,
 ): DashboardGridRect {
+  drag.pointerDx = clientX - drag.originClientX;
+  drag.pointerDy = clientY - drag.originClientY;
   const rowUnit = DASHBOARD_ROW_HEIGHT;
   const deltaCols = snapCells(clientX - drag.originClientX, drag.columnWidth);
   const deltaRows = snapCells(clientY - drag.originClientY, rowUnit);
