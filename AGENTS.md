@@ -146,8 +146,9 @@ agents directly:
 
 ## 5. For coding agents working on this repo
 
-- **Layout:** pnpm monorepo — `packages/{schema,core,server,host,lit,react,mcp,agent,broker,conformance}`,
-  `examples/`, `docs/`. Dependency order: schema → core → server/host → lit/react/mcp/agent/broker.
+- **Layout:** pnpm monorepo — `packages/{schema,core,server,host,lit,react,mcp,agent,broker}`,
+  plus root-level `conformance/`, `examples/`, `docs/`, `templates/`. Dependency order:
+  schema → core → server/host → lit/react/mcp/agent/broker.
 - **Commands:** `pnpm install` · `pnpm build` · `pnpm typecheck` · `pnpm lint`
   (oxlint zero-warnings + prettier) · scoped tests `pnpm --filter @boardstate/<pkg> test`.
   Run scoped tests for what you touched, not the world; CI runs the full matrix.
