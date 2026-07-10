@@ -96,6 +96,7 @@ export const en = {
   "dashboard.widget.approvals.deny": "Deny",
   "dashboard.widget.approvals.requestedBy": "Requested by {agent}",
   "dashboard.widget.approvals.kind.widget": "Widget",
+  "dashboard.widget.approvals.kind.capability": "Data source",
   "dashboard.widget.chat.empty": "Ask the agent to build or change this board…",
   "dashboard.widget.chat.placeholder": "Message the agent…",
   "dashboard.widget.chat.send": "Send",

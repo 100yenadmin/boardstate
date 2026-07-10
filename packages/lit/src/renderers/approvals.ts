@@ -30,15 +30,21 @@ export function renderApprovals(
         (item) => html`
           <li class="dashboard-list__row">
             <span class="dashboard-badge dashboard-badge--muted"
-              >${t("dashboard.widget.approvals.kind.widget")}</span
+              >${
+                item.kind === "capability"
+                  ? t("dashboard.widget.approvals.kind.capability")
+                  : t("dashboard.widget.approvals.kind.widget")
+              }</span
             >
             <span class="dashboard-list__label">${item.title}</span>
             ${
-              item.requestedBy
-                ? html`<span class="dashboard-list__meta"
-                    >${t("dashboard.widget.approvals.requestedBy", { agent: item.requestedBy })}</span
-                  >`
-                : nothing
+              item.detail
+                ? html`<span class="dashboard-list__meta">${item.detail}</span>`
+                : item.requestedBy
+                  ? html`<span class="dashboard-list__meta"
+                      >${t("dashboard.widget.approvals.requestedBy", { agent: item.requestedBy })}</span
+                    >`
+                  : nothing
             }
             <span class="dashboard-approvals__actions">
               <button

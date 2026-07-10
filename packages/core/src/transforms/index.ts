@@ -26,6 +26,7 @@ export {
 export { mapPreviewViewport, type PreviewViewport } from "./preview.js";
 export { mapAgentStatus, type AgentStatusRowModel, type AgentStatusModel } from "./agent-status.js";
 export {
+  buildApprovalsSource,
   buildWidgetApprovalsSource,
   mapApprovals,
   toWidgetApprovalDecision,

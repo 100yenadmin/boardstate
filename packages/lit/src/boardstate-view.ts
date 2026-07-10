@@ -11,6 +11,7 @@ import {
   DASHBOARD_GRID_GAP,
   DASHBOARD_ROW_HEIGHT,
   beginDrag,
+  buildApprovalsSource,
   buildWidgetApprovalsSource,
   collides,
   computeWorkspaceDiff,
@@ -42,6 +43,7 @@ import {
   type WidgetManifestView,
 } from "@boardstate/core";
 import {
+  approveCapability,
   approveWidget,
   clearActiveDrag,
   dispatchRateLimitedPrompt,
@@ -944,11 +946,12 @@ function buildBuiltinContext(
       state.actionError = message;
       props.onRequestUpdate?.();
     },
-    // The approvals builtin resolves pending widget approvals through the same
-    // `dashboard.widget.approve` path the custom-widget pending card uses.
-    approvals: buildWidgetApprovalsSource(
+    // The approvals builtin resolves pending widget approvals AND data-source
+    // capability requests (SPEC §17) through the same operator paths their cards use.
+    approvals: buildApprovalsSource(
       workspace,
       (name, decision) => void approveWidget(state, transport, { name, decision }),
+      (name, decision) => void approveCapability(state, transport, { name, decision }),
     ),
     // The chat builtin's inline approval card reads the live pending set (re-supplied
     // on every doc change) and resolves through the same approve path.

@@ -550,6 +550,28 @@ export async function approveWidget(
   }
 }
 
+/** Operator grant/revoke of a connector's data capability (SPEC §17). */
+export async function approveCapability(
+  state: DashboardUiState,
+  transport: Transport | null,
+  params: { name: string; decision: "granted" | "revoked" },
+): Promise<void> {
+  if (!transport) {
+    return;
+  }
+  state.actionError = null;
+  notify(state);
+  try {
+    await transport.request("dashboard.capability.approve", {
+      name: params.name,
+      decision: params.decision,
+    });
+  } catch (err) {
+    state.actionError = formatError(err);
+    notify(state);
+  }
+}
+
 // --- Workspace export / import (distribution) --------------------------------
 
 export type WorkspaceExportFile = { filename: string; json: string };

@@ -12,7 +12,12 @@ import {
 } from "./action-form.js";
 import { mapActivity } from "./activity.js";
 import { mapAgentStatus } from "./agent-status.js";
-import { buildWidgetApprovalsSource, mapApprovals, toWidgetApprovalDecision } from "./approvals.js";
+import {
+  buildApprovalsSource,
+  buildWidgetApprovalsSource,
+  mapApprovals,
+  toWidgetApprovalDecision,
+} from "./approvals.js";
 import { mapChart, normalizeSeries } from "./chart.js";
 import { mapCron } from "./cron.js";
 import { evaluateEmbedUrl } from "./iframe-embed.js";
@@ -353,6 +358,37 @@ describe("approvals mapping", () => {
     expect(source.pending).toEqual([
       { id: "chart", kind: "widget", title: "chart", requestedBy: "main" },
     ]);
+  });
+
+  it("combines pending widget approvals and requested capabilities, routing each decision", () => {
+    const ws = workspace({ chart: { status: "pending", createdBy: "agent:main" } });
+    ws.capabilitiesRegistry = {
+      "postgres-metrics": {
+        status: "requested",
+        methods: ["usage.cost", "sessions.list"],
+        streams: ["presence"],
+        description: "prod metrics",
+      },
+      "already-granted": { status: "granted", methods: ["health"], streams: [] },
+    };
+    const widgetCalls: Array<[string, string]> = [];
+    const capCalls: Array<[string, string]> = [];
+    const source = buildApprovalsSource(
+      ws,
+      (name, decision) => widgetCalls.push([name, decision]),
+      (name, decision) => capCalls.push([name, decision]),
+    );
+    // Capability requests come first; granted ones are omitted.
+    expect(source.pending.map((item) => [item.kind, item.id])).toEqual([
+      ["capability", "postgres-metrics"],
+      ["widget", "chart"],
+    ]);
+    expect(source.pending[0]!.detail).toBe("prod metrics");
+
+    source.onDecide(source.pending[0]!, "approve");
+    source.onDecide(source.pending[1]!, "reject");
+    expect(capCalls).toEqual([["postgres-metrics", "granted"]]);
+    expect(widgetCalls).toEqual([["chart", "rejected"]]);
   });
 
   it("maps decisions to the registry vocabulary and limits the row count", () => {

@@ -19,14 +19,16 @@ export type ApprovalDecision = "approve" | "reject";
 
 /** One pending approval row rendered by the `approvals` builtin. */
 export type PendingApprovalItem = {
-  /** Stable resolve key (the custom-widget name for `widget` approvals). */
+  /** Stable resolve key: the custom-widget name (`widget`) or connector name (`capability`). */
   id: string;
-  /** Approval class; only `widget` is reachable from a builtin today. */
-  kind: "widget";
+  /** Approval class: an agent-authored widget, or a connector's data capability (SPEC §17). */
+  kind: "widget" | "capability";
   /** Human label for the pending item. */
   title: string;
   /** Requesting agent id when the item carries agent provenance, else null. */
   requestedBy: string | null;
+  /** For `capability` items: a one-line summary of what it would reach. */
+  detail?: string;
 };
 
 /**
@@ -68,6 +70,50 @@ export function buildWidgetApprovalsSource(
   return {
     pending,
     onDecide: (item, decision) => resolve(item.id, toWidgetApprovalDecision(decision)),
+  };
+}
+
+/**
+ * The combined pending-approval source: agent-authored WIDGETS plus data-source
+ * CAPABILITY requests (SPEC §17). Widget decisions route through `resolveWidget`
+ * (`approveWidget`) and capability decisions through `resolveCapability`
+ * (`approveCapability`); an `approve` grants and a `reject` revokes. Any board with
+ * an `approvals` widget then surfaces both — the single operator queue.
+ */
+export function buildApprovalsSource(
+  workspace: DashboardWorkspace,
+  resolveWidget: (name: string, decision: "approved" | "rejected") => void,
+  resolveCapability: (name: string, decision: "granted" | "revoked") => void,
+): ApprovalsWidgetSource {
+  const widgets = buildWidgetApprovalsSource(workspace, resolveWidget).pending;
+  const capabilities: PendingApprovalItem[] = Object.entries(workspace.capabilitiesRegistry ?? {})
+    .filter(([, grant]) => grant.status === "requested")
+    .map(([name, grant]) => {
+      const reach = [
+        grant.methods.length
+          ? `${grant.methods.length} read${grant.methods.length === 1 ? "" : "s"}`
+          : null,
+        grant.streams.length
+          ? `${grant.streams.length} stream${grant.streams.length === 1 ? "" : "s"}`
+          : null,
+      ].filter(Boolean);
+      return {
+        id: name,
+        kind: "capability" as const,
+        title: name,
+        requestedBy: null,
+        detail: grant.description ?? (reach.length ? `wants ${reach.join(" + ")}` : "data access"),
+      };
+    });
+  return {
+    pending: [...capabilities, ...widgets],
+    onDecide: (item, decision) => {
+      if (item.kind === "capability") {
+        resolveCapability(item.id, decision === "approve" ? "granted" : "revoked");
+      } else {
+        resolveWidget(item.id, toWidgetApprovalDecision(decision));
+      }
+    },
   };
 }
 
