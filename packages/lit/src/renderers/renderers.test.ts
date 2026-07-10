@@ -236,6 +236,59 @@ describe("chart render (wave-charts)", () => {
     expect(container.querySelector('[data-test-id="dashboard-chart"]')).not.toBeNull();
     expect(container.querySelector(".dashboard-chart--bar")).not.toBeNull();
   });
+
+  it("a default chart adds no detail scaffolding (byte-identical to before)", () => {
+    const container = renderToContainer(
+      renderChart(widget({ kind: "builtin:chart", props: { type: "line" } }), [1, 5, 2]),
+    );
+    const chart = container.querySelector<HTMLElement>(".dashboard-chart")!;
+    // Only the SVG mounts — no axis/grid/tip overlay leaks into the default render.
+    expect(chart.className).toBe("dashboard-chart dashboard-chart--line");
+    expect(chart.children.length).toBe(1);
+    expect(chart.querySelector(".dashboard-chart__grid")).toBeNull();
+    expect(chart.querySelector(".dashboard-chart__axis")).toBeNull();
+    expect(chart.querySelector(".dashboard-chart__tips")).toBeNull();
+  });
+
+  it("renders a delta-colored sparkline with an optional trailing value label", () => {
+    const container = renderToContainer(
+      renderChart(
+        widget({ kind: "builtin:chart", props: { type: "sparkline", label: true } }),
+        [4, 6, 9],
+      ),
+    );
+    expect(container.querySelector(".dashboard-chart--sparkline")).not.toBeNull();
+    // Rising series ⇒ "up" trend class drives the delta color.
+    expect(container.querySelector(".dashboard-chart__spark--up")).not.toBeNull();
+    expect(container.querySelector(".dashboard-chart__spark-value--up")?.textContent).toBe("9");
+    // Sparkline stays axis-free even alongside the value label.
+    expect(container.querySelector(".dashboard-chart__grid")).toBeNull();
+  });
+
+  it("degrades a one-point sparkline to a single end dot", () => {
+    const container = renderToContainer(
+      renderChart(widget({ kind: "builtin:chart", props: { type: "sparkline" } }), [7]),
+    );
+    expect(container.querySelector(".dashboard-chart__spark-dot")).not.toBeNull();
+    expect(container.querySelector("polyline")).toBeNull();
+  });
+
+  it("detail mode adds gridlines, axis labels, and value tooltips", () => {
+    const container = renderToContainer(
+      renderChart(
+        widget({ kind: "builtin:chart", props: { type: "line", detail: true } }),
+        [10, 30, 20],
+      ),
+    );
+    expect(container.querySelector(".dashboard-chart--detail")).not.toBeNull();
+    expect(container.querySelector(".dashboard-chart__grid")).not.toBeNull();
+    expect(container.querySelectorAll(".dashboard-chart__axis").length).toBe(2);
+    // A per-point <title> surfaces the value as a native tooltip (no dependency).
+    const titles = Array.from(container.querySelectorAll(".dashboard-chart__tip title")).map(
+      (node) => node.textContent,
+    );
+    expect(titles).toContain("30");
+  });
 });
 
 describe("notes render (wave-notes)", () => {

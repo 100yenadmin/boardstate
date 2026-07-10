@@ -2043,3 +2043,65 @@ select.bs-dialog__input {
 [dir="rtl"] .dashboard :where(input, textarea)::placeholder {
   unicode-bidi: plaintext;
 }
+
+/* chart-detail — sparkline delta coloring + opt-in detail mode (axes/grid/tips).
+   Kept in one trailing block to minimize merge collisions with the base chart CSS
+   above; all default charts are unaffected (rules key off --sparkline / --detail). */
+.dashboard-chart--sparkline,
+.dashboard-chart--detail {
+  position: relative;
+}
+/* Sparkline: delta-colored line + trailing value badge. */
+.dashboard-chart__spark--up .dashboard-chart__line,
+.dashboard-chart__spark--up .dashboard-chart__spark-dot {
+  stroke: var(--bs-success, #27853c);
+  fill: var(--bs-success, #27853c);
+}
+.dashboard-chart__spark--down .dashboard-chart__line,
+.dashboard-chart__spark--down .dashboard-chart__spark-dot {
+  stroke: var(--bs-danger, #d92c25);
+  fill: var(--bs-danger, #d92c25);
+}
+.dashboard-chart__spark--flat .dashboard-chart__spark-dot {
+  fill: var(--bs-text-muted, #6b6b77);
+}
+.dashboard-chart__spark-value {
+  position: absolute;
+  top: 1px;
+  inset-inline-end: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--bs-text-muted, #6b6b77);
+  pointer-events: none;
+}
+.dashboard-chart__spark-value--up {
+  color: var(--bs-success, #27853c);
+}
+.dashboard-chart__spark-value--down {
+  color: var(--bs-danger, #d92c25);
+}
+/* Detail mode: faint gridlines, corner axis labels, invisible hover-tip targets. */
+.dashboard-chart__grid line {
+  stroke: var(--bs-border, #e7e7ee);
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+.dashboard-chart__tip {
+  fill: transparent;
+  stroke: none;
+}
+.dashboard-chart__axis {
+  position: absolute;
+  inset-inline-start: 3px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--bs-text-muted, #6b6b77);
+  pointer-events: none;
+}
+.dashboard-chart__axis--max {
+  top: 1px;
+}
+.dashboard-chart__axis--min {
+  bottom: 1px;
+}
