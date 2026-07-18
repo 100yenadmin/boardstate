@@ -88,6 +88,32 @@ sequenceDiagram
   Note over Frame: no origin · no network · no credentials
 ```
 
+## Where Boardstate runs
+
+The same library, in production agent products:
+
+- **[OpenClaw](https://github.com/openclaw/openclaw)** adopted the stack **in-tree as
+  "Workspaces"** — our upstream contribution merged directly
+  ([openclaw#101792](https://github.com/openclaw/openclaw/pull/101792)), follow-on work
+  landed maintainer-wrapped
+  ([openclaw#104139](https://github.com/openclaw/openclaw/pull/104139)); tracker
+  [openclaw#101136](https://github.com/openclaw/openclaw/issues/101136).
+- **[Hermes](https://github.com/NousResearch/hermes-agent)** — the
+  **[boardstate-hermes-plugin](https://github.com/100yenadmin/boardstate-hermes-plugin)**
+  puts the board *inside* Hermes: a Board tab in the web dashboard **and** a page in the
+  desktop app, with Hermes-native design skins, live Hermes data widgets, sandboxed custom
+  widgets, and an operator-governed connector layer. Bundling PRs are open upstream —
+  tracker [hermes-agent#66413](https://github.com/NousResearch/hermes-agent/issues/66413)
+  · web [#66381](https://github.com/NousResearch/hermes-agent/pull/66381) · desktop
+  [#66425](https://github.com/NousResearch/hermes-agent/pull/66425). Prefer zero install?
+  The [no-plugin recipe](docs/integrations/hermes.md) points Hermes' MCP client straight
+  at `@boardstate/mcp`:
+
+  ![A Hermes agent building a live sales board through @boardstate/mcp](docs/media/hermes-build.gif)
+
+- **Anywhere npm or MCP reaches** — embed `<boardstate-view>`, run a Node host, or point
+  any MCP-speaking AI at a board (see [Installation](#installation)).
+
 ## Features
 
 ### The document is the whole product
@@ -157,6 +183,17 @@ changes a tool's surface underneath them (anti-rug-pull, both directions), and e
 is rate-limited and audit-logged. Reads and actions are different verbs: a `source:"mcp"`
 binding resolves through a pure-read verb that structurally cannot trigger a side effect.
 
+### Beyond one agent
+
+Grants can carry **per-tool auto-confirm** (an explicit operator opt-in, never a default)
+and **TTLs**, and pending actions can complete **asynchronously** — wakes are
+operator-caused only. Workspaces are **multi-agent**: actor identity is server-bound and
+fail-closed over the wire, widgets carry provenance chips, and each agent gets its own
+grant scope and rate budget. **Template recipes** turn boards into installable programs —
+install = import, bundled grants arrive `requested`, never pre-approved — and the
+**board-as-memory** convention lets an agent use the board itself as durable memory
+(capped, framed, human edits are ground truth).
+
 ### Connectors
 
 `@boardstate/broker` manages outbound MCP connections from an operator-authored config
@@ -172,8 +209,9 @@ Run it your way: fully in-browser (the live demo persists to IndexedDB-like stor
 core store), a Node host over the hardened **WebSocket transport**, or in-process. The
 **`boardstate` CLI** drives the same control plane from your shell. If you build your own
 host, **`@boardstate/conformance`** is the transport test suite that tells you it's actually
-conformant — the reference implementation also ships as an OpenClaw plugin, the first
-conformant host.
+conformant — conformant hosts already run in production inside OpenClaw (in-tree as
+Workspaces) and Hermes (via the plugin): see
+[Where Boardstate runs](#where-boardstate-runs).
 
 ### Batteries included
 
@@ -364,10 +402,14 @@ and your agent knows how to drive the board.
 
 ## Status
 
-**Actively developed.** The protocol is [SPEC](packages/schema/SPEC.md) v0.2-draft —
-stable enough to build a host against, with [`@boardstate/conformance`](conformance) to
-prove your host is conformant. Every release ships to npm with provenance; the full
-history is in **[CHANGELOG.md](CHANGELOG.md)**.
+**Actively developed.** Current release: `core` / `schema` / `host` / `server`
+**@1.8.0** — the Act 4 train (multi-agent workspaces, per-tool auto-confirm + grant TTLs,
+installable template recipes, board-as-memory; see **[CHANGELOG.md](CHANGELOG.md)**), and
+the library now runs in production inside OpenClaw and Hermes
+([Where Boardstate runs](#where-boardstate-runs)). The protocol is
+[SPEC](packages/schema/SPEC.md) v0.2-draft — stable enough to build a host against, with
+[`@boardstate/conformance`](conformance) to prove your host is conformant. Every release
+ships to npm with provenance.
 
 ## License
 

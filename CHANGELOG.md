@@ -6,9 +6,45 @@ per-version record lives in each package's own changelog
 (e.g. [`packages/server/CHANGELOG.md`](packages/server/CHANGELOG.md)), and every published
 version carries npm provenance (Sigstore attestation — verifiable on each package's npm page).
 
-Current versions: `schema@1.2.0` · `core@1.3.0` · `host@1.3.0` · `server@1.4.0` ·
-`lit@0.5.0` · `react@0.1.9` · `mcp@0.2.6` · `agent@0.3.1` · `broker@0.3.0` ·
-`conformance@0.1.13`.
+Current versions: `schema@1.8.0` · `core@1.8.0` · `host@1.8.0` · `server@1.8.0` ·
+`lit@0.9.0` · `react@0.1.13` · `mcp@0.2.10` · `agent@0.5.0` · `broker@0.3.4` ·
+`conformance@0.1.17`.
+
+---
+
+## Act 4 — The polished, multi-agent workspace (2026-07-11)
+
+Four release trains (final: `schema`/`core`/`host`/`server` **@1.8.0**, `agent@0.5.0`,
+`lit@0.9.0`), shipped as four waves — the polish/content backlog plus the graduated seeds
+([roadmap](docs/ROADMAP.md)):
+
+- **P1 · Polish + built-in content**
+  ([#10](https://github.com/100yenadmin/boardstate/issues/10)
+  [#11](https://github.com/100yenadmin/boardstate/issues/11)
+  [#12](https://github.com/100yenadmin/boardstate/issues/12)
+  [#4](https://github.com/100yenadmin/boardstate/issues/4)) — sparkline + chart detail
+  mode; history previews + counts-only change summaries; gallery scroll affordance; RTL
+  logical-props audit; demo toast; 5 locales at 100%; **pomodoro + habit-tracker** starter
+  widgets and the **Focus** template.
+- **P2 · The trust trio**
+  ([#62](https://github.com/100yenadmin/boardstate/issues/62)
+  [#64](https://github.com/100yenadmin/boardstate/issues/64)
+  [#63](https://github.com/100yenadmin/boardstate/issues/63)) — per-tool **auto-confirm**
+  (explicit operator opt-in, never a default), grant **TTLs**, and **async pending
+  actions** (operator-caused wakes only).
+- **P3 · Multi-agent workspaces**
+  ([#59](https://github.com/100yenadmin/boardstate/issues/59)) — server-bound actor
+  scoping (fail-closed over the wire), per-widget provenance chips, per-agent grant
+  scoping and rate budgets.
+- **P4 · Templates as programs + board-as-memory**
+  ([#60](https://github.com/100yenadmin/boardstate/issues/60)
+  [#61](https://github.com/100yenadmin/boardstate/issues/61)) — installable template
+  **recipes** (install = import; bundled grants arrive `requested`, never pre-approved —
+  three recipes shipped, incl. a keyless ops board) and the **board-as-agent-memory**
+  convention (capped, framed, human edits are ground truth).
+
+Adversarial verification caught 8 more real defects across the act — every one fixed with
+a delta-sensitive regression before merge.
 
 ---
 

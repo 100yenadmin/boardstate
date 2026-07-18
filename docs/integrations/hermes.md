@@ -2,6 +2,15 @@
 
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) has a first-class MCP client, so Boardstate works as a drop-in toolset: the agent gets `boardstate_*` tools (tabs, widgets, data, undo, design review) and builds live dashboards you can watch in a browser.
 
+> **Looking for the full integration?** The
+> **[boardstate-hermes-plugin](https://github.com/100yenadmin/boardstate-hermes-plugin)**
+> puts the board *inside* Hermes — a Board tab in the web dashboard and a page in the
+> desktop app, with Hermes-native skins, live Hermes data widgets, and an
+> operator-governed connector layer. Bundling PRs are open upstream (tracker
+> [hermes-agent#66413](https://github.com/NousResearch/hermes-agent/issues/66413)).
+> This page documents the lightweight **no-install recipe**: point Hermes' MCP client at
+> `@boardstate/mcp` and watch the board in a separate browser tab.
+
 ### 1. Register the MCP server
 
 Add to `~/.hermes/config.yaml` (note: the file is `config.yaml` — `cli-config.yaml.example` is just the example's name):
