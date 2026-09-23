@@ -114,6 +114,25 @@ describe("markdown render", () => {
     expect(toSanitizedMarkdownHtml("```\n# A\nb\n```")).toBe("<pre><code># A\nb</code></pre>");
   });
 
+  it("continues ordered-list numbering after a nested sub-list", () => {
+    const container = renderToContainer(
+      renderMarkdown(widget(), "1. Build\n   - run tests\n2. Ship"),
+    );
+    const lists = container.querySelectorAll(".dashboard-markdown ol");
+    expect(lists).toHaveLength(2);
+    expect(lists[0]?.hasAttribute("start")).toBe(false);
+    expect(lists[1]?.getAttribute("start")).toBe("2");
+    expect(lists[1]?.textContent).toBe("Ship");
+  });
+
+  it("escapes source HTML on the heading, task-item and ordered-list paths", () => {
+    for (const source of ["# <img src=x onerror=1>", "- [ ] <script>", "1. <b>x</b>"]) {
+      const out = toSanitizedMarkdownHtml(source);
+      expect(out).not.toMatch(/<img|<script|<b>/);
+    }
+    expect(toSanitizedMarkdownHtml("1. <b>x</b>")).toBe("<ol><li>&lt;b&gt;x&lt;/b&gt;</li></ol>");
+  });
+
   it("renders a heading followed by task-list lines and trailing text as h2 + list + paragraph", () => {
     const container = renderToContainer(
       renderMarkdown(

@@ -1,7 +1,8 @@
 // Minimal, hand-rolled markdown → sanitized-HTML renderer for the markdown widget.
 // Dependency free and allowlist-only: the raw source is HTML-escaped FIRST, then a
 // fixed set of block/inline transforms emit ONLY these tags —
-//   p, br, strong, em, code, pre, a[href=http(s)], ul, ol, li, h1–h6, blockquote,
+//   p, br, strong, em, code, pre, a[href=http(s)], ul, ol[start=integer], li, h1–h6,
+//   blockquote,
 //   plus a fixed task-list glyph span (never an <input> or other form control).
 // Nothing else can reach the output, so the result is safe to inject with
 // `unsafeHTML`. Links keep only absolute http(s) hrefs; any other scheme (or a
@@ -77,7 +78,15 @@ function renderList(block: string, ordered: boolean): string {
     .map((line) => line.replace(ordered ? /^\s*\d+\.\s+/ : /^\s*[-*]\s+/, ""))
     .map(renderListItem)
     .join("");
-  return ordered ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
+  if (!ordered) {
+    return `<ul>${items}</ul>`;
+  }
+  // Keep the author's numbering (e.g. a list split by a nested sub-list). The
+  // attribute only ever carries a parsed integer, never source text.
+  const start = Number.parseInt(/^\s*(\d+)\./.exec(block)?.[1] ?? "1", 10);
+  return Number.isSafeInteger(start) && start !== 1
+    ? `<ol start="${start}">${items}</ol>`
+    : `<ol>${items}</ol>`;
 }
 
 function isUnorderedList(block: string): boolean {
