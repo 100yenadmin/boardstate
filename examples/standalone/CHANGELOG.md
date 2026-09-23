@@ -1,5 +1,12 @@
 # boardstate-example-standalone
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [[`8520985`](https://github.com/100yenadmin/boardstate/commit/8520985978311a253b1048e02eff2e5e3be9ca73)]:
+  - @boardstate/lit@0.9.1
+
 ## 0.0.18
 
 ### Patch Changes

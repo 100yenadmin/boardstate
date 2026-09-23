@@ -1,5 +1,12 @@
 # @boardstate/mcp
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [[`8520985`](https://github.com/100yenadmin/boardstate/commit/8520985978311a253b1048e02eff2e5e3be9ca73)]:
+  - @boardstate/lit@0.9.1
+
 ## 0.2.10
 
 ### Patch Changes
