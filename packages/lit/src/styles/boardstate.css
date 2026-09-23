@@ -782,6 +782,53 @@ select.bs-dialog__input {
 .dashboard-markdown {
   font-size: 0.9em;
 }
+/* Class-qualified so host resets / element styles (e.g. Tailwind preflight) don't
+   flatten headings or restyle code. */
+.dashboard-markdown h1,
+.dashboard-markdown h2,
+.dashboard-markdown h3,
+.dashboard-markdown h4,
+.dashboard-markdown h5,
+.dashboard-markdown h6 {
+  margin: 0.8em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--bs-text-strong, #000000);
+}
+.dashboard-markdown > :first-child {
+  margin-top: 0;
+}
+.dashboard-markdown h1 {
+  font-size: 1.5em;
+}
+.dashboard-markdown h2 {
+  font-size: 1.3em;
+}
+.dashboard-markdown h3 {
+  font-size: 1.15em;
+}
+.dashboard-markdown code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--bs-radius-sm, 6px);
+  background: var(--bs-bg-muted, #f3f4f6);
+  color: var(--bs-text, #1a1d21);
+  font-family: var(--bs-font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}
+.dashboard-markdown pre {
+  padding: 8px 10px;
+  border-radius: var(--bs-radius-sm, 6px);
+  background: var(--bs-bg-muted, #f3f4f6);
+  overflow-x: auto;
+}
+.dashboard-markdown pre code {
+  padding: 0;
+  background: none;
+}
+/* Task items: the ☐/☑ glyph replaces the bullet (no double markers). */
+.dashboard-markdown ul > li.dashboard-markdown__task-item {
+  list-style: none;
+}
 .dashboard-list {
   list-style: none;
   margin: 0;

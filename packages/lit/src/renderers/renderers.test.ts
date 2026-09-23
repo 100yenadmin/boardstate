@@ -27,6 +27,7 @@ import { renderChat } from "./chat.js";
 import { renderCron } from "./cron.js";
 import { renderIframeEmbed } from "./iframe-embed.js";
 import { renderInstances } from "./instances.js";
+import { toSanitizedMarkdownHtml } from "../markdown.js";
 import { renderMarkdown } from "./markdown.js";
 import { renderNotes } from "./notes.js";
 import { renderPreview } from "./preview.js";
@@ -84,6 +85,30 @@ describe("markdown render", () => {
   it("renders sanitized markdown for content", () => {
     const container = renderToContainer(renderMarkdown(widget(), "# Hello"));
     expect(container.querySelector(".dashboard-markdown")?.textContent).toContain("Hello");
+  });
+
+  it("renders GFM task-list items as checked/unchecked glyphs, never form controls", () => {
+    const container = renderToContainer(renderMarkdown(widget(), "- [ ] a\n- [x] b"));
+    const items = container.querySelectorAll(".dashboard-markdown ul > li");
+    expect(items).toHaveLength(2);
+    const boxes = [...items].map((li) => li.querySelector(".dashboard-markdown__task"));
+    expect(boxes.map((box) => box?.getAttribute("aria-label"))).toEqual(["unchecked", "checked"]);
+    expect(items[0]?.textContent).not.toContain("[ ]");
+    expect(items[1]?.textContent).not.toContain("[x]");
+    expect(items[1]?.textContent).toContain("b");
+    expect(container.querySelector("input")).toBeNull();
+    expect(toSanitizedMarkdownHtml("- [ ] a\n- [x] b")).not.toContain("<input");
+  });
+
+  it("leaves a task marker inside a code span or code block untouched", () => {
+    expect(toSanitizedMarkdownHtml("`- [ ] x`")).toBe("<p><code>- [ ] x</code></p>");
+    expect(toSanitizedMarkdownHtml("```\n- [ ] x\n```")).toBe("<pre><code>- [ ] x</code></pre>");
+  });
+
+  it("ends an ATX heading at the newline and renders the rest as its own block", () => {
+    expect(toSanitizedMarkdownHtml("# A\nb")).toBe("<h1>A</h1>\n<p>b</p>");
+    expect(toSanitizedMarkdownHtml("#nospace")).toBe("<p>#nospace</p>");
+    expect(toSanitizedMarkdownHtml("```\n# A\nb\n```")).toBe("<pre><code># A\nb</code></pre>");
   });
 });
 
@@ -324,6 +349,53 @@ describe("notes render (wave-notes)", () => {
     expect(pad?.hasAttribute("readonly")).toBe(false);
     await Promise.resolve();
     expect(get).toHaveBeenCalled();
+  });
+
+  function renderConnectedNotes(
+    get: () => Promise<{ state: unknown }>,
+    text = "abc",
+  ): { pad: HTMLTextAreaElement; set: ReturnType<typeof vi.fn> } {
+    const set = vi.fn(async () => ({ version: 1 }));
+    const container = renderToContainer(
+      renderNotes(widget({ kind: "builtin:notes", props: { text } }), null, {
+        ...STRICT_EMBED,
+        state: { get, set },
+      }),
+    );
+    const pad = container.querySelector<HTMLTextAreaElement>(
+      '[data-test-id="dashboard-notes-pad"]',
+    )!;
+    return { pad, set };
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("shows the props.text seed when no state has been persisted yet", async () => {
+    const { pad, set } = renderConnectedNotes(async () => ({ state: undefined }));
+    expect(pad.value).toBe("abc");
+    await flush();
+    expect(pad.value).toBe("abc");
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("lets a persisted string (even an empty one) win over the seed", async () => {
+    const empty = renderConnectedNotes(async () => ({ state: "" }));
+    const saved = renderConnectedNotes(async () => ({ state: "saved" }));
+    await flush();
+    expect(empty.pad.value).toBe("");
+    expect(saved.pad.value).toBe("saved");
+  });
+
+  it("keeps text typed before hydration resolves", async () => {
+    let resolve!: (value: { state: unknown }) => void;
+    const { pad } = renderConnectedNotes(
+      () => new Promise<{ state: unknown }>((r) => (resolve = r)),
+    );
+    pad.value = "typed";
+    pad.dispatchEvent(new Event("input"));
+    resolve({ state: "saved" });
+    await flush();
+    expect(pad.value).toBe("typed");
   });
 });
 

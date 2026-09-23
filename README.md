@@ -100,7 +100,7 @@ The same library, in production agent products:
   [openclaw#101136](https://github.com/openclaw/openclaw/issues/101136).
 - **[Hermes](https://github.com/NousResearch/hermes-agent)** — the
   **[boardstate-hermes-plugin](https://github.com/100yenadmin/boardstate-hermes-plugin)**
-  puts the board *inside* Hermes: a Board tab in the web dashboard **and** a page in the
+  puts the board _inside_ Hermes: a Board tab in the web dashboard **and** a page in the
   desktop app, with Hermes-native design skins, live Hermes data widgets, sandboxed custom
   widgets, and an operator-governed connector layer. Bundling PRs are open upstream —
   tracker [hermes-agent#66413](https://github.com/NousResearch/hermes-agent/issues/66413)
