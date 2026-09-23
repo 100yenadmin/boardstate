@@ -154,7 +154,14 @@ export function toSanitizedMarkdownHtml(source: string): string {
     }
     // A switch between bullet / ordered / plain lines starts a new block, so a
     // list directly under a heading or before trailing text still renders as a list.
-    const kind = isUnorderedList(line) ? "ul" : isOrderedList(line) ? "ol" : "p";
+    let kind = isUnorderedList(line) ? "ul" : isOrderedList(line) ? "ol" : "p";
+    // Inside a paragraph, a 4+-space-indented line or an ordered item not numbered 1
+    // is continuation text, not a new list (CommonMark interruption rules).
+    const continuation =
+      /^ {4}/.test(line) || (kind === "ol" && Number.parseInt(line.trim(), 10) !== 1);
+    if (paragraphKind === "p" && paragraph.length > 0 && continuation) {
+      kind = "p";
+    }
     if (kind !== paragraphKind) {
       flushParagraph();
     }

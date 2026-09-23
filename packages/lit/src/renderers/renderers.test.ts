@@ -125,6 +125,14 @@ describe("markdown render", () => {
     expect(lists[1]?.textContent).toBe("Ship");
   });
 
+  it("keeps paragraph continuation lines as text (CommonMark interruption rules)", () => {
+    expect(toSanitizedMarkdownHtml("intro\n    - [x] literal")).toBe(
+      "<p>intro<br>    - [x] literal</p>",
+    );
+    expect(toSanitizedMarkdownHtml("intro\n2. detail")).toBe("<p>intro<br>2. detail</p>");
+    expect(toSanitizedMarkdownHtml("intro\n1. item")).toBe("<p>intro</p>\n<ol><li>item</li></ol>");
+  });
+
   it("escapes source HTML on the heading, task-item and ordered-list paths", () => {
     for (const source of ["# <img src=x onerror=1>", "- [ ] <script>", "1. <b>x</b>"]) {
       const out = toSanitizedMarkdownHtml(source);
