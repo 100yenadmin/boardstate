@@ -1,7 +1,9 @@
 // Minimal, hand-rolled markdown → sanitized-HTML renderer for the markdown widget.
 // Dependency free and allowlist-only: the raw source is HTML-escaped FIRST, then a
 // fixed set of block/inline transforms emit ONLY these tags —
-//   p, br, strong, em, code, pre, a[href=http(s)], ul, ol, li, h1–h6, blockquote.
+//   p, br, strong, em, code, pre, a[href=http(s)], ul, ol[start=integer], li, h1–h6,
+//   blockquote,
+//   plus a fixed task-list glyph span (never an <input> or other form control).
 // Nothing else can reach the output, so the result is safe to inject with
 // `unsafeHTML`. Links keep only absolute http(s) hrefs; any other scheme (or a
 // relative/`javascript:` href) degrades to plain text.
@@ -42,14 +44,12 @@ function renderInline(escaped: string): string {
   return out;
 }
 
-/** Render one non-list block (heading / blockquote / paragraph). */
+/** An ATX heading line (CommonMark: the heading ends at the newline). */
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
+
+/** Render one non-list block (blockquote / paragraph). */
 function renderBlock(block: string): string {
   const lines = block.split("\n");
-  const heading = /^(#{1,6})\s+(.*)$/.exec(lines[0] ?? "");
-  if (heading && lines.length === 1) {
-    const level = heading[1]!.length;
-    return `<h${level}>${renderInline(escapeHtml(heading[2]!))}</h${level}>`;
-  }
   if (lines.every((line) => line.startsWith(">"))) {
     const inner = lines
       .map((line) => renderInline(escapeHtml(line.replace(/^>\s?/, ""))))
@@ -60,14 +60,33 @@ function renderBlock(block: string): string {
   return `<p>${body}</p>`;
 }
 
+/** Render one list item; a GFM `[ ]` / `[x]` task marker becomes a glyph span. */
+function renderListItem(item: string): string {
+  const task = /^\[([ xX])\]\s+(.*)$/.exec(item);
+  if (!task) {
+    return `<li>${renderInline(escapeHtml(item))}</li>`;
+  }
+  const checked = task[1] !== " ";
+  const glyph = `<span class="dashboard-markdown__task" role="img" aria-label="${checked ? "checked" : "unchecked"}">${checked ? "☑" : "☐"}</span>`;
+  return `<li class="dashboard-markdown__task-item">${glyph} ${renderInline(escapeHtml(task[2]!))}</li>`;
+}
+
 /** Render a bullet (`-`/`*`) or ordered (`1.`) list block. */
 function renderList(block: string, ordered: boolean): string {
   const items = block
     .split("\n")
     .map((line) => line.replace(ordered ? /^\s*\d+\.\s+/ : /^\s*[-*]\s+/, ""))
-    .map((item) => `<li>${renderInline(escapeHtml(item))}</li>`)
+    .map(renderListItem)
     .join("");
-  return ordered ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
+  if (!ordered) {
+    return `<ul>${items}</ul>`;
+  }
+  // Keep the author's numbering (e.g. a list split by a nested sub-list). The
+  // attribute only ever carries a parsed integer, never source text.
+  const start = Number.parseInt(/^\s*(\d+)\./.exec(block)?.[1] ?? "1", 10);
+  return Number.isSafeInteger(start) && start !== 1
+    ? `<ol start="${start}">${items}</ol>`
+    : `<ol>${items}</ol>`;
 }
 
 function isUnorderedList(block: string): boolean {
@@ -92,6 +111,7 @@ export function toSanitizedMarkdownHtml(source: string): string {
   const rawLines = source.replace(/\r\n?/g, "\n").split("\n");
   const html: string[] = [];
   let paragraph: string[] = [];
+  let paragraphKind = "";
 
   const flushParagraph = (): void => {
     if (paragraph.length === 0) {
@@ -125,6 +145,29 @@ export function toSanitizedMarkdownHtml(source: string): string {
       flushParagraph();
       continue;
     }
+    const heading = HEADING.exec(line);
+    if (heading) {
+      flushParagraph();
+      const level = heading[1]!.length;
+      html.push(`<h${level}>${renderInline(escapeHtml(heading[2] ?? ""))}</h${level}>`);
+      continue;
+    }
+    // A switch between bullet / ordered / plain lines starts a new block, so a
+    // list directly under a heading or before trailing text still renders as a list.
+    let kind = isUnorderedList(line) ? "ul" : isOrderedList(line) ? "ol" : "p";
+    // Inside a paragraph, a 4-column-indented line, an empty list item, or an ordered
+    // item not numbered 1 is continuation text, not a new list (CommonMark).
+    const continuation =
+      /^(?: {4}| {0,3}\t)/.test(line) ||
+      /^\s*(?:[-*]|\d+\.)\s*$/.test(line) ||
+      (kind === "ol" && Number.parseInt(line.trim(), 10) !== 1);
+    if (paragraphKind === "p" && paragraph.length > 0 && continuation) {
+      kind = "p";
+    }
+    if (kind !== paragraphKind) {
+      flushParagraph();
+    }
+    paragraphKind = kind;
     paragraph.push(line);
   }
   flushParagraph();

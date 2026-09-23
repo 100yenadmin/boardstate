@@ -4,7 +4,7 @@
 
 > **Looking for the full integration?** The
 > **[boardstate-hermes-plugin](https://github.com/100yenadmin/boardstate-hermes-plugin)**
-> puts the board *inside* Hermes — a Board tab in the web dashboard and a page in the
+> puts the board _inside_ Hermes — a Board tab in the web dashboard and a page in the
 > desktop app, with Hermes-native skins, live Hermes data widgets, and an
 > operator-governed connector layer. Bundling PRs are open upstream (tracker
 > [hermes-agent#66413](https://github.com/NousResearch/hermes-agent/issues/66413)).
