@@ -44,7 +44,7 @@ function renderInline(escaped: string): string {
 }
 
 /** An ATX heading line (CommonMark: the heading ends at the newline). */
-const HEADING = /^(#{1,6})\s+(.*)$/;
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
 
 /** Render one non-list block (blockquote / paragraph). */
 function renderBlock(block: string): string {
@@ -140,7 +140,7 @@ export function toSanitizedMarkdownHtml(source: string): string {
     if (heading) {
       flushParagraph();
       const level = heading[1]!.length;
-      html.push(`<h${level}>${renderInline(escapeHtml(heading[2]!))}</h${level}>`);
+      html.push(`<h${level}>${renderInline(escapeHtml(heading[2] ?? ""))}</h${level}>`);
       continue;
     }
     // A switch between bullet / ordered / plain lines starts a new block, so a

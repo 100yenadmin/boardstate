@@ -108,6 +108,9 @@ describe("markdown render", () => {
   it("ends an ATX heading at the newline and renders the rest as its own block", () => {
     expect(toSanitizedMarkdownHtml("# A\nb")).toBe("<h1>A</h1>\n<p>b</p>");
     expect(toSanitizedMarkdownHtml("#nospace")).toBe("<p>#nospace</p>");
+    expect(toSanitizedMarkdownHtml("#\nbody")).toBe("<h1></h1>\n<p>body</p>");
+    expect(toSanitizedMarkdownHtml("   ## T\nbody")).toBe("<h2>T</h2>\n<p>body</p>");
+    expect(toSanitizedMarkdownHtml("    # code-indented")).toBe("<p>    # code-indented</p>");
     expect(toSanitizedMarkdownHtml("```\n# A\nb\n```")).toBe("<pre><code># A\nb</code></pre>");
   });
 
@@ -404,6 +407,58 @@ describe("notes render (wave-notes)", () => {
     await flush();
     expect(empty.pad.value).toBe("");
     expect(saved.pad.value).toBe("saved");
+  });
+
+  it("shows an updated seed on re-render until state is persisted or the user types", async () => {
+    let resolve!: (value: { state: unknown }) => void;
+    const get = vi.fn(() => new Promise<{ state: unknown }>((r) => (resolve = r)));
+    const set = vi.fn(async () => ({ version: 1 }));
+    const container = document.createElement("div");
+    const draw = (text: string): unknown =>
+      render(
+        renderNotes(widget({ kind: "builtin:notes", props: { text } }), null, {
+          ...STRICT_EMBED,
+          state: { get, set },
+        }),
+        container,
+      );
+    draw("v1");
+    const pad = container.querySelector<HTMLTextAreaElement>(
+      '[data-test-id="dashboard-notes-pad"]',
+    )!;
+    draw("v2");
+    expect(pad.value).toBe("v2");
+    resolve({ state: undefined });
+    await flush();
+    expect(pad.value).toBe("v2");
+    draw("v3");
+    expect(pad.value).toBe("v3");
+    pad.value = "mine";
+    pad.dispatchEvent(new Event("input"));
+    draw("v4");
+    expect(pad.value).toBe("mine");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a persisted string when the seed changes on re-render", async () => {
+    const get = vi.fn(async () => ({ state: "saved" }));
+    const set = vi.fn(async () => ({ version: 1 }));
+    const container = document.createElement("div");
+    const draw = (text: string): unknown =>
+      render(
+        renderNotes(widget({ kind: "builtin:notes", props: { text } }), null, {
+          ...STRICT_EMBED,
+          state: { get, set },
+        }),
+        container,
+      );
+    draw("v1");
+    await flush();
+    draw("v2");
+    const pad = container.querySelector<HTMLTextAreaElement>(
+      '[data-test-id="dashboard-notes-pad"]',
+    )!;
+    expect(pad.value).toBe("saved");
   });
 
   it("keeps text typed before hydration resolves", async () => {

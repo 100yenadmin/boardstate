@@ -826,7 +826,7 @@ select.bs-dialog__input {
   background: none;
 }
 /* Task items: the ☐/☑ glyph replaces the bullet (no double markers). */
-.dashboard-markdown ul > li.dashboard-markdown__task-item {
+.dashboard-markdown li.dashboard-markdown__task-item {
   list-style: none;
 }
 .dashboard-list {

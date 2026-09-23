@@ -41,19 +41,23 @@ function bindNotesEditor(
       return;
     }
     const textarea = element;
-    // Guard against a double-bind (Lit may call the ref again on re-render).
+    // Lit calls the ref again on re-render: refresh a changed seed while nothing is
+    // persisted and the user hasn't typed, but never double-bind.
+    if (textarea.dataset.notesPersisted !== "1" && textarea.dataset.notesDirty !== "1") {
+      textarea.value = seed;
+    }
     if (textarea.dataset.notesBound === "1") {
       return;
     }
     textarea.dataset.notesBound = "1";
-    textarea.value = seed;
 
     void state
       .get()
       .then((result) => {
         // Only hydrate if the user hasn't started typing before the load resolved.
-        if (textarea.dataset.notesDirty !== "1") {
-          textarea.value = typeof result.state === "string" ? result.state : seed;
+        if (typeof result.state === "string" && textarea.dataset.notesDirty !== "1") {
+          textarea.dataset.notesPersisted = "1";
+          textarea.value = result.state;
         }
       })
       .catch(() => {
