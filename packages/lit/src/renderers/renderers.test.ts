@@ -130,6 +130,8 @@ describe("markdown render", () => {
       "<p>intro<br>    - [x] literal</p>",
     );
     expect(toSanitizedMarkdownHtml("intro\n2. detail")).toBe("<p>intro<br>2. detail</p>");
+    expect(toSanitizedMarkdownHtml("intro\n-  ")).toBe("<p>intro<br>-  </p>");
+    expect(toSanitizedMarkdownHtml("intro\n1.  ")).toBe("<p>intro<br>1.  </p>");
     expect(toSanitizedMarkdownHtml("intro\n1. item")).toBe("<p>intro</p>\n<ol><li>item</li></ol>");
   });
 
