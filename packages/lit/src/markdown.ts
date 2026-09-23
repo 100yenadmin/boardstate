@@ -155,10 +155,10 @@ export function toSanitizedMarkdownHtml(source: string): string {
     // A switch between bullet / ordered / plain lines starts a new block, so a
     // list directly under a heading or before trailing text still renders as a list.
     let kind = isUnorderedList(line) ? "ul" : isOrderedList(line) ? "ol" : "p";
-    // Inside a paragraph, a 4+-space-indented line, an empty list item, or an ordered
+    // Inside a paragraph, a 4-column-indented line, an empty list item, or an ordered
     // item not numbered 1 is continuation text, not a new list (CommonMark).
     const continuation =
-      /^ {4}/.test(line) ||
+      /^(?: {4}| {0,3}\t)/.test(line) ||
       /^\s*(?:[-*]|\d+\.)\s*$/.test(line) ||
       (kind === "ol" && Number.parseInt(line.trim(), 10) !== 1);
     if (paragraphKind === "p" && paragraph.length > 0 && continuation) {
