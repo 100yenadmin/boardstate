@@ -102,6 +102,7 @@ export function toSanitizedMarkdownHtml(source: string): string {
   const rawLines = source.replace(/\r\n?/g, "\n").split("\n");
   const html: string[] = [];
   let paragraph: string[] = [];
+  let paragraphKind = "";
 
   const flushParagraph = (): void => {
     if (paragraph.length === 0) {
@@ -142,6 +143,13 @@ export function toSanitizedMarkdownHtml(source: string): string {
       html.push(`<h${level}>${renderInline(escapeHtml(heading[2]!))}</h${level}>`);
       continue;
     }
+    // A switch between bullet / ordered / plain lines starts a new block, so a
+    // list directly under a heading or before trailing text still renders as a list.
+    const kind = isUnorderedList(line) ? "ul" : isOrderedList(line) ? "ol" : "p";
+    if (kind !== paragraphKind) {
+      flushParagraph();
+    }
+    paragraphKind = kind;
     paragraph.push(line);
   }
   flushParagraph();

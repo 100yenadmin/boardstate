@@ -110,6 +110,26 @@ describe("markdown render", () => {
     expect(toSanitizedMarkdownHtml("#nospace")).toBe("<p>#nospace</p>");
     expect(toSanitizedMarkdownHtml("```\n# A\nb\n```")).toBe("<pre><code># A\nb</code></pre>");
   });
+
+  it("renders a heading followed by task-list lines and trailing text as h2 + list + paragraph", () => {
+    const container = renderToContainer(
+      renderMarkdown(
+        widget(),
+        "## Ship list\n- [x] Security hotfix released\n- [ ] Tag the release\nKeep the board **agent-built**: ask Hermes…",
+      ),
+    );
+    const root = container.querySelector(".dashboard-markdown")!;
+    expect(root.querySelector("h2")?.textContent).toBe("Ship list");
+    const items = root.querySelectorAll("ul > li");
+    expect(items).toHaveLength(2);
+    expect(
+      [...items].map((li) =>
+        li.querySelector(".dashboard-markdown__task")?.getAttribute("aria-label"),
+      ),
+    ).toEqual(["checked", "unchecked"]);
+    expect(root.querySelector("p strong")?.textContent).toBe("agent-built");
+    expect(root.textContent).not.toMatch(/##|- \[/);
+  });
 });
 
 describe("table render", () => {
