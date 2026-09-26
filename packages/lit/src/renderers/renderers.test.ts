@@ -3,6 +3,8 @@
 // `@boardstate/core`; here we lock the DOM each renderer emits. Imports of the
 // transforms come from core; the render fns are the package's own.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentStreamEvent } from "@boardstate/schema";
@@ -406,6 +408,39 @@ describe("chart render (wave-charts)", () => {
     expect(placement([4, 20, 12])).toBe("dashboard-chart__spark-value--middle");
     expect(placement([5, 5, 5])).toBe("dashboard-chart__spark-value--middle");
     expect(placement([7])).toBe("dashboard-chart__spark-value--middle");
+  });
+
+  it("never fills an up/down sparkline's line path (it draws a line, not a wedge)", () => {
+    for (const [values, trend] of [
+      [[4, 6, 9], "up"],
+      [[9, 6, 4], "down"],
+    ] as const) {
+      const container = renderToContainer(
+        renderChart(widget({ kind: "builtin:chart", props: { type: "sparkline" } }), [...values]),
+      );
+      const line = container.querySelector(`.dashboard-chart__spark--${trend} polyline`);
+      expect(line?.getAttribute("fill")).toBe("none");
+    }
+    // A stylesheet `fill` outranks the `fill="none"` presentation attribute, so no rule
+    // that targets the sparkline's line may set a fill other than `none`.
+    const styles = join(import.meta.dirname, "..", "styles");
+    for (const file of ["boardstate.css", "themes/aurora.css", "themes/vibrancy.css"]) {
+      const css = readFileSync(join(styles, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const targetsSparkLine = selectors!
+          .split(",")
+          .some((sel) => sel.includes("__spark") && sel.includes(".dashboard-chart__line"));
+        if (!targetsSparkLine) continue;
+        const fills = [...body!.matchAll(/(?:^|[;\s])fill\s*:\s*([^;]+)/g)].map((m) =>
+          m[1]!.trim(),
+        );
+        expect({ file, selectors: selectors!.trim(), fills }).toEqual({
+          file,
+          selectors: selectors!.trim(),
+          fills: fills.filter((value) => value === "none"),
+        });
+      }
+    }
   });
 
   it("degrades a one-point sparkline to a single end dot", () => {

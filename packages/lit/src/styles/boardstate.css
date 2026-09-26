@@ -2224,14 +2224,19 @@ select.bs-dialog__input {
   position: relative;
 }
 /* Sparkline: delta-colored line + trailing value badge. */
+/* Only the dot is filled — a CSS fill would outrank the line's `fill="none"`. */
 .dashboard-chart__spark--up .dashboard-chart__line,
 .dashboard-chart__spark--up .dashboard-chart__spark-dot {
   stroke: var(--bs-success, #27853c);
+}
+.dashboard-chart__spark--up .dashboard-chart__spark-dot {
   fill: var(--bs-success, #27853c);
 }
 .dashboard-chart__spark--down .dashboard-chart__line,
 .dashboard-chart__spark--down .dashboard-chart__spark-dot {
   stroke: var(--bs-danger, #d92c25);
+}
+.dashboard-chart__spark--down .dashboard-chart__spark-dot {
   fill: var(--bs-danger, #d92c25);
 }
 .dashboard-chart__spark--flat .dashboard-chart__spark-dot {
