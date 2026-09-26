@@ -128,6 +128,16 @@ describe("markdown render", () => {
     expect(toSanitizedMarkdownHtml("# #hashtag")).toBe("<h1>#hashtag</h1>");
   });
 
+  it("strips the closing sequence in linear time on a long run of spaces", () => {
+    // The former regex backtracked quadratically here (50k spaces ≈ 1.2 s).
+    const padding = " ".repeat(100_000);
+    const start = performance.now();
+    expect(toSanitizedMarkdownHtml(`# x${padding}`)).toBe(`<h1>x${padding}</h1>`);
+    expect(toSanitizedMarkdownHtml(`# x${padding}y`)).toBe(`<h1>x${padding}y</h1>`);
+    expect(toSanitizedMarkdownHtml(`# x${padding}##`)).toBe("<h1>x</h1>");
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
   it("localizes the task-glyph aria-labels through the strings table (#79)", () => {
     setBoardstateStrings({
       "dashboard.widget.markdown.taskChecked": "coché",

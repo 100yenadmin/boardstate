@@ -48,8 +48,22 @@ function renderInline(escaped: string): string {
 
 /** An ATX heading line (CommonMark: the heading ends at the newline). */
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
-/** An optional ATX closing sequence: a space-preceded `#` run, then only spaces. */
-const HEADING_CLOSE = /(?:^|[ \t]+)#+[ \t]*$/;
+/**
+ * Strip an optional ATX closing sequence: a space-preceded `#` run followed only by
+ * spaces (CommonMark). A linear scan on purpose: the equivalent regex
+ * `/(?:^|[ \t]+)#+[ \t]*$/` backtracks quadratically on a long run of spaces.
+ */
+function stripHeadingClose(text: string): string {
+  const isSpace = (ch: string | undefined): boolean => ch === " " || ch === "\t";
+  let end = text.length;
+  while (end > 0 && isSpace(text[end - 1])) end -= 1;
+  const hashEnd = end;
+  while (end > 0 && text[end - 1] === "#") end -= 1;
+  if (end === hashEnd) return text; // no `#` run at the end
+  if (end > 0 && !isSpace(text[end - 1])) return text; // `Roadmap##`: not space-preceded
+  while (end > 0 && isSpace(text[end - 1])) end -= 1;
+  return text.slice(0, end);
+}
 
 /** Render one non-list block (blockquote / paragraph). */
 function renderBlock(block: string): string {
@@ -159,7 +173,7 @@ export function toSanitizedMarkdownHtml(source: string): string {
     if (heading) {
       flushParagraph();
       const level = heading[1]!.length;
-      const text = (heading[2] ?? "").replace(HEADING_CLOSE, "");
+      const text = stripHeadingClose(heading[2] ?? "");
       html.push(`<h${level}>${renderInline(escapeHtml(text))}</h${level}>`);
       continue;
     }
