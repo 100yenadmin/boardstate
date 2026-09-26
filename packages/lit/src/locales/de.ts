@@ -59,6 +59,8 @@ export const de: BoardstateStrings = {
   "dashboard.widget.approval.unavailable": "Dieses Widget ist nicht verfügbar.",
   "dashboard.widget.stat.empty": "—",
   "dashboard.widget.markdownEmpty": "Noch nichts anzuzeigen.",
+  "dashboard.widget.markdown.taskChecked": "abgehakt",
+  "dashboard.widget.markdown.taskUnchecked": "nicht abgehakt",
   "dashboard.widget.table.empty": "Keine Zeilen zum Anzeigen.",
   "dashboard.widget.table.more": "+{count} weitere",
   "dashboard.widget.sessions.empty": "Noch keine Sitzungen.",

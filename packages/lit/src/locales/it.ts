@@ -40,6 +40,8 @@ export const it: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Approva",
   "common.back": "Indietro",
   "dashboard.history.actorUnknown": "Sconosciuto",
+  "dashboard.widget.markdown.taskChecked": "selezionato",
+  "dashboard.widget.markdown.taskUnchecked": "non selezionato",
 };
 
 export default it;

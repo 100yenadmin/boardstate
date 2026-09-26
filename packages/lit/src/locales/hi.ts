@@ -50,6 +50,8 @@ export const hi: BoardstateStrings = {
   "dashboard.history.actorUnknown": "अज्ञात",
   "dashboard.history.kind.widget-moved": "स्थानांतरित किया गया",
   "dashboard.distribution.export": "निर्यात करें",
+  "dashboard.widget.markdown.taskChecked": "चेक किया गया",
+  "dashboard.widget.markdown.taskUnchecked": "चेक नहीं किया गया",
 };
 
 export default hi;

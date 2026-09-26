@@ -40,6 +40,8 @@ export const pt_BR: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Aprovar",
   "common.back": "Voltar",
   "dashboard.history.actorUnknown": "Desconhecido",
+  "dashboard.widget.markdown.taskChecked": "marcado",
+  "dashboard.widget.markdown.taskUnchecked": "desmarcado",
 };
 
 export default pt_BR;

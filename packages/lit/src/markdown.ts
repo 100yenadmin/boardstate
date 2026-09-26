@@ -8,6 +8,8 @@
 // `unsafeHTML`. Links keep only absolute http(s) hrefs; any other scheme (or a
 // relative/`javascript:` href) degrades to plain text.
 
+import { t } from "./strings.js";
+
 /** HTML-escape the five significant characters. */
 function escapeHtml(text: string): string {
   return text
@@ -46,6 +48,8 @@ function renderInline(escaped: string): string {
 
 /** An ATX heading line (CommonMark: the heading ends at the newline). */
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/;
+/** An optional ATX closing sequence: a space-preceded `#` run, then only spaces. */
+const HEADING_CLOSE = /(?:^|[ \t]+)#+[ \t]*$/;
 
 /** Render one non-list block (blockquote / paragraph). */
 function renderBlock(block: string): string {
@@ -67,7 +71,13 @@ function renderListItem(item: string): string {
     return `<li>${renderInline(escapeHtml(item))}</li>`;
   }
   const checked = task[1] !== " ";
-  const glyph = `<span class="dashboard-markdown__task" role="img" aria-label="${checked ? "checked" : "unchecked"}">${checked ? "☑" : "☐"}</span>`;
+  // The label comes from the (embedder-overridable) strings table, so escape it too.
+  const label = escapeHtml(
+    t(
+      checked ? "dashboard.widget.markdown.taskChecked" : "dashboard.widget.markdown.taskUnchecked",
+    ),
+  );
+  const glyph = `<span class="dashboard-markdown__task" role="img" aria-label="${label}">${checked ? "☑" : "☐"}</span>`;
   return `<li class="dashboard-markdown__task-item">${glyph} ${renderInline(escapeHtml(task[2]!))}</li>`;
 }
 
@@ -149,7 +159,8 @@ export function toSanitizedMarkdownHtml(source: string): string {
     if (heading) {
       flushParagraph();
       const level = heading[1]!.length;
-      html.push(`<h${level}>${renderInline(escapeHtml(heading[2] ?? ""))}</h${level}>`);
+      const text = (heading[2] ?? "").replace(HEADING_CLOSE, "");
+      html.push(`<h${level}>${renderInline(escapeHtml(text))}</h${level}>`);
       continue;
     }
     // A switch between bullet / ordered / plain lines starts a new block, so a

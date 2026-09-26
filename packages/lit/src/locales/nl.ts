@@ -40,6 +40,8 @@ export const nl: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Goedkeuren",
   "common.back": "Terug",
   "dashboard.history.actorUnknown": "Onbekend",
+  "dashboard.widget.markdown.taskChecked": "aangevinkt",
+  "dashboard.widget.markdown.taskUnchecked": "niet aangevinkt",
 };
 
 export default nl;

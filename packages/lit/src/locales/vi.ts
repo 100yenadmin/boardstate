@@ -40,6 +40,8 @@ export const vi: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Phê duyệt",
   "common.back": "Quay lại",
   "dashboard.history.actorUnknown": "Không xác định",
+  "dashboard.widget.markdown.taskChecked": "đã đánh dấu",
+  "dashboard.widget.markdown.taskUnchecked": "chưa đánh dấu",
 };
 
 export default vi;

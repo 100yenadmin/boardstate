@@ -40,6 +40,8 @@ export const id: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Setujui",
   "common.back": "Kembali",
   "dashboard.history.actorUnknown": "Tidak diketahui",
+  "dashboard.widget.markdown.taskChecked": "dicentang",
+  "dashboard.widget.markdown.taskUnchecked": "tidak dicentang",
 };
 
 export default id;

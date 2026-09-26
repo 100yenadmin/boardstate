@@ -51,6 +51,8 @@ export const ru: BoardstateStrings = {
   "dashboard.history.actorUnknown": "Неизвестно",
   "dashboard.history.kind.widget-moved": "Перемещено",
   "dashboard.distribution.export": "Экспорт",
+  "dashboard.widget.markdown.taskChecked": "отмечено",
+  "dashboard.widget.markdown.taskUnchecked": "не отмечено",
 };
 
 export default ru;

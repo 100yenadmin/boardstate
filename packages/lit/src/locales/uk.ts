@@ -41,6 +41,8 @@ export const uk: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Схвалити",
   "common.back": "Назад",
   "dashboard.history.actorUnknown": "Невідомо",
+  "dashboard.widget.markdown.taskChecked": "позначено",
+  "dashboard.widget.markdown.taskUnchecked": "не позначено",
 };
 
 export default uk;
