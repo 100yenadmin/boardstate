@@ -1,5 +1,16 @@
 # @boardstate/lit
 
+## 0.9.2
+
+### Patch Changes
+
+- [#82](https://github.com/100yenadmin/boardstate/pull/82) [`4bcb417`](https://github.com/100yenadmin/boardstate/commit/4bcb417c196afcd20be62ce3817951bcf589fd60) Thanks [@100yenadmin](https://github.com/100yenadmin)! - Four markdown/chart fixes:
+
+  - Markdown: an ATX heading's closing sequence (`## Roadmap ##`) is no longer rendered as part of the heading text. Per CommonMark only a space-preceded `#` run followed by nothing but spaces closes a heading, so `## Roadmap##` keeps its hashes. The strip is a linear scan (no regex backtracking on long space runs).
+  - Markdown: the task-list glyph `aria-label`s are localized through the strings table (new keys `dashboard.widget.markdown.taskChecked` / `taskUnchecked`, translated in all 20 shipped locales; English stays the fallback) ([#79](https://github.com/100yenadmin/boardstate/issues/79)).
+  - Chart: the sparkline value label now sits in its own column beside the end of the line, level with the last point, instead of overlapping the line's tip and clipping at the right edge ([#81](https://github.com/100yenadmin/boardstate/issues/81)).
+  - Chart: up/down sparklines draw as a line again, not a filled wedge. The trend colour rule no longer sets `fill` on the line path, which had overridden its `fill="none"`.
+
 ## 0.9.1
 
 ### Patch Changes
