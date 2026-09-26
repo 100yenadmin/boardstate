@@ -3,6 +3,8 @@
 // `@boardstate/core`; here we lock the DOM each renderer emits. Imports of the
 // transforms come from core; the render fns are the package's own.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentStreamEvent } from "@boardstate/schema";
@@ -35,6 +37,7 @@ import { renderSessions } from "./sessions.js";
 import { renderStatCard } from "./stat-card.js";
 import { renderTable } from "./table.js";
 import type { ActionChange, ActionInvokeOutcome, BuiltinWidgetContext } from "./types.js";
+import { setBoardstateStrings } from "../strings.js";
 import { renderUsage } from "./usage.js";
 
 function widget(overrides: Partial<DashboardWidget> = {}): DashboardWidget {
@@ -112,6 +115,48 @@ describe("markdown render", () => {
     expect(toSanitizedMarkdownHtml("   ## T\nbody")).toBe("<h2>T</h2>\n<p>body</p>");
     expect(toSanitizedMarkdownHtml("    # code-indented")).toBe("<p>    # code-indented</p>");
     expect(toSanitizedMarkdownHtml("```\n# A\nb\n```")).toBe("<pre><code># A\nb</code></pre>");
+  });
+
+  it("drops an ATX closing sequence only when it is space-preceded (CommonMark)", () => {
+    expect(toSanitizedMarkdownHtml("## Roadmap ##")).toBe("<h2>Roadmap</h2>");
+    expect(toSanitizedMarkdownHtml("# Title #####   ")).toBe("<h1>Title</h1>");
+    expect(toSanitizedMarkdownHtml("### Mixed ## #")).toBe("<h3>Mixed ##</h3>");
+    expect(toSanitizedMarkdownHtml("### ###")).toBe("<h3></h3>");
+    // Not a closing sequence: no space before it, or other text after it.
+    expect(toSanitizedMarkdownHtml("## Roadmap##")).toBe("<h2>Roadmap##</h2>");
+    expect(toSanitizedMarkdownHtml("## C# ## notes")).toBe("<h2>C# ## notes</h2>");
+    expect(toSanitizedMarkdownHtml("# #hashtag")).toBe("<h1>#hashtag</h1>");
+  });
+
+  it("strips the closing sequence in linear time on a long run of spaces", () => {
+    // The former regex backtracked quadratically here (50k spaces ≈ 1.2 s).
+    const padding = " ".repeat(100_000);
+    const start = performance.now();
+    expect(toSanitizedMarkdownHtml(`# x${padding}`)).toBe(`<h1>x${padding}</h1>`);
+    expect(toSanitizedMarkdownHtml(`# x${padding}y`)).toBe(`<h1>x${padding}y</h1>`);
+    expect(toSanitizedMarkdownHtml(`# x${padding}##`)).toBe("<h1>x</h1>");
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("localizes the task-glyph aria-labels through the strings table (#79)", () => {
+    setBoardstateStrings({
+      "dashboard.widget.markdown.taskChecked": "coché",
+      "dashboard.widget.markdown.taskUnchecked": 'non "coché" <x>',
+    });
+    try {
+      const container = renderToContainer(renderMarkdown(widget(), "- [ ] a\n- [x] b"));
+      const labels = [...container.querySelectorAll(".dashboard-markdown__task")].map((box) =>
+        box.getAttribute("aria-label"),
+      );
+      expect(labels).toEqual(['non "coché" <x>', "coché"]);
+      // An embedder-supplied label is attribute-escaped, never raw markup.
+      expect(toSanitizedMarkdownHtml("- [ ] a")).toContain(
+        'aria-label="non &quot;coché&quot; &lt;x&gt;"',
+      );
+    } finally {
+      setBoardstateStrings(undefined);
+    }
+    expect(toSanitizedMarkdownHtml("- [x] a")).toContain('aria-label="checked"');
   });
 
   it("continues ordered-list numbering after a nested sub-list", () => {
@@ -349,6 +394,63 @@ describe("chart render (wave-charts)", () => {
     expect(container.querySelector(".dashboard-chart__spark-value--up")?.textContent).toBe("9");
     // Sparkline stays axis-free even alongside the value label.
     expect(container.querySelector(".dashboard-chart__grid")).toBeNull();
+  });
+
+  it("places the sparkline value label beside the line end, off its tip (#81)", () => {
+    const placement = (values: number[]) => {
+      const container = renderToContainer(
+        renderChart(
+          widget({ kind: "builtin:chart", props: { type: "sparkline", label: true } }),
+          values,
+        ),
+      );
+      const chart = container.querySelector(".dashboard-chart")!;
+      const label = chart.querySelector(".dashboard-chart__spark-value")!;
+      // The label is the chart's trailing flex item, after the SVG — its own column,
+      // so it can neither sit on the last point nor overflow the chart's right edge.
+      expect(chart.lastElementChild).toBe(label);
+      expect(label.previousElementSibling?.tagName.toLowerCase()).toBe("svg");
+      return [...label.classList].find((c) => /--(top|middle|bottom)$/.test(c));
+    };
+    // Vertical anchor follows the last point: high end → top, low end → bottom.
+    expect(placement([3, 5, 22])).toBe("dashboard-chart__spark-value--top");
+    expect(placement([22, 5, 3])).toBe("dashboard-chart__spark-value--bottom");
+    expect(placement([4, 20, 12])).toBe("dashboard-chart__spark-value--middle");
+    expect(placement([5, 5, 5])).toBe("dashboard-chart__spark-value--middle");
+    expect(placement([7])).toBe("dashboard-chart__spark-value--middle");
+  });
+
+  it("never fills an up/down sparkline's line path (it draws a line, not a wedge)", () => {
+    for (const [values, trend] of [
+      [[4, 6, 9], "up"],
+      [[9, 6, 4], "down"],
+    ] as const) {
+      const container = renderToContainer(
+        renderChart(widget({ kind: "builtin:chart", props: { type: "sparkline" } }), [...values]),
+      );
+      const line = container.querySelector(`.dashboard-chart__spark--${trend} polyline`);
+      expect(line?.getAttribute("fill")).toBe("none");
+    }
+    // A stylesheet `fill` outranks the `fill="none"` presentation attribute, so no rule
+    // that targets the sparkline's line may set a fill other than `none`.
+    const styles = join(import.meta.dirname, "..", "styles");
+    for (const file of ["boardstate.css", "themes/aurora.css", "themes/vibrancy.css"]) {
+      const css = readFileSync(join(styles, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const targetsSparkLine = selectors!
+          .split(",")
+          .some((sel) => sel.includes("__spark") && sel.includes(".dashboard-chart__line"));
+        if (!targetsSparkLine) continue;
+        const fills = [...body!.matchAll(/(?:^|[;\s])fill\s*:\s*([^;]+)/g)].map((m) =>
+          m[1]!.trim(),
+        );
+        expect({ file, selectors: selectors!.trim(), fills }).toEqual({
+          file,
+          selectors: selectors!.trim(),
+          fills: fills.filter((value) => value === "none"),
+        });
+      }
+    }
   });
 
   it("degrades a one-point sparkline to a single end dot", () => {

@@ -11,6 +11,8 @@
 //
 // The other 15 shipped locales are intentionally partial (core-chrome keys only)
 // and are not covered by this test — see CONTRIBUTING.md / issue #12.
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { en, type BoardstateStringKey, type BoardstateStrings } from "./strings.js";
 import de from "./locales/de.js";
@@ -33,6 +35,37 @@ const COMPLETE_LOCALES: Record<string, BoardstateStrings> = {
 function placeholderTokens(value: string): string[] {
   return [...value.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!).sort();
 }
+
+// Every shipped locale — partial ones included — must label the markdown task glyphs
+// (#79), so a screen reader never falls back to the English "checked"/"unchecked".
+const LOCALE_FILES = readdirSync(join(import.meta.dirname, "locales")).filter((file) =>
+  file.endsWith(".ts"),
+);
+const ALL_LOCALES: Record<string, BoardstateStrings> = Object.fromEntries(
+  await Promise.all(
+    LOCALE_FILES.map(async (file) => {
+      const mod = (await import(`./locales/${file}`)) as { default: BoardstateStrings };
+      return [file, mod.default] as const;
+    }),
+  ),
+);
+const TASK_KEYS = [
+  "dashboard.widget.markdown.taskChecked",
+  "dashboard.widget.markdown.taskUnchecked",
+] as const satisfies readonly BoardstateStringKey[];
+
+describe("markdown task-glyph labels (#79)", () => {
+  it("covers all 20 shipped locales", () => {
+    expect(Object.keys(ALL_LOCALES)).toHaveLength(20);
+  });
+
+  for (const [file, table] of Object.entries(ALL_LOCALES)) {
+    it(`${file} defines both task-glyph labels`, () => {
+      const blankOrMissing = TASK_KEYS.filter((key) => !table[key]?.trim());
+      expect(blankOrMissing).toEqual([]);
+    });
+  }
+});
 
 describe("locale completeness (#12)", () => {
   for (const [locale, table] of Object.entries(COMPLETE_LOCALES)) {

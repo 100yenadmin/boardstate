@@ -60,6 +60,9 @@ export const en = {
   "dashboard.widget.approval.unavailable": "This widget is unavailable.",
   "dashboard.widget.stat.empty": "—",
   "dashboard.widget.markdownEmpty": "Nothing to show yet.",
+  // aria-labels of the markdown task-list glyphs (☑ / ☐).
+  "dashboard.widget.markdown.taskChecked": "checked",
+  "dashboard.widget.markdown.taskUnchecked": "unchecked",
   "dashboard.widget.table.empty": "No rows to show.",
   "dashboard.widget.table.more": "+{count} more",
   "dashboard.widget.sessions.empty": "No sessions yet.",

@@ -40,6 +40,8 @@ export const fa: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "تأیید",
   "common.back": "بازگشت",
   "dashboard.history.actorUnknown": "نامشخص",
+  "dashboard.widget.markdown.taskChecked": "علامت‌خورده",
+  "dashboard.widget.markdown.taskUnchecked": "بدون علامت",
 };
 
 export default fa;

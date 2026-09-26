@@ -62,6 +62,15 @@ function sparkTrend(values: number[]): SparkTrend {
   return last > first ? "up" : last < first ? "down" : "flat";
 }
 
+// Vertical anchor for the sparkline value label, by the band the LAST point falls in.
+// The label sits in its own column right of the line (see the CSS), so it can never
+// cover the tip; this only keeps it level with the end of the line it reports.
+type SparkLabelPlacement = "top" | "middle" | "bottom";
+function sparkLabelPlacement(model: ChartModel): SparkLabelPlacement {
+  const y = yScale(model.values[model.values.length - 1] ?? 0, model.min, model.max);
+  return y < VIEW_H / 3 ? "top" : y > (VIEW_H * 2) / 3 ? "bottom" : "middle";
+}
+
 function drawLine(model: ChartModel): SVGTemplateResult {
   const points = linePoints(model.values, model.min, model.max);
   return svg`<polyline
@@ -259,7 +268,7 @@ export function renderChart(widget: DashboardWidget, value: unknown): TemplateRe
           ? html`<span
               class="dashboard-chart__spark-value dashboard-chart__spark-value--${sparkTrend(
                 model.values,
-              )}"
+              )} dashboard-chart__spark-value--${sparkLabelPlacement(model)}"
               >${formatValue(model.values[model.values.length - 1] ?? 0)}</span
             >`
           : nothing

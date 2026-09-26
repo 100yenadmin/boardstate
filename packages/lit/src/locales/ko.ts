@@ -40,6 +40,8 @@ export const ko: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "승인",
   "common.back": "뒤로",
   "dashboard.history.actorUnknown": "알 수 없음",
+  "dashboard.widget.markdown.taskChecked": "선택됨",
+  "dashboard.widget.markdown.taskUnchecked": "선택 안 됨",
 };
 
 export default ko;

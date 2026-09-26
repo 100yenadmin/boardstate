@@ -40,6 +40,8 @@ export const th: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "อนุมัติ",
   "common.back": "ย้อนกลับ",
   "dashboard.history.actorUnknown": "ไม่ทราบ",
+  "dashboard.widget.markdown.taskChecked": "ทำเครื่องหมายแล้ว",
+  "dashboard.widget.markdown.taskUnchecked": "ยังไม่ได้ทำเครื่องหมาย",
 };
 
 export default th;

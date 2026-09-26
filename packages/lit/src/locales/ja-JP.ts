@@ -57,6 +57,8 @@ export const ja_JP: BoardstateStrings = {
   "dashboard.widget.approval.unavailable": "このウィジェットは利用できません。",
   "dashboard.widget.stat.empty": "—",
   "dashboard.widget.markdownEmpty": "表示する内容がまだありません。",
+  "dashboard.widget.markdown.taskChecked": "チェック済み",
+  "dashboard.widget.markdown.taskUnchecked": "未チェック",
   "dashboard.widget.table.empty": "表示する行がありません。",
   "dashboard.widget.table.more": "+{count} 件",
   "dashboard.widget.sessions.empty": "まだセッションがありません。",

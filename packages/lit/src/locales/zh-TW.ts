@@ -39,6 +39,8 @@ export const zh_TW: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "核准",
   "common.back": "返回",
   "dashboard.history.actorUnknown": "未知",
+  "dashboard.widget.markdown.taskChecked": "已勾選",
+  "dashboard.widget.markdown.taskUnchecked": "未勾選",
 };
 
 export default zh_TW;

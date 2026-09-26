@@ -2224,23 +2224,34 @@ select.bs-dialog__input {
   position: relative;
 }
 /* Sparkline: delta-colored line + trailing value badge. */
+/* Only the dot is filled — a CSS fill would outrank the line's `fill="none"`. */
 .dashboard-chart__spark--up .dashboard-chart__line,
 .dashboard-chart__spark--up .dashboard-chart__spark-dot {
   stroke: var(--bs-success, #27853c);
+}
+.dashboard-chart__spark--up .dashboard-chart__spark-dot {
   fill: var(--bs-success, #27853c);
 }
 .dashboard-chart__spark--down .dashboard-chart__line,
 .dashboard-chart__spark--down .dashboard-chart__spark-dot {
   stroke: var(--bs-danger, #d92c25);
+}
+.dashboard-chart__spark--down .dashboard-chart__spark-dot {
   fill: var(--bs-danger, #d92c25);
 }
 .dashboard-chart__spark--flat .dashboard-chart__spark-dot {
   fill: var(--bs-text-muted, #6b6b77);
 }
+/* The value label is the chart's trailing flex item — its own column beside the
+   line, not an overlay — so it never covers the last point or overflows the right
+   edge (#81). The SVG gives up the width; the label aligns to the end point's band. */
+.dashboard-chart--sparkline .dashboard-chart__svg {
+  min-width: 0;
+}
 .dashboard-chart__spark-value {
-  position: absolute;
-  top: 1px;
-  inset-inline-end: 2px;
+  flex: none;
+  align-self: flex-start;
+  margin-inline-start: 4px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -2252,6 +2263,12 @@ select.bs-dialog__input {
 }
 .dashboard-chart__spark-value--down {
   color: var(--bs-danger, #d92c25);
+}
+.dashboard-chart__spark-value--middle {
+  align-self: center;
+}
+.dashboard-chart__spark-value--bottom {
+  align-self: flex-end;
 }
 /* Detail mode: faint gridlines, corner axis labels, invisible hover-tip targets. */
 .dashboard-chart__grid line {

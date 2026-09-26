@@ -41,6 +41,8 @@ export const tr: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "Onayla",
   "common.back": "Geri",
   "dashboard.history.actorUnknown": "Bilinmiyor",
+  "dashboard.widget.markdown.taskChecked": "işaretli",
+  "dashboard.widget.markdown.taskUnchecked": "işaretsiz",
 };
 
 export default tr;

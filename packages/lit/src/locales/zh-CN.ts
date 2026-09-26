@@ -56,6 +56,8 @@ export const zh_CN: BoardstateStrings = {
   "dashboard.widget.approval.unavailable": "此小组件不可用。",
   "dashboard.widget.stat.empty": "—",
   "dashboard.widget.markdownEmpty": "暂无内容可显示。",
+  "dashboard.widget.markdown.taskChecked": "已勾选",
+  "dashboard.widget.markdown.taskUnchecked": "未勾选",
   "dashboard.widget.table.empty": "没有可显示的行。",
   "dashboard.widget.table.more": "+{count} 项",
   "dashboard.widget.sessions.empty": "暂无会话。",

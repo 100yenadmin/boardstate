@@ -40,6 +40,8 @@ export const ar: BoardstateStrings = {
   "dashboard.widget.approvals.approve": "موافقة",
   "common.back": "رجوع",
   "dashboard.history.actorUnknown": "غير معروف",
+  "dashboard.widget.markdown.taskChecked": "محدد",
+  "dashboard.widget.markdown.taskUnchecked": "غير محدد",
 };
 
 export default ar;
