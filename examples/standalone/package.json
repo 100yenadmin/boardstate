@@ -17,6 +17,6 @@
     "@boardstate/lit": "workspace:*"
   },
   "devDependencies": {
-    "vite": "^7"
+    "vite": "^7.3.8"
   }
 }
