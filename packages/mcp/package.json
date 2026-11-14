@@ -40,7 +40,7 @@
     "@boardstate/schema": "workspace:*",
     "@boardstate/server": "workspace:*",
     "@modelcontextprotocol/ext-apps": "^1.7.4",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.32.2"
   },
   "repository": {
     "type": "git",

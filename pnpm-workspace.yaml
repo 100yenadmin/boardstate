@@ -4,3 +4,8 @@ packages:
   - examples/*
 allowBuilds:
   esbuild: true
+# Keep the SDK/ext-apps auto-installed Zod 4 peer outside GHSA-mrhx-c7xc-m3w5.
+overrides:
+  "zod@>=4.0.0 <4.6.6": "4.6.6"
+  # Keep the SDK adapter on major 1; its remaining advisory needs a separate migration.
+  "@modelcontextprotocol/sdk>@hono/node-server": "^1.19.19"
